@@ -153,8 +153,9 @@ The separate **52-chapter Jan-2025 content drift** on `deploy-preview` is **park
 the very end to salvage anything useful, not part of the forward-port.
 
 ## Phase 2 — factor + pak rehearsal (current build)
-Phase 2 splits the Phase-1 monolith into **`rbase/4.3.2`** (our own base: `rocker/r-ver:4.3.2`
-digest-pinned + the CI system libs + Quarto 1.4.550) and **`epirhandbook/2.5`** (`FROM rbase:4.3.2`), and
+Phase 2 splits the Phase-1 monolith into **`rbase/4.3.2`** (our own **fully self-owned** base — `FROM
+ubuntu:jammy` (digest-pinned) + R 4.3.2 from **Posit r-builds** (NO rocker); plus the CI system libs, the
+compiler toolchain, openblas 0.3.20, and Quarto 1.4.550) and **`epirhandbook/2.5`** (`FROM rbase:4.3.2`), and
 swaps the installer **`renv::restore()` → pak**, driven by the EXACT same `renv.lock` pins. A rehearsal of
 pak on a known-good pin set, **not** a re-pin — the render must (and does) come out identical to Phase 1.
 (`rbase`, not `base`, to leave room for a separate `pythonbase` later.)
@@ -169,8 +170,8 @@ how it is fetched):
   build time.
 - GitHub → `github::user/repo@sha`; Bioconductor → `url::<exact tarball>` (probe `.../3.18/bioc/src/contrib/`,
   fall back to `.../Archive/` — e.g. `ggtree 3.10.0` now survives only in the Bioc Archive).
-- CRAN repo = **`cloud.r-project.org` source** (overriding rocker's p3m binary default) to match Phase 1's
-  source compile — so the only variable vs Phase 1 is the installer.
+- CRAN repo = **`cloud.r-project.org` source** (set explicitly in `pak_install.R`) to match Phase 1's
+  source compile.
 - Install runs in **topological layers** from the lock's own `Requirements`, each layer
   `pak::pkg_install(dependencies = FALSE)`: dependency order **without** invoking the solver
   (`dependencies=FALSE` alone builds in parallel and races build deps like RcppRoll→Rcpp;
@@ -190,6 +191,12 @@ pak's ~4 GB of build scratch out of the image.
 8 per-language medians **bit-identical**, **375/386 pages content-identical** (similarity within ±0.001),
 the 11 deviations confined to known-volatile pages (`editorial_style` prints `session_info`;
 `transmission_chains` uses a stochastic network layout). See [`verify/`](verify/VERIFICATION.md).
+
+**Self-owned base re-verified:** swapping the rocker base for the ubuntu + Posit-R `rbase` above did NOT move
+the render — the self-owned build reproduces Phase 1 at the same fidelity (all 8 medians bit-identical,
+377/386 pages within ±0.001, the 9 deviations on the same volatile pages). The key was installing jammy's
+**openblas 0.3.20** — the exact BLAS rocker links — so compiled numerics are unchanged; the only extra shift
+is `editorial_style`'s `session_info` colophon truthfully reporting the new base.
 
 **Hardening TODO (Phase 4/5, from the codex gate)** — Phase 2 is sound as a pak rehearsal, not yet an
 archival-grade artifact:
