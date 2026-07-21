@@ -1,8 +1,14 @@
-# epirhandbook:2.5 — reproducible build environment (Phase 1: stabilize)
+# epirhandbook:2.5 — reproducible build environment (Phases 1–2)
 
 A time-capsule Docker image that reconstructs the toolchain the Applied Epi
 **epiRhandbook** (v2.5) was pinned to, so its content compiles and renders again
 after years of drift. Built **from `renv.lock`**, exactly as the handbook's own CI did.
+
+> **Current build = Phase 2** — own `rbase:4.3.2` base + **pak** (renders identical to Phase 1). See the
+> **"Phase 2 — factor + pak"** section at the bottom for the build commands. Everything between here and
+> there is the Phase-1 reconstruction (toolchain, the gaps we fixed, where packages live) — still accurate,
+> since Phase 2 keeps the same toolchain and the same versions. The `epirhandbook:2.5-p1` monolith build
+> under **Build** is the original `renv` path, kept for provenance.
 
 - Image: `epirhandbook:2.5-p1` (~5.0 GB)
 - Content baseline: `epiRhandbook_eng` branch `deploy-preview` (the live v2.5), worked on
@@ -145,3 +151,53 @@ change — that's expected, not a failure. (Output-equivalence against
 
 The separate **52-chapter Jan-2025 content drift** on `deploy-preview` is **parked** — reviewed only at
 the very end to salvage anything useful, not part of the forward-port.
+
+## Phase 2 — factor + pak rehearsal (current build)
+Phase 2 splits the Phase-1 monolith into **`rbase/4.3.2`** (our own base: `rocker/r-ver:4.3.2`
+digest-pinned + the CI system libs + Quarto 1.4.550) and **`epirhandbook/2.5`** (`FROM rbase:4.3.2`), and
+swaps the installer **`renv::restore()` → pak**, driven by the EXACT same `renv.lock` pins. A rehearsal of
+pak on a known-good pin set, **not** a re-pin — the render must (and does) come out identical to Phase 1.
+(`rbase`, not `base`, to leave room for a separate `pythonbase` later.)
+
+**How pak consumes the lock** (`pak_install.R` — pak does not read `renv.lock` natively, so the lock is
+translated into explicit refs; the installed version is always the lock pin, the ref *form* only changes
+how it is fetched):
+- CRAN pin **== current** CRAN release → `pkg@version`; pin **!= current** → `url::<cloud Archive tarball>`.
+  The `url::` form is required because pak's SAT solver rejects an archived pin whose *current* release now
+  needs R ≥ 4.4 (it is 2026; this image is frozen at R 4.3.2) with a spurious "dependency conflict"; a direct
+  `url::` tarball bypasses the solver. Which pins count as "current" is decided by `available.packages()` at
+  build time.
+- GitHub → `github::user/repo@sha`; Bioconductor → `url::<exact tarball>` (probe `.../3.18/bioc/src/contrib/`,
+  fall back to `.../Archive/` — e.g. `ggtree 3.10.0` now survives only in the Bioc Archive).
+- CRAN repo = **`cloud.r-project.org` source** (overriding rocker's p3m binary default) to match Phase 1's
+  source compile — so the only variable vs Phase 1 is the installer.
+- Install runs in **topological layers** from the lock's own `Requirements`, each layer
+  `pak::pkg_install(dependencies = FALSE)`: dependency order **without** invoking the solver
+  (`dependencies=FALSE` alone builds in parallel and races build deps like RcppRoll→Rcpp;
+  `dependencies=NA` restores order but re-triggers the solver conflict).
+- A build-time check asserts every one of the 473 packages **loads** and is at its **exact** locked version.
+
+**Build** (on a Docker host — bench has no Docker, use `compute`):
+```bash
+DOCKER_BUILDKIT=1 docker build -t rbase:4.3.2 rbase/4.3.2
+DOCKER_BUILDKIT=1 docker build --secret id=github_pat,src="$HOME/.ghtoken" -t epirhandbook:2.5 epirhandbook/2.5
+```
+Image ≈ 5.1 GB. `GITHUB_PAT` is a BuildKit **secret** (never `ARG`/`ENV` — verified absent from the built
+image's `Config.Env`, token 0× in `docker history`). The installer's `rm -rf /tmp/*` in the same RUN keeps
+pak's ~4 GB of build scratch out of the image.
+
+**Verification (the Phase-2 regression bar):** the p2 render of the Sep-18 content reproduces Phase 1 — all
+8 per-language medians **bit-identical**, **375/386 pages content-identical** (similarity within ±0.001),
+the 11 deviations confined to known-volatile pages (`editorial_style` prints `session_info`;
+`transmission_chains` uses a stochastic network layout). See [`verify/`](verify/VERIFICATION.md).
+
+**Hardening TODO (Phase 4/5, from the codex gate)** — Phase 2 is sound as a pak rehearsal, not yet an
+archival-grade artifact:
+- Vendor/mirror the source tarballs and pin the build tooling (`pak`/`jsonlite` come from PPM `latest`; apt
+  is not snapshot-pinned) for forever-rebuildability.
+- Verify downloaded tarballs against the `renv.lock` hashes (present in the lock, currently unused).
+- Digest-pin `FROM rbase:4.3.2` in the product image once `rbase` is published to GHCR (Phase 4).
+- Deeper render verification: extract computed table/values + hash assets/figures (the current metric is
+  full-page **text** similarity — it does not compare figures/htmlwidgets).
+
+Phase 1's monolith Dockerfile (single image, `renv::restore()`) is preserved in git history (commit `017fdbe`).
