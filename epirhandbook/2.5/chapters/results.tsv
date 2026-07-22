@@ -1,0 +1,69 @@
+chapter	status	seconds	similarity_vs_book	note	rendered_sha16	ref_sha16	rendered_bytes	ref_bytes	rendered_path
+index	OK	4	0.9955		88cc3b65731e0450	e73766184ec85c9f	73092	73600	/home/raw996/ae/render_p3/html_outputs/index.html
+age_pyramid	OK	9	0.9991		3bef24c76c6c29d3	1201468f4c88241a	200529	201114	/home/raw996/ae/render_p3/html_outputs/new_pages/age_pyramid.html
+apply_functions	OK	2		never in _quarto.yml chapters: list: template skeleton, no R code chunks	dbb662b7f7c31b05	NA	18704	NA	/home/raw996/ae/render_p3/new_pages/apply_functions.html
+basics	OK	7	0.9997		58f907f97164afb8	50b01431a04181ba	233960	234326	/home/raw996/ae/render_p3/html_outputs/new_pages/basics.html
+cat_about_book	OK	2		never in _quarto.yml chapters: list: 1-line {.unnumbered} PART-divider stub	ba1f17b696ade358	NA	15625	NA	/home/raw996/ae/render_p3/new_pages/cat_about_book.html
+cat_advanced	OK	1		never in _quarto.yml chapters: list: 1-line {.unnumbered} PART-divider stub	bd9ee32586b05992	NA	15589	NA	/home/raw996/ae/render_p3/new_pages/cat_advanced.html
+cat_analysis	OK	1		never in _quarto.yml chapters: list: 1-line {.unnumbered} PART-divider stub	d287687d210ee3d6	NA	15589	NA	/home/raw996/ae/render_p3/new_pages/cat_analysis.html
+cat_basics	OK	2		never in _quarto.yml chapters: list: 1-line {.unnumbered} PART-divider stub	1a2fb45555e6fecb	NA	15563	NA	/home/raw996/ae/render_p3/new_pages/cat_basics.html
+cat_data_management	OK	1		never in _quarto.yml chapters: list: 1-line {.unnumbered} PART-divider stub	7605f3d6914aa1a8	NA	15680	NA	/home/raw996/ae/render_p3/new_pages/cat_data_management.html
+cat_data_viz	OK	2		never in _quarto.yml chapters: list: 1-line {.unnumbered} PART-divider stub	1bd4da4d7e219061	NA	15609	NA	/home/raw996/ae/render_p3/new_pages/cat_data_viz.html
+cat_introduction	OK	1		never in _quarto.yml chapters: list: 1-line {.unnumbered} PART-divider stub	a6ee514255ce38b3	NA	15647	NA	/home/raw996/ae/render_p3/new_pages/cat_introduction.html
+cat_misc	OK	1		never in _quarto.yml chapters: list: 1-line {.unnumbered} PART-divider stub	96e773cad83edc72	NA	15555	NA	/home/raw996/ae/render_p3/new_pages/cat_misc.html
+cat_preview	OK	2		never in _quarto.yml chapters: list: 1-line {.unnumbered} PART-divider stub	1825bc02e48bfe58	NA	15588	NA	/home/raw996/ae/render_p3/new_pages/cat_preview.html
+cat_reports_dashboards	OK	1		never in _quarto.yml chapters: list: 1-line {.unnumbered} PART-divider stub	501bee345c0ac943	NA	15727	NA	/home/raw996/ae/render_p3/new_pages/cat_reports_dashboards.html
+characters_strings	OK	7	0.9991		4bcc746c4cb250fc	0e72861592ec982c	212459	213055	/home/raw996/ae/render_p3/html_outputs/new_pages/characters_strings.html
+cleaning	OK	16	0.9997		3a0e443377ee26d3	06dc31cac28a95cb	366490	366899	/home/raw996/ae/render_p3/html_outputs/new_pages/cleaning.html
+collaboration	OK	5	0.9994		efea30f07062885c	286943277f7804e0	137775	138283	/home/raw996/ae/render_p3/html_outputs/new_pages/collaboration.html
+combination_analysis	OK	8	0.9970		c23f817cc3dee3fc	5d622cc4569da054	125364	126049	/home/raw996/ae/render_p3/html_outputs/new_pages/combination_analysis.html
+contact_tracing	OK	10	0.9992		143dc6dc30bf3c73	67df39674f1c0de9	215428	216029	/home/raw996/ae/render_p3/html_outputs/new_pages/contact_tracing.html
+data_table	OK	4	0.9983		2e6e562f8ca832e6	a069c98be6703159	88208	88830	/home/raw996/ae/render_p3/html_outputs/new_pages/data_table.html
+data_used	OK	4	0.9983		73c310f0c093b98b	a3c00e86876a4ee3	91557	92136	/home/raw996/ae/render_p3/html_outputs/new_pages/data_used.html
+dates	OK	6	0.9977		8e8b1d04db749881	aa99c22553b6408b	147730	148212	/home/raw996/ae/render_p3/html_outputs/new_pages/dates.html
+deduplication	OK	5	0.9991		e33000fad29ed9da	3ae18289407658b7	151044	151625	/home/raw996/ae/render_p3/html_outputs/new_pages/deduplication.html
+descriptive_statistics	OK	15		never in _quarto.yml chapters: list: 932-line legacy page, superseded by tables_descriptive.qmd	5acf35d0c315a927	NA	287224	NA	/home/raw996/ae/render_p3/new_pages/descriptive_statistics.html
+diagrams	OK	6	0.9985		b5bea98b0fefd09a	d6a9dc11100fb8f0	163246	163848	/home/raw996/ae/render_p3/html_outputs/new_pages/diagrams.html
+directories	OK	5	0.9952		f5347849e3b73f48	d33fc72a08821e01	97439	98255	/home/raw996/ae/render_p3/html_outputs/new_pages/directories.html
+editorial_style	OK	4	0.9978		e16134f13703a354	eba589d4a3b43bab	75482	76150	/home/raw996/ae/render_p3/html_outputs/new_pages/editorial_style.html
+epicurves	OK	18	0.9996		91699b94d8faa751	cae12694087cb36a	319928	320445	/home/raw996/ae/render_p3/html_outputs/new_pages/epicurves.html
+epidemic_models	OK	19	0.9992		94189b23345b9c68	e245f2c0f2b2882b	516403	516982	/home/raw996/ae/render_p3/html_outputs/new_pages/epidemic_models.html
+errors	OK	3	0.9962		956e949ab96cef23	7d5a86042bbe687d	65536	66112	/home/raw996/ae/render_p3/html_outputs/new_pages/errors.html
+factors	OK	8	0.9991		d62258f8f358d9f4	5c6656da131df865	129440	129981	/home/raw996/ae/render_p3/html_outputs/new_pages/factors.html
+flexdashboard	OK	6	0.9989		a8c53471f3818344	0ca9815326503bef	136116	136683	/home/raw996/ae/render_p3/html_outputs/new_pages/flexdashboard.html
+ggplot_basics	OK	25	0.9996		3194869f954c86a5	eefc0c868bd77130	272481	272981	/home/raw996/ae/render_p3/html_outputs/new_pages/ggplot_basics.html
+ggplot_tips	OK	25	0.9995		c3dbb844fbb97a41	fa7a57cf96206b1d	260026	260530	/home/raw996/ae/render_p3/html_outputs/new_pages/ggplot_tips.html
+gis	FAIL	14		Error in `osmtile()`; excluded from book (_quarto.yml, commented): fetches live OpenStreetMap tiles at render time	NA	NA	NA	NA	/home/raw996/ae/render_p3/new_pages/gis.html
+grouping	OK	7	0.9991		89d438cb1206ed05	1a37b7d81750d572	173624	174179	/home/raw996/ae/render_p3/html_outputs/new_pages/grouping.html
+heatmaps	OK	8	0.9990		b9ad41190e222389	084c397e979c04e5	169033	169612	/home/raw996/ae/render_p3/html_outputs/new_pages/heatmaps.html
+help	OK	4	0.9967		909ef687a09184f8	d9b6f3e728c15efe	71910	72482	/home/raw996/ae/render_p3/html_outputs/new_pages/help.html
+importing	OK	6	0.9994		1bd74cd632130bfb	096c4d4bc27d01e7	172904	173398	/home/raw996/ae/render_p3/html_outputs/new_pages/importing.html
+interactive_plots	OK	10	0.9977		20604573b96f3d8a	598c0f06596edd1d	201659	202312	/home/raw996/ae/render_p3/html_outputs/new_pages/interactive_plots.html
+iteration	OK	12	0.9995		3e48458d4fcd6b08	e1758b48dc708765	191272	191806	/home/raw996/ae/render_p3/html_outputs/new_pages/iteration.html
+joining_matching	OK	12	0.9994		6abd3c941fbb15b7	92a19f938ae1a85c	215491	216084	/home/raw996/ae/render_p3/html_outputs/new_pages/joining_matching.html
+missing_data	OK	14	0.9993		1b3ba7b40ab171d4	a3f348595b8c0536	178686	179255	/home/raw996/ae/render_p3/html_outputs/new_pages/missing_data.html
+modeling	OK	2		never in _quarto.yml chapters: list: UNDER CONSTRUCTION stub, superseded by regression.qmd	5b1176dd94e0fa58	NA	18281	NA	/home/raw996/ae/render_p3/new_pages/modeling.html
+moving_average	OK	7	0.9982		1908699df0f309ff	7f2ea48ce2a30e1d	212337	212989	/home/raw996/ae/render_p3/html_outputs/new_pages/moving_average.html
+network_drives	OK	4	0.9973		b66f6e00832019c2	aee978e49ebe10aa	72826	73458	/home/raw996/ae/render_p3/html_outputs/new_pages/network_drives.html
+packages_suggested	OK	4	0.9964		52eb31e45c2c4e5e	b7289df7ea030cbb	78638	79325	/home/raw996/ae/render_p3/html_outputs/new_pages/packages_suggested.html
+phylogenetic_trees	OK	17	0.9992		4c28bf3f9e68bd9b	bc38ccb97b28924b	168877	169501	/home/raw996/ae/render_p3/html_outputs/new_pages/phylogenetic_trees.html
+pivoting	OK	9	0.9992		c59d9b65fc8afdf2	e5787fac5fd35405	375219	375756	/home/raw996/ae/render_p3/html_outputs/new_pages/pivoting.html
+plot_continuous	FAIL	2		could not find function "drop_na"; excluded from book (_quarto.yml, commented): missing library(tidyr), drop_na not found	NA	NA	NA	NA	/home/raw996/ae/render_p3/new_pages/plot_continuous.html
+plot_discrete	OK	5		excluded from book (_quarto.yml, commented): substantial real content; no reason stated in source	1118bc56b01e768c	NA	77154	NA	/home/raw996/ae/render_p3/new_pages/plot_discrete.html
+regression	OK	28	0.9863		7496317081fdc52d	64dbe37c6b108a66	216534	216946	/home/raw996/ae/render_p3/html_outputs/new_pages/regression.html
+relational_databases	OK	4		excluded from book (_quarto.yml, commented): THIS PAGE IS UNDER CONSTRUCTION stub	21484faa867c7ae6	NA	36240	NA	/home/raw996/ae/render_p3/new_pages/relational_databases.html
+reportfactory	OK	5	0.9980		0a68839c5bb11453	1398d3ed36652a53	84464	85057	/home/raw996/ae/render_p3/html_outputs/new_pages/reportfactory.html
+rmarkdown	OK	5	0.9994		dfc58976086699d0	c2c152d75735e64e	144942	145431	/home/raw996/ae/render_p3/html_outputs/new_pages/rmarkdown.html
+r_projects	OK	4	0.9961		9849794e7c58aa5e	283a3dbb26b770c9	68525	69136	/home/raw996/ae/render_p3/html_outputs/new_pages/r_projects.html
+rstudio_advanced	OK	2		excluded from book (_quarto.yml, commented): THIS PAGE IS UNDER CONSTRUCTION stub	027211a84116763f	NA	17653	NA	/home/raw996/ae/render_p3/new_pages/rstudio_advanced.html
+shiny_basics	OK	7	0.9996		83f6f3eb81c938f3	bab8ac0f92f5404c	238049	238643	/home/raw996/ae/render_p3/html_outputs/new_pages/shiny_basics.html
+standardization	OK	6	0.9988		5ddf43409d45045b	a92ecd5371b0aeaf	136871	137492	/home/raw996/ae/render_p3/html_outputs/new_pages/standardization.html
+stat_tests	OK	11	0.9740		71341490ffe742df	6153c1783861f9dd	188878	189611	/home/raw996/ae/render_p3/html_outputs/new_pages/stat_tests.html
+survey_analysis	OK	11	0.9970		26a3d5bd74b643f4	a6c0c420b37d2415	215721	216376	/home/raw996/ae/render_p3/html_outputs/new_pages/survey_analysis.html
+survival_analysis	OK	11	0.9994		b13f9937f282f4c5	0386602467211f14	162345	162977	/home/raw996/ae/render_p3/html_outputs/new_pages/survival_analysis.html
+tables_descriptive	OK	16	0.9945		2d3ddbef736676cf	0c642f70034a9f00	339137	339472	/home/raw996/ae/render_p3/html_outputs/new_pages/tables_descriptive.html
+tables_presentation	OK	8	0.9992		305a764634aa2320	158eb5be3c68b425	353580	355507	/home/raw996/ae/render_p3/html_outputs/new_pages/tables_presentation.html
+time_series	OK	48	0.9996		053f09dd928a7176	541474116b364243	262758	263259	/home/raw996/ae/render_p3/html_outputs/new_pages/time_series.html
+transition_to_R	OK	4	0.9986		6dd44b9075d3d6cf	8fd993ce29cfee74	115838	116471	/home/raw996/ae/render_p3/html_outputs/new_pages/transition_to_R.html
+transmission_chains	OK	10	0.9897		c3e27152a62bb003	de2dadc709a9e545	556525	557336	/home/raw996/ae/render_p3/html_outputs/new_pages/transmission_chains.html
+writing_functions	OK	8	0.9991		a7955df2915d4747	5d67bcaf39ff6fd6	198302	198953	/home/raw996/ae/render_p3/html_outputs/new_pages/writing_functions.html

@@ -136,6 +136,24 @@ the exact re-runnable procedure are in [`verify/`](verify/VERIFICATION.md).
 - `gis` → `osmtile()`: the handbook fetches **live OpenStreetMap tiles at render time** — a flaky
   external network dependency, not a package/env issue.
 
+## Which chapters are in the book, and which are not
+`new_pages/` holds **67** English `.qmd` files, but the book renders **49**. The arithmetic:
+**54** files are referenced in `_quarto.yml`, **5** of those are commented out, leaving 49 — which
+is exactly the page count in `html_outputs/new_pages/`. The remaining 13 files are never referenced
+at all: 10 one-line `cat_*` part dividers, plus `apply_functions`, `modeling` (template stubs) and
+`descriptive_statistics` (legacy content superseded by `tables_descriptive`).
+
+**Only one of the 5 commented-out chapters is our exclusion.** The other 4 were already commented
+out in the handbook source:
+
+| Chapter | `_quarto.yml` | Whose exclusion, and why |
+|---|---|---|
+| `gis` | line 167 | **Ours** — render-time OpenStreetMap tile fetch aborts the whole book |
+| `plot_continuous` | line 182 | Upstream — the `drop_na` failure above |
+| `plot_discrete` | line 183 | Upstream — no stated reason; it has real content and renders cleanly |
+| `relational_databases` | line 226 | Upstream — "UNDER CONSTRUCTION" stub |
+| `rstudio_advanced` | line 229 | Upstream — "UNDER CONSTRUCTION" stub |
+
 ## Moving forward — Phase 5 (a separate step from reproduction)
 Modernization is a **minimal forward-port of THIS frozen content** (the reproduced Sep-18 baseline) to
 current (2026) packages: a modern base image + current package versions, changing the source **as little
