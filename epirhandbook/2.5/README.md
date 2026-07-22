@@ -154,8 +154,25 @@ out in the handbook source:
 | `relational_databases` | line 226 | Upstream — "UNDER CONSTRUCTION" stub |
 | `rstudio_advanced` | line 229 | Upstream — "UNDER CONSTRUCTION" stub |
 
-## Moving forward — Phase 5 (a separate step from reproduction)
-Modernization is a **minimal forward-port of THIS frozen content** (the reproduced Sep-18 baseline) to
+## Moving forward — Phase 5a (split) then Phase 5b (modernize)
+Two separate steps, in this order, because each changes one variable.
+
+**Phase 5a — split, same packages.** Build `epirhandbook-common` plus ~50 thin per-chapter images on
+the **frozen 4.3.2 stack**, from the empirical per-chapter footprints captured in Phase 3
+([`chapters/footprints.tsv`](chapters/README.md)): frequency across chapters gives `common`, and each
+chapter's delta is its set minus common, pinned to exact `renv.lock` versions. Package versions do
+not move. The bar is exact — each chapter must render on its minimal image **identically to its
+Phase 3 monolith render**, measured with the Phase 3 comparators unchanged. A failure therefore means
+the footprint was wrong, and nothing else.
+
+Sizing, from Phase 3: the monolith carries 473 packages; a chapter loads a median of **72** (min 20,
+max 139), and **142 of the 473 are never loaded by any chapter**.
+
+**5a must come before 5b.** Its success bar is "renders identically to the Phase 3 monolith render",
+and that frozen reference only exists while the packages are still pinned at 4.3.2. Modernize first
+and the reference is gone, so the footprints would ship having never been tested against anything.
+
+**Phase 5b — modernize.** A **minimal forward-port of THIS frozen content** (the reproduced Sep-18 baseline) to
 current (2026) packages: a modern base image + current package versions, changing the source **as little
 as possible** — only what actually **breaks** on the new stack (deprecated/removed functions, dropped
 packages like `OpenStreetMap` for `gis`, changed APIs).
@@ -165,7 +182,15 @@ equivalence. Two years of newer package versions render differently (ggplot2 def
 …), so the modern output will *not* match the 4.3.2 render, and where an API changed the source *must*
 change — that's expected, not a failure. (Output-equivalence against
 [`verify/manifest.tsv`](verify/manifest.tsv) is the bar for **Phase 2**'s pak rehearsal, which keeps the
-*same* package versions — not for Phase 5.)
+*same* package versions — and for **Phase 5a**, which also keeps them — but **not** for Phase 5b.)
+
+Phase 5b is also where the **unseeded RNG gets seeded**. Phase 3 proved the handbook is not
+byte-reproducible in its figures on any environment — `sample()`, `geom_jitter()`/`geom_sina()`,
+`ggrepel` and `projections::project()` all run unseeded in the handbook's own demo code (see
+[`chapters/README.md`](chapters/README.md)). Adding `set.seed()` is a source change, so it does not
+belong in Phases 1-3 or 5a, all of which measure the **unchanged** content against a published
+reference. It belongs in 5b, whose metric is source-diff size. Note the content lives in
+`appliedepi/epiRhandbook_eng`, a different repo from this one.
 
 The separate **52-chapter Jan-2025 content drift** on `deploy-preview` is **parked** — reviewed only at
 the very end to salvage anything useful, not part of the forward-port.
