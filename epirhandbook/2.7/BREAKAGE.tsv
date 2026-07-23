@@ -1,0 +1,51 @@
+chapter	rc	error_class	error_detail
+index	0		
+age_pyramid	0		
+basics	0		
+characters_strings	0		
+cleaning	0		
+collaboration	0		
+combination_analysis	0		
+contact_tracing	0		
+data_table	0		
+data_used	0		
+dates	0		
+deduplication	0		
+diagrams	0		
+directories	0		
+editorial_style	0		
+epicurves	0		
+epidemic_models	1	CHANGED_API	Error in `xy.coords()`: ! 'x' is a list, but does not have components 'x' and 'y'  [at epidemic_models.qmd:24-111 [unnamed-chunk-1]]
+errors	0		
+factors	0		
+flexdashboard	0		
+ggplot_basics	0		
+ggplot_tips	0		
+grouping	0		
+heatmaps	0		
+help	0		
+importing	0		
+interactive_plots	0		
+iteration	0		
+joining_matching	0		
+missing_data	0		
+moving_average	0		
+network_drives	0		
+packages_suggested	0		
+phylogenetic_trees	0		
+pivoting	0		
+regression	0		
+reportfactory	0		
+rmarkdown	0		
+r_projects	0		
+shiny_basics	0		
+standardization	1	DROPPED_PACKAGE	Error in `loadNamespace()`: ! there is no package called 'dsr'  [at standardization.qmd:342-360 [unnamed-chunk-29]]
+stat_tests	0		
+survey_analysis	1	REMOVED_FUNCTION	Error in `tab_survey()`: ! could not find function "tab_survey"  [at survey_analysis.qmd:1004-1014 [sitrep_props]]
+survival_analysis	0		
+tables_descriptive	1	CHANGED_API	Error in `summarise()`: ℹ In argument: `age_percentiles = quantile(age_years, na.rm = TRUE)`. Caused by error: ! `age_percentiles` must be size 1, not 5. ℹ To return more or less than 1 row per group, use `reframe()`.  [at tables_descriptive.qmd:487-500 [unnamed-chunk-33]]
+tables_presentation	0		
+time_series	0		
+transition_to_R	0		
+transmission_chains	0		
+writing_functions	1	DEFUNCT_FUNCTION	Error in `set_formatter_type()`: ! 'set_formatter_type' is defunct. Use 'colformat_*' instead. See help("Defunct") and help("flextable-defunct").  [at writing_functions.qmd:371-459 [unnamed-chunk-22]]
