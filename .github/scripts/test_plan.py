@@ -7,6 +7,7 @@ a real build.
 """
 import os
 import sys
+import tempfile
 import unittest
 
 import yaml
@@ -396,6 +397,89 @@ class TestValidateCatalog(unittest.TestCase):
             self._validate(text)
         self.assertIn("base", str(ctx.exception).lower())
 
+    def test_renders_qmd_is_accepted_and_stem_must_match_dir_basename(self):
+        # The per-chapter split images STATE the .qmd they render. The stem is
+        # validated against the dir basename so the stated source cannot drift
+        # from the build context it belongs to. Note the image name is
+        # lowercased (Docker) while the source keeps its real case.
+        text = (
+            "images:\n"
+            "  - name: epirhandbook-transition_to_r\n"
+            "    renders: new_pages/transition_to_R.qmd\n"
+            "    dir: epirhandbook/2.6/chapters/transition_to_R\n"
+            '    tags: ["2.6"]\n'
+            "    base: null\n    base_digest: null\n"
+        )
+        images = self._validate(text)
+        self.assertEqual(images[0]["renders"], "new_pages/transition_to_R.qmd")
+
+    def test_index_renders_root_qmd_not_new_pages(self):
+        # index.qmd lives at the source ROOT, not under new_pages/ -- the very
+        # exception that makes `source` worth stating rather than deriving.
+        text = (
+            "images:\n"
+            "  - name: epirhandbook-index\n"
+            "    renders: index.qmd\n"
+            "    dir: epirhandbook/2.6/chapters/index\n"
+            '    tags: ["2.6"]\n'
+            "    base: null\n    base_digest: null\n"
+        )
+        images = self._validate(text)
+        self.assertEqual(images[0]["renders"], "index.qmd")
+
+    def test_renders_disagreeing_with_dir_basename_is_rejected(self):
+        text = (
+            "images:\n"
+            "  - name: epirhandbook-transition_to_r\n"
+            "    renders: new_pages/basics.qmd\n"
+            "    dir: epirhandbook/2.6/chapters/transition_to_R\n"
+            '    tags: ["2.6"]\n'
+            "    base: null\n    base_digest: null\n"
+        )
+        with self.assertRaises(ValueError) as ctx:
+            self._validate(text)
+        self.assertIn("renders", str(ctx.exception))
+
+    def test_name_must_identify_the_chapter_it_renders(self):
+        # A row that renders basics.qmd but publishes as epirhandbook-cleaning
+        # would put a LYING name on a public registry. source-vs-dir agreement
+        # alone does not catch it.
+        text = (
+            "images:\n"
+            "  - name: epirhandbook-cleaning\n"
+            "    renders: new_pages/basics.qmd\n"
+            "    dir: epirhandbook/2.6/chapters/basics\n"
+            '    tags: ["2.6"]\n'
+            "    base: null\n    base_digest: null\n"
+        )
+        with self.assertRaises(ValueError) as ctx:
+            self._validate(text)
+        self.assertIn("name", str(ctx.exception))
+
+    def test_lowercased_name_for_uppercase_chapter_is_accepted(self):
+        # Docker forces lowercase; the name still has to identify the chapter.
+        text = (
+            "images:\n"
+            "  - name: epirhandbook-transition_to_r\n"
+            "    renders: new_pages/transition_to_R.qmd\n"
+            "    dir: epirhandbook/2.6/chapters/transition_to_R\n"
+            '    tags: ["2.6"]\n'
+            "    base: null\n    base_digest: null\n"
+        )
+        self.assertEqual(len(self._validate(text)), 1)
+
+    def test_renders_must_be_a_qmd(self):
+        text = (
+            "images:\n"
+            "  - name: epirhandbook-basics\n"
+            "    renders: new_pages/basics.Rmd\n"
+            "    dir: epirhandbook/2.6/chapters/basics\n"
+            '    tags: ["2.6"]\n'
+            "    base: null\n    base_digest: null\n"
+        )
+        with self.assertRaises(ValueError):
+            self._validate(text)
+
     def test_duplicate_image_names_are_rejected(self):
         # Every downstream structure keys by name and would keep only the last
         # duplicate; a change under the first would plan the second's dir/tags.
@@ -407,6 +491,55 @@ class TestValidateCatalog(unittest.TestCase):
         with self.assertRaises(ValueError) as ctx:
             self._validate(text)
         self.assertIn("duplicate", str(ctx.exception).lower())
+
+
+class TestMergedCatalogs(unittest.TestCase):
+    """The catalog is split across files by OWNERSHIP (hand-maintained root vs
+    generated per-phase), but base edges cross the files -- epirhandbook-common
+    is FROM rbase. The planner must see them merged, or `rbase` looks like a
+    typo and the whole plan dies. This is the failure an earlier schema-only
+    check missed: validate_catalog passed on the 2.6 file alone while the real
+    planner (build_plan) raised."""
+
+    def _write(self, text):
+        f = tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False)
+        f.write(text)
+        f.close()
+        self.addCleanup(os.unlink, f.name)
+        return f.name
+
+    ROOT = (
+        "images:\n"
+        "  - name: rbase\n    dir: rbase/4.3.2\n"
+        '    tags: ["4.3.2"]\n    base: null\n    base_digest: null\n'
+    )
+    SPLIT = (
+        "images:\n"
+        "  - name: epirhandbook-common\n    dir: epirhandbook/2.6/common\n"
+        '    tags: ["2.6"]\n    base: "rbase:4.3.2"\n    base_digest: null\n'
+    )
+
+    def test_cross_file_base_edge_resolves_when_merged(self):
+        root, split = self._write(self.ROOT), self._write(self.SPLIT)
+        images = plan.load_catalogs([root, split])
+        self.assertEqual(len(images), 2)
+        # The real boundary: build_plan (not just the schema check) must work.
+        r = plan.build_plan(images, nightly=True)
+        self.assertEqual(names(r), {"rbase", "epirhandbook-common"})
+        self.assertEqual(r["layers"][0][0]["name"], "rbase")
+
+    def test_split_catalog_alone_is_rejected_by_the_planner(self):
+        # Loading only the generated half leaves the base dangling.
+        split = self._write(self.SPLIT)
+        with self.assertRaises(ValueError) as ctx:
+            plan.build_plan(plan.load_catalogs([split]), nightly=True)
+        self.assertIn("rbase", str(ctx.exception))
+
+    def test_same_name_in_two_catalogs_is_rejected(self):
+        a, b = self._write(self.ROOT), self._write(self.ROOT)
+        with self.assertRaises(ValueError) as ctx:
+            plan.load_catalogs([a, b])
+        self.assertIn("already defined", str(ctx.exception))
 
 
 class TestAgainstRealCatalog(unittest.TestCase):
@@ -429,6 +562,97 @@ class TestAgainstRealCatalog(unittest.TestCase):
         # this exact stack never moves once it reproduces the target render.
         self.assertTrue(by_name["rbase"]["frozen"])
         self.assertTrue(by_name["epirhandbook"]["frozen"])
+
+
+class TestBuildContextAndChapterRenders(unittest.TestCase):
+    """Round-2 review: `dir` was used as the docker build CONTEXT, but a 2.6
+    chapter's Dockerfile COPYs from epirhandbook/2.6, not from the chapter
+    directory -- so CI planned the images then died at `docker build`
+    ('/pak_install_subset.R': not found). `context` separates the two facts:
+    dir = this image's own files (change scope + Dockerfile location),
+    context = the root COPY resolves against."""
+
+    def _validate(self, text):
+        return plan.validate_catalog(yaml.safe_load(text), "<test>")
+
+    ROW = (
+        "images:\n"
+        "  - name: epirhandbook-basics\n"
+        "    renders: new_pages/basics.qmd\n"
+        "    dir: epirhandbook/2.6/chapters/basics\n"
+        "    context: epirhandbook/2.6\n"
+        '    tags: ["2.6"]\n'
+        "    base: null\n    base_digest: null\n"
+    )
+
+    def test_context_is_accepted_and_reaches_the_plan(self):
+        imgs = self._validate(self.ROW)
+        self.assertEqual(imgs[0]["context"], "epirhandbook/2.6")
+        r = plan.build_plan(imgs, changed_files=["epirhandbook/2.6/chapters/basics/x"])
+        self.assertEqual(r["layers"][0][0]["context"], "epirhandbook/2.6")
+
+    def test_context_defaults_to_dir_when_absent(self):
+        # rbase / the 2.5 monolith: the Dockerfile sits in its own context.
+        text = (
+            "images:\n  - name: rbase\n    dir: rbase/4.3.2\n"
+            '    tags: ["4.3.2"]\n    base: null\n    base_digest: null\n'
+        )
+        r = plan.build_plan(self._validate(text), nightly=True)
+        self.assertEqual(r["layers"][0][0]["context"], "rbase/4.3.2")
+
+    def test_dir_outside_context_is_rejected(self):
+        text = self.ROW.replace("context: epirhandbook/2.6", "context: rbase/4.3.2")
+        with self.assertRaises(ValueError) as ctx:
+            self._validate(text)
+        self.assertIn("context", str(ctx.exception))
+
+    def test_a_change_to_ANY_catalog_file_is_a_special_trigger(self):
+        # The catalog is split across files. Matching only the ROOT images.yaml
+        # meant editing the GENERATED split catalog -- which defines 51 of the
+        # 53 images -- planned nothing at all: the catalog could change what
+        # should exist while CI built nothing.
+        self.assertTrue(plan.is_special_trigger("images.yaml"))
+        self.assertTrue(plan.is_special_trigger("epirhandbook/2.6/images.yaml"))
+        # ...but an unrelated yaml is still not a catalog.
+        self.assertFalse(plan.is_special_trigger("epirhandbook/2.6/other.yaml"))
+
+    SHARED = (
+        "images:\n"
+        "  - name: epirhandbook-common\n"
+        "    dir: epirhandbook/2.6/common\n"
+        "    context: epirhandbook/2.6\n"
+        '    tags: ["2.6"]\n    base: null\n    base_digest: null\n'
+        "  - name: epirhandbook-basics\n"
+        "    renders: new_pages/basics.qmd\n"
+        "    dir: epirhandbook/2.6/chapters/basics\n"
+        "    context: epirhandbook/2.6\n"
+        '    tags: ["2.6"]\n    base: "epirhandbook-common:2.6"\n    base_digest: null\n'
+    )
+
+    def test_shared_context_input_rebuilds_everything_using_that_context(self):
+        # renv.lock / pak_install_subset.R sit at the CONTEXT root and are
+        # COPYed by common AND every chapter Dockerfile, but live in no image's
+        # own dir -- so dir-matching alone planned NOTHING while actually
+        # changing every image built from that context.
+        imgs = self._validate(self.SHARED)
+        for f in ("epirhandbook/2.6/pak_install_subset.R", "epirhandbook/2.6/renv.lock"):
+            r = plan.build_plan(imgs, changed_files=[f])
+            self.assertEqual(names(r), {"epirhandbook-common", "epirhandbook-basics"},
+                             msg=f"{f} should rebuild everything sharing that context")
+
+    def test_a_chapters_own_file_does_not_fan_out_to_the_whole_context(self):
+        # The other half of the rule: a file that IS under an image's dir is
+        # that image's own file. If it also fanned out via `context`, every
+        # per-chapter edit would rebuild all 51 and selectivity would be gone.
+        imgs = self._validate(self.SHARED)
+        r = plan.build_plan(imgs, changed_files=["epirhandbook/2.6/chapters/basics/packages.txt"])
+        self.assertEqual(names(r), {"epirhandbook-basics"})
+
+    def test_chapter_image_without_renders_is_rejected(self):
+        text = self.ROW.replace("    renders: new_pages/basics.qmd\n", "")
+        with self.assertRaises(ValueError) as ctx:
+            self._validate(text)
+        self.assertIn("renders", str(ctx.exception))
 
 
 if __name__ == "__main__":

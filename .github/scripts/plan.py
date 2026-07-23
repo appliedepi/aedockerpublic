@@ -54,7 +54,25 @@ def parse_base(base):
 
 
 REQUIRED_IMAGE_KEYS = {"name", "dir", "tags", "base", "base_digest"}
-OPTIONAL_IMAGE_KEYS = {"live", "frozen"}
+# `renders`: for the per-chapter split images (epirhandbook/2.6), the .qmd this
+# image renders, repo-relative to the handbook source root. Optional -- rbase
+# and the 2.5 monolith render no single file. It states the CONCRETE artifact
+# rather than an abstract chapter id, and it carries information `dir` does not:
+# `index` renders index.qmd at the source ROOT, not new_pages/index.qmd. Its
+# stem is validated against the `dir` basename below, so it cannot drift from
+# the build context it belongs to.
+# `context`: the docker build CONTEXT, when it differs from `dir`. These are
+# two different facts and the split is the first place they diverge:
+#   dir     = this image's own files -- the change-detection scope, and where
+#             its Dockerfile lives.
+#   context = the directory `docker build` is given, i.e. the root that COPY
+#             paths resolve against.
+# For rbase and the 2.5 monolith they coincide, so `context` is omitted. For a
+# 2.6 chapter they cannot: the Dockerfile lives in chapters/<ch>/ but COPYs
+# renv.lock and pak_install_subset.R from epirhandbook/2.6/, so the context
+# must be 2.6/ while change detection must stay per-chapter. Building with the
+# chapter dir as context fails -- the COPY sources are outside it.
+OPTIONAL_IMAGE_KEYS = {"live", "frozen", "renders", "context"}
 ALLOWED_IMAGE_KEYS = REQUIRED_IMAGE_KEYS | OPTIONAL_IMAGE_KEYS
 
 # Image-name-safe: what is legal in a Docker/GHCR image name component.
@@ -234,6 +252,76 @@ def _validate_image(image, path, index):
             f"ignored. Remove the base_digest, or give it a base to pin."
         )
 
+    # `source`: the .qmd this image renders. Its STEM must equal the last
+    # segment of `dir` -- that directory is this chapter's build context, so if
+    # the two disagree the row describes two different chapters and one is
+    # wrong. Checking it here is what lets the field be explicit (it names the
+    # real artifact) WITHOUT becoming a second thing that can silently drift.
+    if "renders" in image:
+        renders = image["renders"]
+        if not isinstance(renders, str) or not renders.endswith(".qmd"):
+            raise ValueError(
+                f"{path}: image {label!r} field 'renders' must be a non-empty "
+                f"string naming a .qmd file; got {renders!r}."
+            )
+        dir_basename = image["dir"].rstrip("/").rsplit("/", 1)[-1]
+        renders_stem = renders.rsplit("/", 1)[-1][: -len(".qmd")]
+        if renders_stem != dir_basename:
+            raise ValueError(
+                f"{path}: image {label!r} renders {renders!r} (stem "
+                f"{renders_stem!r}) but its dir basename is {dir_basename!r} "
+                f"({image['dir']!r}). The source is the .qmd this image renders; "
+                f"dir is that chapter's build context. They must agree."
+            )
+        # ...and the NAME must correspond to that same chapter. Checking only
+        # source-vs-dir leaves the published artifact name unconstrained: a row
+        # could render basics.qmd from chapters/basics while being published as
+        # `epirhandbook-cleaning`, passing validation and putting a LYING name
+        # on a public registry. The name is the chapter lowercased (Docker
+        # requires lowercase; that transform happens only here).
+        if not image["name"].endswith(f"-{renders_stem.lower()}"):
+            raise ValueError(
+                f"{path}: image {label!r} renders {renders!r} but its name does "
+                f"not end with '-{renders_stem.lower()}'. The published image name "
+                f"must identify the chapter it renders, or the registry artifact "
+                f"misrepresents its own content."
+            )
+
+    # A per-chapter image MUST declare what it renders. `renders` is optional in
+    # general (rbase and the 2.5 monolith render no single file), but a row whose
+    # dir sits under a `chapters/` directory is a per-chapter image by
+    # construction, and omitting `renders` there would skip the stem/name/dir
+    # linkage checks entirely -- the row could then publish under any name.
+    if "renders" not in image and "/chapters/" in image["dir"]:
+        raise ValueError(
+            f"{path}: image {label!r} has dir={image['dir']!r} (a per-chapter "
+            f"image) but no 'renders' field. A chapter image must state the .qmd "
+            f"it renders, or its name and build context go unchecked."
+        )
+
+    # `context`: same canonical-path rules as `dir`, and `dir` MUST live inside
+    # it -- the Dockerfile is selected with `-f <dir>/Dockerfile` against this
+    # context, so a dir outside the context could not be built.
+    if "context" in image:
+        context = image["context"]
+        if not isinstance(context, str) or not DIR_RE.match(context):
+            raise ValueError(
+                f"{path}: image {label!r} field 'context'={context!r} is not a "
+                f"canonical repo-relative path matching {DIR_RE.pattern!r}."
+            )
+        if any(seg in (".", "..") for seg in context.split("/")):
+            raise ValueError(
+                f"{path}: image {label!r} field 'context' must not contain "
+                f"'.' or '..' path segments; got {context!r}."
+            )
+        if not (image["dir"] == context or image["dir"].startswith(context + "/")):
+            raise ValueError(
+                f"{path}: image {label!r} has dir={image['dir']!r} outside its "
+                f"build context {context!r}. The Dockerfile is selected with "
+                f"-f <dir>/Dockerfile against that context, so dir must live "
+                f"inside it."
+            )
+
     for boolkey in ("live", "frozen"):
         if boolkey in image and not isinstance(image[boolkey], bool):
             raise ValueError(
@@ -245,7 +333,7 @@ def _validate_image(image, path, index):
 
 
 def load_images(images_yaml_path):
-    """Read images.yaml -> the validated list[dict] of image records.
+    """Read ONE images.yaml -> the validated list[dict] of image records.
     PyYAML parses; validate_catalog() enforces the schema -- see this
     module's docstring for why loading is split this way. No other code
     path in this project reads images.yaml (build_image.sh only ever
@@ -253,6 +341,37 @@ def load_images(images_yaml_path):
     with open(images_yaml_path) as f:
         doc = yaml.safe_load(f)
     return validate_catalog(doc, images_yaml_path)
+
+
+def load_catalogs(paths):
+    """Merge SEVERAL catalog files into the one logical catalog the planner
+    reasons over.
+
+    The catalog is split across files by OWNERSHIP, not by scope: the root
+    images.yaml is hand-maintained (rbase, the 2.5 monolith), while
+    epirhandbook/2.6/images.yaml is fully GENERATED by that phase's
+    generate.py. Keeping them separate means a generated file is never
+    hand-edited and a hand-edited file never contains a generated region --
+    but the PLANNER must still see one catalog, because base edges cross the
+    files: epirhandbook-common (generated, 2.6) is FROM rbase (hand, root).
+    Loading only one of them makes `rbase` look like a typo and the plan dies.
+
+    Every image is still defined in exactly ONE file; a name appearing in two
+    catalogs is a hard error, the same rule that already forbids a duplicate
+    within one file."""
+    merged = []
+    seen = {}
+    for path in paths:
+        for image in load_images(path):
+            name = image["name"]
+            if name in seen:
+                raise ValueError(
+                    f"{path}: image {name!r} is already defined in {seen[name]!r}. "
+                    f"Every image must be defined in exactly one catalog file."
+                )
+            seen[name] = path
+            merged.append(image)
+    return merged
 
 
 def topological_order(images):
@@ -325,9 +444,17 @@ def is_special_trigger(changed_file):
     machinery in .github/scripts/ (a bug there is exactly as dangerous as a
     bug in the workflow YAML, and deserves the same blanket revalidation --
     deliberately broader than the brief's literal "images.yaml or a workflow
-    file", for that reason -- see README/plan for the call-out)."""
+    file", for that reason -- see README/plan for the call-out).
+
+    "The catalog" means ANY images.yaml, not just the root one. The catalog is
+    split across files by ownership (hand-maintained root + generated per-phase,
+    e.g. epirhandbook/2.6/images.yaml), and a row in ANY of them defines what
+    exists and how it is built. Matching only the root path meant editing the
+    generated split catalog -- which defines 51 of the 53 images -- planned
+    NOTHING: the catalog could change what should exist while CI built nothing."""
     return (
         changed_file == "images.yaml"
+        or changed_file.endswith("/images.yaml")
         or changed_file.startswith(".github/workflows/")
         or changed_file.startswith(".github/scripts/")
     )
@@ -367,9 +494,32 @@ def build_plan(images, changed_files=None, nightly=False):
             trigger = "special"
             selected = {name for name, img in by_name.items() if img.get("live", True)}
         else:
+            # Files that live in a build CONTEXT but inside no image's own dir
+            # are SHARED build inputs: epirhandbook/2.6/renv.lock and
+            # pak_install_subset.R sit at the 2.6 context root and are COPYed by
+            # common AND every chapter Dockerfile. Matching `dir` alone missed
+            # them entirely -- editing the installer or the lockfile copy planned
+            # NOTHING, while actually changing every image built from that
+            # context. A file that IS under some image's dir is that image's own
+            # file, so it must not fan out to the whole context (that would
+            # destroy per-chapter selectivity).
+            all_dirs = [img["dir"] for img in images if img.get("dir")]
+
+            def is_shared_context_input(f):
+                return not any(matching_dir(f, d) for d in all_dirs)
+
             direct = set()
             for f in changed_files:
                 for img in images:
+                    ctx = img.get("context")
+                    if (
+                        ctx
+                        and ctx != img.get("dir")
+                        and matching_dir(f, ctx)
+                        and is_shared_context_input(f)
+                    ):
+                        direct.add(img["name"])
+                        continue
                     if img.get("dir") and matching_dir(f, img["dir"]):
                         direct.add(img["name"])
 
@@ -413,6 +563,12 @@ def build_plan(images, changed_files=None, nightly=False):
             # the field) so build_image.sh always receives an explicit
             # true/false rather than having to special-case "missing".
             rec["frozen"] = bool(img.get("frozen", False))
+            # Normalized so the build step never has to decide: the docker
+            # build context, defaulting to `dir` when the catalog omits it
+            # (rbase, the 2.5 monolith). The 2.6 split images set it, because
+            # their Dockerfile's COPY paths resolve against epirhandbook/2.6,
+            # not against the chapter directory the Dockerfile sits in.
+            rec["context"] = img.get("context", img["dir"])
             layer_out.append(rec)
         if layer_out:
             layers_out.append(layer_out)
@@ -429,12 +585,37 @@ def build_plan(images, changed_files=None, nightly=False):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--images-yaml", required=True)
+    # Repeatable: the catalog is split across files by ownership (hand-
+    # maintained root vs generated per-phase), but base edges cross them, so
+    # the planner must be given every file that makes up the one logical
+    # catalog. See load_catalogs.
+    ap.add_argument("--images-yaml", required=True, action="append",
+                    dest="images_yaml_paths",
+                    help="catalog file; repeat for each file in the catalog")
     ap.add_argument("--changed-file", action="append", default=[], dest="changed_files")
     ap.add_argument("--nightly", action="store_true")
+    # For shell consumers (build/render loops): print "chapter<TAB>image:tag"
+    # for every row that names a chapter. This is how a script learns which
+    # image renders which chapter -- it must NEVER reconstruct
+    # "epirhandbook-<chapter>:<tag>" itself, or the naming rule ends up living
+    # in the catalog AND in every consumer, which is the duplication the
+    # single-source catalog exists to prevent.
+    ap.add_argument("--chapter-images", action="store_true",
+                    help="print 'chapter<TAB>image:tag' per chapter row and exit")
     args = ap.parse_args()
 
-    images = load_images(args.images_yaml)
+    images = load_catalogs(args.images_yaml_paths)
+
+    if args.chapter_images:
+        for img in images:
+            if not img.get("renders"):
+                continue          # the common base renders no single .qmd
+            # The chapter id is the dir basename -- validate_catalog has already
+            # proven it equals the source's stem, so either is authoritative.
+            chapter = img["dir"].rstrip("/").rsplit("/", 1)[-1]
+            print(f"{chapter}\t{img['name']}:{img['tags'][0]}\t{img['renders']}")
+        return
+
     result = build_plan(images, changed_files=args.changed_files, nightly=args.nightly)
     json.dump(result, sys.stdout, indent=2)
     print()

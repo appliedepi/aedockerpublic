@@ -1,0 +1,11 @@
+cli
+digest
+evaluate
+fastmap
+htmltools
+htmlwidgets
+jsonlite
+knitr
+rlang
+rmarkdown
+xfun

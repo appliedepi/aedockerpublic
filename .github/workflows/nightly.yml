@@ -146,7 +146,11 @@ jobs:
       - name: Run planner (nightly = every live image)
         id: plan
         run: |
-          python3 .github/scripts/plan.py --images-yaml images.yaml --nightly > /tmp/plan.json
+          # BOTH halves of the catalog -- see build.yml / plan.py load_catalogs.
+          python3 .github/scripts/plan.py \
+            --images-yaml images.yaml \
+            --images-yaml epirhandbook/2.6/images.yaml \
+            --nightly > /tmp/plan.json
           echo "--- plan ---"
           cat /tmp/plan.json
 
@@ -214,8 +218,9 @@ jobs:
             BASE_DIGEST=$(jq -r '.base_digest // ""' <<< "$img")
             BASE_FRESH=$(jq -r '.base_freshly_built' <<< "$img")
             FROZEN=$(jq -r '.frozen' <<< "$img")
+            CONTEXT=$(jq -r '.context' <<< "$img")
             echo "::group::Verifying $NAME (frozen: $FROZEN, base_freshly_built: $BASE_FRESH)"
-            bash .github/scripts/build_image.sh verify "$REPO_NAME" "$NAME" "$DIR" "$TAGS_CSV" "$BASE_NAME" "$BASE_TAG" "$BASE_DIGEST" "$BASE_FRESH" "$FROZEN"
+            bash .github/scripts/build_image.sh verify "$REPO_NAME" "$NAME" "$DIR" "$TAGS_CSV" "$BASE_NAME" "$BASE_TAG" "$BASE_DIGEST" "$BASE_FRESH" "$FROZEN" "$CONTEXT"
             echo "::endgroup::"
           done
 

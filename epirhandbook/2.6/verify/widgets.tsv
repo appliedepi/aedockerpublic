@@ -1,0 +1,19 @@
+chapter	widget_index	render_widget_id	ref_widget_id	payload_bytes_render	payload_bytes_ref	match	note
+basics	NA			0	0	NA	no widgets on either side (valid, expected for text/figure-only chapters)
+epicurves	0	htmlwidget-8e357d1a3514b8a918ab	htmlwidget-99658ce05d04ac8f347e	13761	13761	yes	
+epicurves	1	htmlwidget-e4915e5007f409ce7d2e	htmlwidget-63cb82200018635ad071	2258	2258	yes	
+epicurves	2	htmlwidget-6aee891cfae3925c4a6f	htmlwidget-05c0e5095208a5882bf7	3845	3845	yes	
+epicurves	3	htmlwidget-ddbfda95b2913ffcc6e5	htmlwidget-e64b9c239897f13e59fd	11006	11006	yes	
+epicurves	4	htmlwidget-fe0da8a3d306c3038fcd	htmlwidget-2a07c60a039f1f1ac966	690	690	yes	
+interactive_plots	0	htmlwidget-1f8f63a4fe8379e28acc	htmlwidget-bc2a4c0317c36f16426f	19165	19168	yes	
+interactive_plots	1	htmlwidget-050397214f86e3183c92	htmlwidget-a554923aec127fa1432d	28700	28700	yes	
+interactive_plots	2	htmlwidget-976e57cf77f14d94f105	htmlwidget-8ad97d91a52311cf4e96	2287	2287	yes	
+interactive_plots	3	htmlwidget-2083f19c2649da94bc51	htmlwidget-f4b17900698ec23ddf4d	7096	7099	yes	
+interactive_plots	4	htmlwidget-08ebba36fcab439e0401	htmlwidget-4a1348b68dac5ac11d74	18976	18979	yes	
+interactive_plots	5	htmlwidget-c166a3c8e0083c7fbc4e	htmlwidget-2ca559ef9e08de67c762	29727	29727	yes	
+tables_descriptive	0	htmlwidget-712b5f7587d41da39ba1	htmlwidget-ccb494fe000a0c1c2d7a	28781	28781	yes	
+tables_descriptive	1	htmlwidget-e78530191f6e3b7d1b1b	htmlwidget-9ac10cb2a03ef56718e5	1381	1381	yes	
+tables_descriptive	2	htmlwidget-0d049727908f0807f7ef	htmlwidget-95418e3ba629cd5fe427	1379	1379	yes	
+tables_descriptive	3	htmlwidget-d221eeb2206d56b18386	htmlwidget-1972808e7a44326f7252	1081	1081	yes	
+time_series	0	htmlwidget-fb5699495fd36b5428f6	htmlwidget-bd00fcda7fec5ed09365	731	731	yes	
+index	NA	NA	NA	NA	NA	NA	page missing: render=OK ref=/home/raw996/ae/ref_subset_p5a/index.html

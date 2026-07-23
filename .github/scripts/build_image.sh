@@ -142,6 +142,14 @@ fi
 REPO="$1"; NAME="$2"; DIR="$3"; TAGS_CSV="$4"
 BASE_NAME="$5"; BASE_TAG="$6"; BASE_DIGEST="$7"; BASE_FRESH="$8"
 FROZEN="${9:-false}"
+# The docker build CONTEXT. Defaults to DIR (rbase, the 2.5 monolith: the
+# Dockerfile sits in the same directory its COPY paths resolve against). The
+# 2.6 split images pass a different one: their Dockerfile lives in
+# chapters/<ch>/ but COPYs renv.lock / pak_install_subset.R from
+# epirhandbook/2.6/, so the context must be 2.6/ while DIR stays per-chapter
+# (change-detection scope). Building a chapter with its own dir as context
+# fails -- the COPY sources are outside it.
+CONTEXT="${10:-$DIR}"
 
 # Re-run the SAME check inline, before base resolution and long before
 # `docker build`, so a direct `publish`-mode invocation (e.g. PROJECT.md's
@@ -216,7 +224,7 @@ for t in "${TAGS[@]}"; do
   fi
 done
 
-echo "Building $NAME from $DIR with tags: ${TAGS[*]} (mode: $MODE)"
+echo "Building $NAME from $DIR (context: $CONTEXT) with tags: ${TAGS[*]} (mode: $MODE)"
 if [ -n "${GITHUB_PAT:-}" ]; then
   echo "GITHUB_PAT is set (a read-only credential, or an operator-supplied token for local testing) -- passing it as a BuildKit secret."
 else
@@ -226,7 +234,8 @@ DOCKER_BUILDKIT=1 docker build \
   --secret id=github_pat,env=GITHUB_PAT \
   "${BUILD_ARGS[@]}" \
   "${TAG_ARGS[@]}" \
-  "$DIR"
+  -f "$DIR/Dockerfile" \
+  "$CONTEXT"
 
 if [ "$MODE" = "verify" ]; then
   LOCAL_ID="$(docker inspect --format='{{.Id}}' "$NAME:${TAGS[0]}")"

@@ -168,7 +168,14 @@ jobs:
           while IFS= read -r f; do
             [ -n "$f" ] && ARGS+=(--changed-file "$f")
           done < /tmp/changed_files.txt
-          python3 .github/scripts/plan.py --images-yaml images.yaml "${ARGS[@]}" > /tmp/plan.json
+          # BOTH halves of the catalog: the hand-maintained root and the
+          # generated 2.6 split. Base edges cross them (epirhandbook-common is
+          # FROM rbase), so passing only one makes the base look like a typo
+          # and the plan dies. See plan.py's load_catalogs.
+          python3 .github/scripts/plan.py \
+            --images-yaml images.yaml \
+            --images-yaml epirhandbook/2.6/images.yaml \
+            "${ARGS[@]}" > /tmp/plan.json
           echo "--- plan ---"
           cat /tmp/plan.json
 
@@ -255,7 +262,7 @@ jobs:
           timeout_minutes: 5
           max_attempts: 3
           retry_wait_seconds: 15
-          command: bash .github/scripts/build_image.sh check-frozen "$REPO_NAME" "${{ matrix.image.name }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.frozen }}"
+          command: bash .github/scripts/build_image.sh check-frozen "$REPO_NAME" "${{ matrix.image.name }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.frozen }}" "${{ matrix.image.context }}"
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
@@ -288,7 +295,7 @@ jobs:
           timeout_minutes: 120
           max_attempts: 2
           retry_wait_seconds: 60
-          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_digest }}" "${{ matrix.image.base_freshly_built }}" "${{ matrix.image.frozen }}"
+          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_digest }}" "${{ matrix.image.base_freshly_built }}" "${{ matrix.image.frozen }}" "${{ matrix.image.context }}"
 
   build-layer-1:
     needs: [guard-main-ref, plan, build-layer-0]
@@ -330,7 +337,7 @@ jobs:
           timeout_minutes: 5
           max_attempts: 3
           retry_wait_seconds: 15
-          command: bash .github/scripts/build_image.sh check-frozen "$REPO_NAME" "${{ matrix.image.name }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.frozen }}"
+          command: bash .github/scripts/build_image.sh check-frozen "$REPO_NAME" "${{ matrix.image.name }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.frozen }}" "${{ matrix.image.context }}"
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
@@ -363,7 +370,7 @@ jobs:
           timeout_minutes: 120
           max_attempts: 2
           retry_wait_seconds: 60
-          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_digest }}" "${{ matrix.image.base_freshly_built }}" "${{ matrix.image.frozen }}"
+          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_digest }}" "${{ matrix.image.base_freshly_built }}" "${{ matrix.image.frozen }}" "${{ matrix.image.context }}"
 
   build-layer-2:
     needs: [guard-main-ref, plan, build-layer-1]
@@ -405,7 +412,7 @@ jobs:
           timeout_minutes: 5
           max_attempts: 3
           retry_wait_seconds: 15
-          command: bash .github/scripts/build_image.sh check-frozen "$REPO_NAME" "${{ matrix.image.name }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.frozen }}"
+          command: bash .github/scripts/build_image.sh check-frozen "$REPO_NAME" "${{ matrix.image.name }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.frozen }}" "${{ matrix.image.context }}"
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
@@ -438,7 +445,7 @@ jobs:
           timeout_minutes: 120
           max_attempts: 2
           retry_wait_seconds: 60
-          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_digest }}" "${{ matrix.image.base_freshly_built }}" "${{ matrix.image.frozen }}"
+          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_digest }}" "${{ matrix.image.base_freshly_built }}" "${{ matrix.image.frozen }}" "${{ matrix.image.context }}"
 
   build-layer-3:
     needs: [guard-main-ref, plan, build-layer-2]
@@ -480,7 +487,7 @@ jobs:
           timeout_minutes: 5
           max_attempts: 3
           retry_wait_seconds: 15
-          command: bash .github/scripts/build_image.sh check-frozen "$REPO_NAME" "${{ matrix.image.name }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.frozen }}"
+          command: bash .github/scripts/build_image.sh check-frozen "$REPO_NAME" "${{ matrix.image.name }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.frozen }}" "${{ matrix.image.context }}"
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
@@ -513,4 +520,4 @@ jobs:
           timeout_minutes: 120
           max_attempts: 2
           retry_wait_seconds: 60
-          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_digest }}" "${{ matrix.image.base_freshly_built }}" "${{ matrix.image.frozen }}"
+          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_digest }}" "${{ matrix.image.base_freshly_built }}" "${{ matrix.image.frozen }}" "${{ matrix.image.context }}"

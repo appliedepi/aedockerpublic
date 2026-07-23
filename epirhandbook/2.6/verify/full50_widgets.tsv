@@ -1,0 +1,191 @@
+chapter	widget_index	render_widget_id	ref_widget_id	payload_bytes_render	payload_bytes_ref	match	note
+age_pyramid	0	htmlwidget-37ca1cea1146f4eceb01	htmlwidget-cdb7c49e64c9ee54cd4e	28700	28700	yes	
+age_pyramid	1	htmlwidget-97e9f5f535a023e9c7d8	htmlwidget-a97e3d73466b942768ff	916	916	yes	
+age_pyramid	2	htmlwidget-c5e0342ac229bbb75be1	htmlwidget-fc8a75af6f85671adf7c	3157	3157	yes	
+age_pyramid	3	htmlwidget-1e69139e4dd302cfcadb	htmlwidget-ef5b235c3603e4ee5f0f	892	892	yes	
+age_pyramid	4	htmlwidget-81a3d8a300fef28fc832	htmlwidget-a800e68e57e7965ea29f	1443	1443	yes	
+age_pyramid	5	htmlwidget-25e023cd1dc55d66db68	htmlwidget-565d536520dba7188c28	1413	1413	yes	
+age_pyramid	6	htmlwidget-2ea38b94db2b9b6d2291	htmlwidget-6e44d19f9298c4961188	7340	7340	yes	
+basics	NA			0	0	NA	no widgets on either side (valid, expected for text/figure-only chapters)
+characters_strings	0	htmlwidget-81c81dd3fc19c053e32b	htmlwidget-296d64ba5564b41d85e0	28700	28700	yes	
+characters_strings	1	htmlwidget-3be2b9d39d590684f9e1	htmlwidget-43103afa349fb0198b85	611	611	yes	
+characters_strings	2	htmlwidget-e436b28ba7d024aaddd7	htmlwidget-819b3e1f14b5dfbfbe37	860	860	yes	
+characters_strings	3	htmlwidget-3241c4f7c0abe9d956c1	htmlwidget-e17be96d677ddb24d44a	731	731	yes	
+cleaning	0	htmlwidget-729bae59405acd89382a	htmlwidget-a9b665453314463314fa	13589	13589	yes	
+cleaning	1	htmlwidget-e20d7cfb2af0b4ab30dc	htmlwidget-0e7e8039fedab9a06ba9	5178	5178	yes	
+cleaning	2	htmlwidget-68ce602574afc04ff833	htmlwidget-b0e912037d8dc70a8db5	25305	25305	yes	
+collaboration	NA			0	0	NA	no widgets on either side (valid, expected for text/figure-only chapters)
+combination_analysis	0	htmlwidget-560f525aa3521962173d	htmlwidget-f6f8cc9d0aa3ca4ad317	28700	28700	yes	
+combination_analysis	1	htmlwidget-5264188639c970eb532a	htmlwidget-05a69489f8ce5a34474a	13450	13450	yes	
+contact_tracing	0	htmlwidget-48479fb8203878aff8c8	htmlwidget-b2d465fd93d63b86aee0	6307	6307	yes	
+contact_tracing	1	htmlwidget-a3f0b135dfc47340b7a7	htmlwidget-14e78fa6bc58f9c1aa2d	12013	12013	yes	
+contact_tracing	2	htmlwidget-6cbe83467088b3674b20	htmlwidget-66c55d25641f96e61c76	3768	3768	yes	
+contact_tracing	3	htmlwidget-f4d39bad7887e0c726d4	htmlwidget-17c9f38c158438ab9c94	6485	6485	yes	
+contact_tracing	4	htmlwidget-f46d7cc839323cf47aa0	htmlwidget-7bde31b3b9672b9ffe32	3768	3768	yes	
+contact_tracing	5	htmlwidget-b1f2a8b36907923525e0	htmlwidget-83cf8c34b4d96bac8530	2951	2951	yes	
+contact_tracing	6	htmlwidget-7e3b2bbac51580a6f8fb	htmlwidget-8b517bb209c06f68bacb	15699	15699	yes	
+contact_tracing	7	htmlwidget-f1c4c64b01cfcf21cdaf	htmlwidget-ce3aefc7b249942bbbca	1337	1337	yes	
+contact_tracing	8	htmlwidget-ea9e7e1d18abeba1060c	htmlwidget-00bfd0713e489aacffd8	6485	6485	yes	
+data_table	NA			0	0	NA	no widgets on either side (valid, expected for text/figure-only chapters)
+data_used	NA			0	0	NA	no widgets on either side (valid, expected for text/figure-only chapters)
+dates	0	htmlwidget-6e91cb34c05488bb8b6a	htmlwidget-8a225ec0e35660f85720	788	788	yes	
+dates	1	htmlwidget-52e20d5d7a7b66a9d79f	htmlwidget-c16151116e8706db6f07	932	932	yes	
+dates	2	htmlwidget-d81c3decdb6301596455	htmlwidget-63bf8337236ef73cae4b	1097	1097	yes	
+dates	3	htmlwidget-d9e14361c6aa28506242	htmlwidget-4df054225ff7497d33ed	1255	1255	yes	
+deduplication	0	htmlwidget-fdafadd48719b659abff	htmlwidget-e319b408045b071a2fd1	5561	5561	yes	
+deduplication	1	htmlwidget-0b15989efbd7e4434c05	htmlwidget-328849f63032039670f7	998	998	yes	
+deduplication	2	htmlwidget-59763a5254cb35d87cb5	htmlwidget-c387957b999bb2f38311	1104	1104	yes	
+deduplication	3	htmlwidget-6fe087fe6ee7b4843ff3	htmlwidget-27d724bee745f18b2b1e	1587	1587	yes	
+deduplication	4	htmlwidget-0bacf7fd0f52a7d78829	htmlwidget-219e61d0026ac8425e7f	1688	1688	yes	
+deduplication	5	htmlwidget-f5d8b96fe83ea04e320a	htmlwidget-c1c64c0ed2c6ac7acdaf	1426	1426	yes	
+deduplication	6	htmlwidget-56dc2b62e939857a86cf	htmlwidget-ddb7aa9ef56b25e7fa45	1230	1230	yes	
+deduplication	7	htmlwidget-ef465af8ecfc1064562e	htmlwidget-c0e740503f753ae093c2	1230	1230	yes	
+deduplication	8	htmlwidget-49589e11cfb90a2bebe3	htmlwidget-e2b5c39a3f99c5fb3121	2071	2071	yes	
+deduplication	9	htmlwidget-33613ab09d1d6dc00e0b	htmlwidget-f2fa54e89640ba774c3f	1955	1955	yes	
+deduplication	10	htmlwidget-c7506898096c4578e834	htmlwidget-234c312f0cba909cebbc	1747	1747	yes	
+deduplication	11	htmlwidget-191b4e83cb84d058aa50	htmlwidget-2d33beb4adf0912a0974	1505	1505	yes	
+deduplication	12	htmlwidget-c8d7a4232a856117940b	htmlwidget-abf6220395152e6fc044	1817	1817	yes	
+deduplication	13	htmlwidget-8b51f6359507c8aba7a9	htmlwidget-b04dd84a21b884e2d464	1476	1476	yes	
+diagrams	0	htmlwidget-f07bee69f892a895bc20	htmlwidget-fea1445e409332185fb9	28700	28700	yes	
+diagrams	1	htmlwidget-d660159bec84892743df	htmlwidget-883093084bc026f6a619	162	162	yes	
+diagrams	2	htmlwidget-5a59fae521960a5bc8ef	htmlwidget-6289fa2343066e409217	786	786	yes	
+diagrams	3	htmlwidget-85333239b42d7cd2ce00	htmlwidget-f2508e765df052c3c4cb	1381	1381	yes	
+diagrams	4	htmlwidget-de8f9e9b117a5b708f4a	htmlwidget-523e31383ce5e599736d	1788	1788	yes	
+diagrams	5	htmlwidget-5eb4a01b1b2b2d85c31a	htmlwidget-ff1fa2b0dba9e1275909	628	628	yes	
+diagrams	6	htmlwidget-c74d51f4af83a376d59d	htmlwidget-ae3bd20086cd4643bc90	1850	1850	yes	
+diagrams	7	htmlwidget-cee3a3df5c89e029d09c	htmlwidget-53a48b1a1f411980b9a9	2177	2177	yes	
+diagrams	8	htmlwidget-c44b68cc4c9597487284	htmlwidget-d213ac6fb05a6ec6097a	1086	1086	yes	
+diagrams	9	htmlwidget-ad4e4dccdd94a27c6c92	htmlwidget-70b33dd1d9738c936f1e	1313	1313	yes	
+diagrams	10	htmlwidget-8f89c2b77b749d0955d8	htmlwidget-ee1039c55ed5630fbe42	3505	3505	yes	
+diagrams	11	htmlwidget-8436557aa75ab4c959a3	htmlwidget-63f9901079ab96336df3	7515	7520	yes	
+directories	0	htmlwidget-df5cc6de508413b04664	htmlwidget-014e7cd141b0ffab1e10	1929	1971	no	payload differs after id-normalization (render sha16=55407739000cd4ec, ref sha16=eacf1a5ac0ae3875); allowlisted -- README.md 'Inline widget payloads vs. book': widget content includes the render's own working-directory path (/book vs. quarto's /tmp/Rtmp.../file... for the book build) and file modification timestamps, both expected to differ run to run by design
+directories	1	htmlwidget-b20718352dbb5f4b7da0	htmlwidget-337927d6d2176ef7ad8b	1694	1715	no	payload differs after id-normalization (render sha16=788f874dc02b8343, ref sha16=c639b3a8be022da1); allowlisted -- README.md 'Inline widget payloads vs. book': widget content includes the render's own working-directory path (/book vs. quarto's /tmp/Rtmp.../file... for the book build) and file modification timestamps, both expected to differ run to run by design
+editorial_style	NA			0	0	NA	no widgets on either side (valid, expected for text/figure-only chapters)
+epicurves	0	htmlwidget-26642ade40cbe8fd8a33	htmlwidget-99658ce05d04ac8f347e	13761	13761	yes	
+epicurves	1	htmlwidget-b27df3030bcd94741f71	htmlwidget-63cb82200018635ad071	2258	2258	yes	
+epicurves	2	htmlwidget-aec58a17dbe9fdc5dcad	htmlwidget-05c0e5095208a5882bf7	3845	3845	yes	
+epicurves	3	htmlwidget-e893b4c039d7292a9902	htmlwidget-e64b9c239897f13e59fd	11006	11006	yes	
+epicurves	4	htmlwidget-5d12d938228e90f45e18	htmlwidget-2a07c60a039f1f1ac966	690	690	yes	
+epidemic_models	0	htmlwidget-c6e9eaef125b5185099b	htmlwidget-1c41c27b60b331b7b07a	344513	344513	yes	
+epidemic_models	1	htmlwidget-861aff989200d8d947a0	htmlwidget-cc16344bf5615fd627c1	8067	8067	no	payload differs after id-normalization (render sha16=d00674bac58dbbf9, ref sha16=3fe0816ea40644bf); allowlisted -- README.md 'Inline widget payloads vs. book': the projection-results DT table; simulated case counts differ -- independent corroborating evidence (a different code path than the figures) for the same unseeded rgamma()/project() finding confirmed directly in README.md 'Task 1'
+errors	NA			0	0	NA	no widgets on either side (valid, expected for text/figure-only chapters)
+factors	NA			0	0	NA	no widgets on either side (valid, expected for text/figure-only chapters)
+flexdashboard	0	htmlwidget-2fc51b845c74fcd071c4	htmlwidget-2df39043da67638d91fb	28781	28781	yes	
+ggplot_basics	0	htmlwidget-eef3b0dcd5aef3172487	htmlwidget-6cd44d0055d78e45f9de	28700	28700	yes	
+ggplot_basics	1	htmlwidget-2cea4e72db7bb53adb70	htmlwidget-87658923844eb94bf0ef	4547	4547	yes	
+ggplot_basics	2	htmlwidget-4a98b2d7e5fe4a54ed00	htmlwidget-2d09c8b041f351524447	2784	2784	yes	
+ggplot_basics	3	htmlwidget-6380d6acff2d37102af6	htmlwidget-f4f709a427d918976237	6761	6761	yes	
+ggplot_basics	4	htmlwidget-4acb9900470ee9a87aa4	htmlwidget-0aa0684d72991b73d72c	5266	5266	yes	
+ggplot_tips	0	htmlwidget-dba1f183ee538133ff2f	htmlwidget-d96b9303f8b37b873863	28700	28700	yes	
+grouping	0	htmlwidget-b3f48b6a4ec352a512cd	htmlwidget-6f98f0ab61b74801ea07	28700	28700	yes	
+grouping	1	htmlwidget-48eec1fadd1cab43c748	htmlwidget-aefe046daba3add4cbbe	6195	6195	yes	
+grouping	2	htmlwidget-70e631380654b058b570	htmlwidget-c0abaa497a2a76eb15bc	6195	6195	yes	
+grouping	3	htmlwidget-6b49ddeddff4fd5aef94	htmlwidget-68f336eca3c8eb997486	1368	1368	yes	
+grouping	4	htmlwidget-62c2412a467abb9e444d	htmlwidget-bba0c580a4d1d52209df	676	676	yes	
+heatmaps	0	htmlwidget-cde6dfadd45310d99f9c	htmlwidget-be872f43089cc0029aeb	13761	13761	yes	
+heatmaps	1	htmlwidget-d7e42aaac86eea4ba9a9	htmlwidget-df9c167b60c544c6ee47	1711	1711	yes	
+heatmaps	2	htmlwidget-7b1105fb0ece3caa7506	htmlwidget-24e45734db8e0429522d	829	829	yes	
+heatmaps	3	htmlwidget-7ab22aaf8212e8616ffa	htmlwidget-a7372f4b1722c48118d9	1210	1210	yes	
+heatmaps	4	htmlwidget-01c1b20fd5f99cbdcca8	htmlwidget-b0fea2ab3d5704297e0a	2221	2221	yes	
+heatmaps	5	htmlwidget-8a4062149b966eeb17f9	htmlwidget-1e175deef98ee3d40583	1411	1411	yes	
+heatmaps	6	htmlwidget-8dd3293cd50ee5400cc4	htmlwidget-6a12faf9df3afacfc709	2192	2192	yes	
+heatmaps	7	htmlwidget-9bc3a34bfa3c5813ee53	htmlwidget-e32acd87ddd41036f057	1735	1735	yes	
+heatmaps	8	htmlwidget-e0d77024292016cc92ec	htmlwidget-5ee2aa2c85a2468a3f70	2217	2217	yes	
+heatmaps	9	htmlwidget-a61026110231383b1430	htmlwidget-135991ffd2850d4a35ad	2011	2011	yes	
+heatmaps	10	htmlwidget-45924d9e217ad0d62a6e	htmlwidget-b5a97d8ba01c6a08b19a	5265	5265	yes	
+heatmaps	11	htmlwidget-20fa5454d00407370600	htmlwidget-1b247ec9994e69f0bbd5	742	742	yes	
+help	NA			0	0	NA	no widgets on either side (valid, expected for text/figure-only chapters)
+importing	0	htmlwidget-34b43ea0eb3fea4c2903	htmlwidget-76f1269515b2d8a06a3f	14498	14498	yes	
+importing	1	htmlwidget-a445e06b009cbdfbce05	htmlwidget-80bb17304386720fded7	2413	2413	yes	
+importing	2	htmlwidget-1ef2d4dff7ac6ed6b297	htmlwidget-c8ec8ab0a1bc07ded49d	496	496	yes	
+importing	3	htmlwidget-5c8c14d8afb573c9e40f	htmlwidget-fb91ca45c71f4e8a61ff	607	607	yes	
+interactive_plots	0	htmlwidget-aa5a622d2d684223f0ab	htmlwidget-bc2a4c0317c36f16426f	19165	19168	yes	
+interactive_plots	1	htmlwidget-add1cbf7be70aa339d8a	htmlwidget-a554923aec127fa1432d	28700	28700	yes	
+interactive_plots	2	htmlwidget-0a7be7320a0641088f68	htmlwidget-8ad97d91a52311cf4e96	2287	2287	yes	
+interactive_plots	3	htmlwidget-4c1bef10e2eabcc8f4ea	htmlwidget-f4b17900698ec23ddf4d	7096	7099	yes	
+interactive_plots	4	htmlwidget-ad409fa15172a28c4604	htmlwidget-4a1348b68dac5ac11d74	18976	18979	yes	
+interactive_plots	5	htmlwidget-d0e81ee8f18c0350eb17	htmlwidget-2ca559ef9e08de67c762	29727	29727	yes	
+iteration	0	htmlwidget-87afcaee892af8103aa8	htmlwidget-155ec2b924a2afeca960	13761	13761	yes	
+joining_matching	0	htmlwidget-d090ad58317bb9fe8a3e	htmlwidget-ce1b6ac18ef47be98035	28700	28700	yes	
+joining_matching	1	htmlwidget-d0321c5052d4f3647872	htmlwidget-b8be1cd2d1b70cb45fca	798	798	yes	
+joining_matching	2	htmlwidget-8a9439dc2101302daa53	htmlwidget-7488cf3daf615bc259aa	714	714	yes	
+joining_matching	3	htmlwidget-e080c04096f011728800	htmlwidget-65dc156699c15b5a1301	1196	1196	yes	
+joining_matching	4	htmlwidget-da4ca9b11b03c1deb42a	htmlwidget-73ccb479f886c64fc805	1196	1196	yes	
+joining_matching	5	htmlwidget-7fdb15413e32df53350c	htmlwidget-e8aecceb23427efb33a8	1198	1198	yes	
+joining_matching	6	htmlwidget-d9d94f54a3f043d67b95	htmlwidget-4426106f0bac66347780	1313	1313	yes	
+joining_matching	7	htmlwidget-26fd32248e2e0c62b7e1	htmlwidget-6b18fe5375b90c225ac5	946	946	yes	
+joining_matching	8	htmlwidget-3c41ad750868211fa806	htmlwidget-d475f9fe7b81e7a11ac3	604	604	yes	
+joining_matching	9	htmlwidget-ad474bc6ac120a0ff629	htmlwidget-be9fa3a5d6b6e56ec091	944	944	yes	
+joining_matching	10	htmlwidget-4c09c6b9a4e0c3d2830e	htmlwidget-a9fb428521e599e6db85	664	664	yes	
+joining_matching	11	htmlwidget-1ab3fef37adf8865b45f	htmlwidget-f1c69393a96f1f3523e1	1229	1229	yes	
+joining_matching	12	htmlwidget-dea6b4a0799db90b1e9e	htmlwidget-4b52deb51e26842f7ae4	1667	1667	yes	
+joining_matching	13	htmlwidget-ab82c09853b68134d013	htmlwidget-8dd8414ce0b3b4f8e970	2501	2501	yes	
+joining_matching	14	htmlwidget-a331e4eaaa48ec9a5725	htmlwidget-aca04d11e5293122eaff	1568	1568	yes	
+joining_matching	15	htmlwidget-717918a5006e65a5b083	htmlwidget-24d8527702d4c530d8cf	1300	1300	yes	
+joining_matching	16	htmlwidget-383c7e7d703dc59cb913	htmlwidget-00da11b3be16229dbda3	1388	1388	yes	
+joining_matching	17	htmlwidget-f233e828801f95ffceb4	htmlwidget-3484dadb8a03ec85b7fc	626	626	yes	
+joining_matching	18	htmlwidget-07a2477a7a13b5a43e14	htmlwidget-ee817937687ea8f7c3ce	418	418	yes	
+joining_matching	19	htmlwidget-2c50fe469be86d77f55d	htmlwidget-418a1e7e0d64b45eb6e2	639	639	yes	
+joining_matching	20	htmlwidget-5f9b2bd03858c25e2f17	htmlwidget-7a4c317144388718e533	620	620	yes	
+joining_matching	21	htmlwidget-905f55ea28264363845e	htmlwidget-de50504e893c72efe892	613	613	yes	
+joining_matching	22	htmlwidget-aa6889cc34498f987b7a	htmlwidget-ef40b4cf0207f3fbfdd7	613	613	yes	
+missing_data	0	htmlwidget-f7a7b13ad63c0a239d23	htmlwidget-0f3306f7906dc6871c62	28700	28700	yes	
+moving_average	0	htmlwidget-9aae40234d465753f4d2	htmlwidget-980f48b5b68c3ba743af	28700	28700	yes	
+moving_average	1	htmlwidget-ca1dc96f6794e576e8a6	htmlwidget-078001cf9a43dfb9580c	6154	6154	yes	
+moving_average	2	htmlwidget-12b3bd55bf0b319547af	htmlwidget-46340fed9588b73b4775	8754	8754	yes	
+moving_average	3	htmlwidget-17f1c107a43f5fc3ca5f	htmlwidget-03ebe807693fde125d4b	72778	72778	yes	
+network_drives	NA			0	0	NA	no widgets on either side (valid, expected for text/figure-only chapters)
+packages_suggested	NA			0	0	NA	no widgets on either side (valid, expected for text/figure-only chapters)
+phylogenetic_trees	0	htmlwidget-a3723c84729a01b85654	htmlwidget-1fc480e278f013c84daa	5991	5991	yes	
+pivoting	0	htmlwidget-8b6153847156602d527c	htmlwidget-7882478b935e35958055	4475	4475	yes	
+pivoting	1	htmlwidget-140b71bee3b8dcc3b808	htmlwidget-be45ae1f0276b2e74ecd	217732	217732	yes	
+pivoting	2	htmlwidget-1a7cb75c93ab574abafd	htmlwidget-2a98275cf4c847360ef5	897	897	yes	
+pivoting	3	htmlwidget-501d7fe6cc35c704d371	htmlwidget-6202806e0bc7c2858409	13761	13761	yes	
+r_projects	NA			0	0	NA	no widgets on either side (valid, expected for text/figure-only chapters)
+regression	0	htmlwidget-fed88dae446cf8020fd3	htmlwidget-b7ed49cda27540694a42	13749	13749	yes	
+regression	1	htmlwidget-130775a248ce3e413fbb	htmlwidget-e0561a634449de0f3cd4	1190	1190	yes	
+regression	2	htmlwidget-c4c45b359790bfb7060e	htmlwidget-0e7c73a6f488b95c9c3b	626	626	yes	
+regression	3	htmlwidget-fbf81539f5d318a23a7a	htmlwidget-2fa69658bfee83c0a99d	1759	1759	yes	
+regression	4	htmlwidget-f54d0bbf605175241209	htmlwidget-81aba902b6a4e6324386	1648	1648	yes	
+regression	5	htmlwidget-abf3e0f8c42712513240	htmlwidget-6758c4367a96e6158e10	1455	1455	yes	
+reportfactory	NA			0	0	NA	no widgets on either side (valid, expected for text/figure-only chapters)
+rmarkdown	NA			0	0	NA	no widgets on either side (valid, expected for text/figure-only chapters)
+shiny_basics	NA			0	0	NA	no widgets on either side (valid, expected for text/figure-only chapters)
+standardization	0	htmlwidget-35ae7d1e60ef66b81e02	htmlwidget-d4f7c91c7f42a77f2856	1050	1050	yes	
+standardization	1	htmlwidget-22e66fffffb6a01b8a53	htmlwidget-09aa534e8d6c9b9c3e3a	1055	1055	yes	
+standardization	2	htmlwidget-0fb7d31bcb4c8d7bbccf	htmlwidget-5b003e26111afd65dc12	935	935	yes	
+standardization	3	htmlwidget-e45d899af28eb50797dc	htmlwidget-4610e41c028fa78f003d	929	929	yes	
+standardization	4	htmlwidget-602807cf513ca2910e0a	htmlwidget-f162d174657f25254000	2547	2547	yes	
+standardization	5	htmlwidget-3c68948ffbcebd3dd3c0	htmlwidget-a290abe6b54eb7cb97b4	2274	2274	yes	
+standardization	6	htmlwidget-571a304cb7a7e70bc405	htmlwidget-e37f1f7581f9812dae2e	2889	2889	yes	
+standardization	7	htmlwidget-ebe3bc288e6cfd4d5049	htmlwidget-11b80177c0c1db8cf467	1522	1522	yes	
+standardization	8	htmlwidget-16f62267ad1e737cd10a	htmlwidget-38c7e4c109d0145d4186	3301	3301	yes	
+stat_tests	0	htmlwidget-b89902b7c88b7362a231	htmlwidget-e4bee8890c2979a8c011	28781	28781	yes	
+survey_analysis	0	htmlwidget-4a72ec086daf83a2a48e	htmlwidget-2b82d7011f20dd0c8945	7198	7198	yes	
+survey_analysis	1	htmlwidget-c0f343a5380529080be7	htmlwidget-c3cb5335b27e90f41795	1092	1092	yes	
+survival_analysis	0	htmlwidget-bff8871816c4787a52f4	htmlwidget-891508c0e0aabc4f0c8d	9862	9862	yes	
+tables_descriptive	0	htmlwidget-e977354aecd359f0a05a	htmlwidget-ccb494fe000a0c1c2d7a	28781	28781	yes	
+tables_descriptive	1	htmlwidget-569c6f39254f150874ef	htmlwidget-9ac10cb2a03ef56718e5	1381	1381	yes	
+tables_descriptive	2	htmlwidget-937b36a5e456b01b3eb5	htmlwidget-95418e3ba629cd5fe427	1379	1379	yes	
+tables_descriptive	3	htmlwidget-4438bc3d8629b2e1944e	htmlwidget-1972808e7a44326f7252	1081	1081	yes	
+tables_presentation	0	htmlwidget-c41a095dd0e921b3342a	htmlwidget-e3026ada4aafae5223a5	28781	28781	yes	
+time_series	0	htmlwidget-9ed81a4fee513530ee85	htmlwidget-bd00fcda7fec5ed09365	731	731	yes	
+transition_to_R	0	htmlwidget-3691bf29ab042a4beb74	htmlwidget-ec077211694bcfebfef3	28700	28700	yes	
+transmission_chains	0	htmlwidget-3fe2ff4a82bd56e6df46	htmlwidget-04e824ba35504c7f60c1	37891	37890	no	payload differs after id-normalization (render sha16=b15e6c419c24d8cd, ref sha16=c1f066dad60d1326); allowlisted -- README.md 'Inline widget payloads vs. book': already-documented stochastic contact-network simulation (no fixed seed); same volatility as this chapter's page text (case-ID hashes, Nosocomial/Community counts)
+transmission_chains	1	htmlwidget-9c21070e8b0da153f579	htmlwidget-3bfd2e20dce7ef604b2d	28700	28700	yes	
+transmission_chains	2	htmlwidget-c178954d89cc29b4df67	htmlwidget-ce228bc6277a20f8d1a1	32380	32380	no	payload differs after id-normalization (render sha16=c428dcc8cf49ad9d, ref sha16=6e0f15137ad85d06); allowlisted -- README.md 'Inline widget payloads vs. book': already-documented stochastic contact-network simulation (no fixed seed); same volatility as this chapter's page text (case-ID hashes, Nosocomial/Community counts)
+transmission_chains	3	htmlwidget-85c5daf5737a2700d0a6	htmlwidget-8b48d31d8edaac259e7d	32902	32902	no	payload differs after id-normalization (render sha16=1fb1a163234e4958, ref sha16=e430c5fda69bed03); allowlisted -- README.md 'Inline widget payloads vs. book': already-documented stochastic contact-network simulation (no fixed seed); same volatility as this chapter's page text (case-ID hashes, Nosocomial/Community counts)
+transmission_chains	4	htmlwidget-6c5dfbd8c3f79d07b686	htmlwidget-3fb40b6554bfc5294be1	33272	33418	no	payload differs after id-normalization (render sha16=d4a9b895bf98c27f, ref sha16=bc128283c0b5a73a); allowlisted -- README.md 'Inline widget payloads vs. book': already-documented stochastic contact-network simulation (no fixed seed); same volatility as this chapter's page text (case-ID hashes, Nosocomial/Community counts)
+transmission_chains	5	htmlwidget-c0f262c7980b9cf480b8	htmlwidget-d14ac34deab36ed92520	34564	34564	no	payload differs after id-normalization (render sha16=4efa640b2559c1d9, ref sha16=957666e6ca189872); allowlisted -- README.md 'Inline widget payloads vs. book': already-documented stochastic contact-network simulation (no fixed seed); same volatility as this chapter's page text (case-ID hashes, Nosocomial/Community counts)
+transmission_chains	6	htmlwidget-f3dc0759cfb55a4bac7d	htmlwidget-f315bf83519678c441db	37053	37050	no	payload differs after id-normalization (render sha16=936abc94f77eadf0, ref sha16=9431a615194fcd24); allowlisted -- README.md 'Inline widget payloads vs. book': already-documented stochastic contact-network simulation (no fixed seed); same volatility as this chapter's page text (case-ID hashes, Nosocomial/Community counts)
+transmission_chains	7	htmlwidget-ce287d842d97a17079b3	htmlwidget-379542a43ed574e338d6	40493	40487	no	payload differs after id-normalization (render sha16=a123aa5600ac8643, ref sha16=63c10499d1034b72); allowlisted -- README.md 'Inline widget payloads vs. book': already-documented stochastic contact-network simulation (no fixed seed); same volatility as this chapter's page text (case-ID hashes, Nosocomial/Community counts)
+transmission_chains	8	htmlwidget-38a5cc367baf96833461	htmlwidget-9c60b29aa30cfdc8e5f7	36173	36189	no	payload differs after id-normalization (render sha16=0ab07338cb134e09, ref sha16=41eb96328785c651); allowlisted -- README.md 'Inline widget payloads vs. book': already-documented stochastic contact-network simulation (no fixed seed); same volatility as this chapter's page text (case-ID hashes, Nosocomial/Community counts)
+transmission_chains	9	htmlwidget-41f3f8d61437077db4b1	htmlwidget-2c08311067c4f5ccb7b3	55536	55545	no	payload differs after id-normalization (render sha16=bd9a85ea178a732b, ref sha16=0234e27d1d2e91c5); allowlisted -- README.md 'Inline widget payloads vs. book': already-documented stochastic contact-network simulation (no fixed seed); same volatility as this chapter's page text (case-ID hashes, Nosocomial/Community counts)
+transmission_chains	10	htmlwidget-c54953cced8d5995d7c8	htmlwidget-8d19654e6a532d5215eb	44347	44350	no	payload differs after id-normalization (render sha16=f1313f7d7d66b812, ref sha16=4792d02dfd046ec1); allowlisted -- README.md 'Inline widget payloads vs. book': already-documented stochastic contact-network simulation (no fixed seed); same volatility as this chapter's page text (case-ID hashes, Nosocomial/Community counts)
+writing_functions	0	htmlwidget-da71842f9db7d8860f6a	htmlwidget-bd482d778f4150d5cdf8	6637	6637	yes	
+writing_functions	1	htmlwidget-9c9fcbf3d19ff6532dd6	htmlwidget-92096c7507559257fae7	19892	19892	yes	
+writing_functions	2	htmlwidget-1f6be114996766c413d0	htmlwidget-6cd3dae917ef45f72c3f	19439	19439	yes	
+writing_functions	3	htmlwidget-b52152e828374fb83869	htmlwidget-f9ee36328e15d3bac93d	3167	3167	yes	
+writing_functions	4	htmlwidget-b0963aae46c2bde6d973	htmlwidget-9e051f74a44043b411d9	3167	3167	yes	
+writing_functions	5	htmlwidget-1f5e42c49b3695d6c5ef	htmlwidget-95df1216ded4d56caef6	3190	3190	yes	
+index	NA			0	0	NA	no widgets on either side (valid, expected for text/figure-only chapters)

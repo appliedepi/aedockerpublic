@@ -1,0 +1,6 @@
+chapter	status	seconds	similarity_vs_book	note	rendered_sha16	ref_sha16	rendered_bytes	ref_bytes	rendered_path
+basics	OK	12	0.9997		6ee71999d1a9162b	50b01431a04181ba	233960	234326	/home/raw996/ae/render_p5a/html_outputs/new_pages/basics.html
+epicurves	OK	21	0.9996		4868183da819519d	cae12694087cb36a	319928	320445	/home/raw996/ae/render_p5a/html_outputs/new_pages/epicurves.html
+interactive_plots	OK	12	0.9977		e4dc8b76535545f1	598c0f06596edd1d	201650	202312	/home/raw996/ae/render_p5a/html_outputs/new_pages/interactive_plots.html
+tables_descriptive	OK	18	0.9945		9dc6fe23507c2ac9	0c642f70034a9f00	339137	339472	/home/raw996/ae/render_p5a/html_outputs/new_pages/tables_descriptive.html
+time_series	OK	50	0.9996		7a29380aed3f3804	541474116b364243	262758	263259	/home/raw996/ae/render_p5a/html_outputs/new_pages/time_series.html
