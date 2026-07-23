@@ -1,0 +1,222 @@
+name: Nightly drift check
+
+# Blocker 2: this workflow NEVER PUBLISHES ANYTHING. It used to be "the
+# only FULL rebuild: every live: true image, unconditionally" and it PUSHED
+# the result to the same tags build.yml publishes -- which meant a
+# scheduled run could silently replace a known-good published image with a
+# DIFFERENT one under an unchanged tag, because several of this project's
+# inputs are not snapshot-pinned and resolve LIVE: `apt-get update/install`
+# in rbase, R's .deb from a version-named URL, pak/jsonlite bootstrapped
+# from PPM `latest`, and CRAN/Bioc/GitHub source resolution in
+# epirhandbook. On a project whose entire premise is "this exact stack does
+# not move" (see images.yaml's `frozen:` field), an automatic republish is
+# the one thing that must never happen by accident.
+#
+# So this workflow is now DRIFT DETECTION ONLY: it builds every live image,
+# exactly as build.yml would, and then STOPS. The absence of the
+# capability is the control, not the absence of a call to it:
+#   - `permissions: contents: read` at the top, and NO job in this file
+#     elevates it. There is no `packages: write` anywhere below.
+#   - There is no `docker/login-action` step anywhere in this file, and no
+#     `docker push` (see build_image.sh's "verify" mode, which this
+#     workflow exclusively uses -- it builds and inspects, never pushes).
+#   - guard-main-ref (mirroring build.yml) still applies: even though this
+#     workflow cannot publish, "did the frozen stack drift" is only a
+#     meaningful question about refs/heads/main -- checking a branch's
+#     in-progress edits would not test what this workflow claims to test.
+#
+# WHAT COUNTS AS "DRIFT", AND WHY THIS BAR AND NOT A DEEPER ONE:
+#   This workflow's drift signal is: (a) does `docker build` still succeed,
+#   with NO cascade shortcuts (a freshly-built base is used directly; a
+#   NOT-freshly-built base's recorded digest is actively checked against
+#   the registry first -- see build_image.sh, finding 5), and (b) for
+#   epirhandbook specifically, does every one of the 473 renv.lock-pinned
+#   packages still resolve, install, and LOAD at its EXACT locked version.
+#   (b) needs no separate step here: it is already an unconditional
+#   build-time RUN in epirhandbook/2.5/Dockerfile's own last layer (the
+#   "VERSION/LOAD CHECK"), so "the build succeeded" and "all 473 locked
+#   versions still resolve live" are the SAME fact for that image. rbase
+#   carries its own analogous build-time invariants (R version + BLAS/
+#   LAPACK == openblas-pthread; the Quarto .deb's sha256), so "the build
+#   succeeded" carries the same weight there for the toolchain identity it
+#   asserts -- though rbase's `apt-get install` package versions themselves
+#   are NOT individually pinned or checked (see PROJECT.md's hardening
+#   TODO list; unchanged by this phase).
+#
+#   Deliberately NOT attempted here: rendering real chapter content and
+#   comparing it to a fresh crawl of the live epirhandbook.com (the actual
+#   Phase 2/3 regression bar, `epirhandbook/2.5/verify/manifest.tsv`). That
+#   comparison needs the handbook's chapter content (a DIFFERENT repo,
+#   `appliedepi/epiRhandbook_eng`) and a live crawl of a third party's
+#   production site -- infrastructure built for a one-time phase gate, not
+#   something to run unattended against someone else's site every night,
+#   nor available inside a CI runner without vendoring the crawl data this
+#   project deliberately keeps out of git (see verify/VERIFICATION.md).
+#   "Does it still build, with all 473 exact-version packages loading" is
+#   the correctly-scoped automatic nightly signal; a content-level render
+#   check stays a manual, occasional exercise.
+#
+# Deliberately duplicates build.yml's plan job rather than sharing it via a
+# reusable (workflow_call) workflow -- see build.yml's top comment for why:
+# that mechanism cannot be exercised without an actual push, which this
+# phase's brief forbids. Unlike build.yml, the build side is NOT duplicated
+# as one job per layer here: this workflow builds sequentially in a SINGLE
+# job (drift-check, below) so a freshly-built base can be referenced by its
+# plain local Docker tag on the one runner that built it, with no registry
+# round-trip at all -- there is nothing to push, so there is no need to
+# hand an image between separate job runners the way build.yml's layered
+# jobs do. This also means drift-check has no hardcoded layer-count
+# ceiling: it walks `plan.json`'s layers in order, however many there are.
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  # SAME fixed group name as build.yml, deliberately (finding 8): a
+  # scheduled/dispatched drift check and a push-triggered publish must
+  # never run concurrently against the same base images, even though this
+  # workflow never pushes -- a build here and a publish in build.yml both
+  # read the registry (base_digest checks) and both build the same
+  # Dockerfiles, and serializing is cheap insurance against any surprise
+  # interaction. Ref-independent for the same reason as build.yml: a
+  # dispatch from a different ref must still serialize against everything
+  # else that touches these images.
+  group: aedockerpublic-ghcr-builds
+  cancel-in-progress: false
+
+# NO packages: write anywhere in this file -- this is the control, not an
+# oversight. contents: read is all any job here needs (checkout, plus
+# GITHUB_PAT's use as a GitHub API bearer token for pak's `github::`
+# package fetches in epirhandbook's build, which is a repo-CONTENTS read,
+# unrelated to GHCR/package permissions). This job's own secrets.GITHUB_TOKEN
+# is therefore already read-only in practice -- but GITHUB_PAT below is
+# STILL sourced from the dedicated `GH_READONLY_PAT` repository secret
+# (Phase 4 round 2 remediation), not secrets.GITHUB_TOKEN, so build.yml and
+# nightly.yml feed the exact same package-build code the exact same kind of
+# credential for the exact same purpose, rather than two different tokens
+# depending on which workflow happens to run it. If GH_READONLY_PAT is not
+# configured, this evaluates to an empty string and the build proceeds with
+# NO token (see build_image.sh's header for the consequence).
+permissions:
+  contents: read
+
+jobs:
+  # Mirrors build.yml's guard-main-ref exactly. Closes this workflow's own
+  # instance of blocker 1 (its workflow_dispatch previously had no ref
+  # guard at all) and keeps the drift signal meaningful -- see the header.
+  guard-main-ref:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse to run anything off refs/heads/main
+        run: |
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "::error::This workflow only means something for refs/heads/main (drift-checking a branch's in-progress edits is not 'did the frozen stack drift'). Actual ref: ${{ github.ref }} (event: ${{ github.event_name }}). Refusing to plan or build." >&2
+            exit 1
+          fi
+          echo "Ref check OK: ${{ github.ref }} (event: ${{ github.event_name }})"
+
+  plan:
+    needs: guard-main-ref
+    runs-on: ubuntu-latest
+    outputs:
+      plan_json: ${{ steps.plan.outputs.plan_json }}
+      num_layers: ${{ steps.plan.outputs.num_layers }}
+      trigger: ${{ steps.plan.outputs.trigger }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.x"
+
+      # Hash-pinned: refuses to install anything whose downloaded artifact
+      # does not match one of requirements.txt's recorded sha256 hashes. See
+      # that file's header for why PyYAML is hash-pinned rather than either
+      # left unpinned (Phase 4 round 1 finding) or vendored (the four
+      # semantic-divergence blockers that decision then drew -- PROJECT.md
+      # section 8).
+      - name: Install pinned Python dependencies for the planner
+        run: python3 -m pip install --require-hashes --force-reinstall -r .github/scripts/requirements.txt
+
+      - name: Run planner unit tests (fail loud before planning a real build)
+        run: python3 .github/scripts/test_plan.py -v
+
+      - name: Run planner (nightly = every live image)
+        id: plan
+        run: |
+          python3 .github/scripts/plan.py --images-yaml images.yaml --nightly > /tmp/plan.json
+          echo "--- plan ---"
+          cat /tmp/plan.json
+
+          {
+            # One compact JSON blob, not per-layer outputs: drift-check
+            # (below) walks it with jq in a single job, so it is not bound
+            # to the same static layer-count ceiling build.yml's separate
+            # per-layer JOBS are (see this file's header).
+            echo "plan_json=$(jq -c . /tmp/plan.json)"
+            echo "num_layers=$(jq -r '.num_layers' /tmp/plan.json)"
+            echo "trigger=$(jq -r '.trigger' /tmp/plan.json)"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### Nightly drift-check plan (trigger: \`$(jq -r '.trigger' /tmp/plan.json)\`)"
+            echo ""
+            echo '```json'
+            cat /tmp/plan.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # The entire build side, in ONE job (see header for why this differs from
+  # build.yml's one-job-per-layer matrix): sequential, no push, no
+  # registry handoff needed between images since they all build on this
+  # one runner's one Docker daemon.
+  drift-check:
+    needs: [guard-main-ref, plan]
+    if: >-
+      always() &&
+      needs.plan.result == 'success' &&
+      fromJSON(needs.plan.outputs.num_layers) > 0
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    # Explicit, even though it matches the workflow-level default: this job
+    # builds every live image and is the one most worth double-checking has
+    # no push capability at all.
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set lowercase repository name
+        run: echo "REPO_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - name: Build every live image, layer by layer -- NO PUSH (drift check only)
+        env:
+          PLAN_JSON: ${{ needs.plan.outputs.plan_json }}
+          # Read-only credential, same as build.yml -- never secrets.GITHUB_TOKEN
+          # (see the workflow-level permissions: comment above).
+          GITHUB_PAT: ${{ secrets.GH_READONLY_PAT }}
+        run: |
+          set -euo pipefail
+          echo "$PLAN_JSON" > /tmp/plan.json
+
+          NUM_IMAGES=$(jq '[.layers[][]] | length' /tmp/plan.json)
+          echo "Plan has $NUM_IMAGES image(s) across $(jq -r '.num_layers' /tmp/plan.json) layer(s). Building sequentially, no push."
+
+          mapfile -t IMAGE_JSONS < <(jq -c '.layers[][]' /tmp/plan.json)
+          for img in "${IMAGE_JSONS[@]}"; do
+            NAME=$(jq -r '.name' <<< "$img")
+            DIR=$(jq -r '.dir' <<< "$img")
+            TAGS_CSV=$(jq -r '.tags | join(",")' <<< "$img")
+            BASE_NAME=$(jq -r '.base_name' <<< "$img")
+            BASE_TAG=$(jq -r '.base_tag' <<< "$img")
+            BASE_DIGEST=$(jq -r '.base_digest // ""' <<< "$img")
+            BASE_FRESH=$(jq -r '.base_freshly_built' <<< "$img")
+            FROZEN=$(jq -r '.frozen' <<< "$img")
+            echo "::group::Verifying $NAME (frozen: $FROZEN, base_freshly_built: $BASE_FRESH)"
+            bash .github/scripts/build_image.sh verify "$REPO_NAME" "$NAME" "$DIR" "$TAGS_CSV" "$BASE_NAME" "$BASE_TAG" "$BASE_DIGEST" "$BASE_FRESH" "$FROZEN"
+            echo "::endgroup::"
+          done
+
+          echo "All $NUM_IMAGES image(s) still build from today's live inputs -- no drift detected." >> "$GITHUB_STEP_SUMMARY"

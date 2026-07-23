@@ -78,4 +78,44 @@ RUN curl -fsSL -o /tmp/quarto.deb https://github.com/quarto-dev/quarto-cli/relea
     && apt-get update && apt-get install -y --no-install-recommends /tmp/quarto.deb \
     && rm -rf /tmp/quarto.deb /var/lib/apt/lists/*
 
-# Phase 4 will add the optional openssh-server (runtime-toggled) here.
+# --- Optional SSH runtime toggle (off and keyless by default) ---------------
+# openssh-server is installed but INERT: sshd does not start unless the
+# operator supplies SSH_PUBKEY at `docker run` time (see entrypoint.sh) --
+# there is no separate "enable" flag, so "on with no key" is not a state
+# that can be reached. No key of any kind is baked into this image, and no
+# password-based login path exists at all (enforced below, and again at
+# runtime by sshd_hardening.conf).
+RUN apt-get update && apt-get install -y --no-install-recommends openssh-server \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY sshd_hardening.conf /etc/ssh/sshd_config.d/hardening.conf
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+# Build-time invariant: the EFFECTIVE sshd config truly disables every
+# password-like auth path, root is key-only, AND (Phase 4 / finding 9) none
+# of the forwarding/tunneling features are reachable either. `sshd -T` needs
+# host keys and /run/sshd to exist just to parse/dump config (verified
+# empirically -- it exits 255 "no hostkeys available" otherwise) even though
+# it never starts the daemon; both are generated/created here ONLY for this
+# check and removed in this same layer, so no host key is ever baked into
+# the image -- entrypoint.sh generates a fresh host key per CONTAINER at
+# start time instead. `sshd -T` normalizes PermitRootLogin's
+# `prohibit-password` alias to `without-password` in its output, so the
+# check matches that form.
+RUN ssh-keygen -A \
+    && mkdir -p /run/sshd \
+    && CFG="$(/usr/sbin/sshd -T)" \
+    && echo "$CFG" | grep -qx 'passwordauthentication no' \
+    && echo "$CFG" | grep -qx 'kbdinteractiveauthentication no' \
+    && echo "$CFG" | grep -qx 'permitemptypasswords no' \
+    && echo "$CFG" | grep -qx 'permitrootlogin without-password' \
+    && echo "$CFG" | grep -qx 'allowtcpforwarding no' \
+    && echo "$CFG" | grep -qx 'x11forwarding no' \
+    && echo "$CFG" | grep -qx 'permittunnel no' \
+    && echo "$CFG" | grep -qx 'gatewayports no' \
+    && echo "$CFG" | grep -qx 'allowagentforwarding no' \
+    && rm -rf /etc/ssh/ssh_host_* /run/sshd
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["/bin/bash"]

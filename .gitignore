@@ -1,0 +1,5 @@
+# Byte-compiled Python (from running .github/scripts/test_plan.py locally --
+# caught during Phase 4 review: it's easy to `git add -A` one of these by
+# accident otherwise).
+__pycache__/
+*.pyc

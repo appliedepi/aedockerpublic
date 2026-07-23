@@ -1,0 +1,516 @@
+name: Build images
+
+# Selective + cascade build: diffs the pushed commit, maps changed files to
+# images via images.yaml (.github/scripts/plan.py), applies the cascade (a
+# changed image rebuilds everything FROM it, transitively -- but see
+# plan.py for why a cascade respects `live: false` while a direct edit to a
+# frozen image's own files still does not), and builds the result as a
+# matrix in dependency order. A change to images.yaml, to any
+# .github/workflows/* file, or to any .github/scripts/* file rebuilds every
+# `live: true` image (see plan.py's is_special_trigger()).
+#
+# This is the ONLY workflow in this repo that can publish. Every other
+# safeguard in this file exists to keep that true:
+#   - guard-main-ref (blocker 1): publishing may only ever happen from
+#     refs/heads/main, enforced HERE, in the workflow, as a hard job-level
+#     gate -- never only via this file's own `on: push: branches: [main]`
+#     filter or any repo setting, both of which are themselves config that
+#     could be edited or bypassed. See that job for exactly how it fails.
+#   - `workflow_dispatch` exists ONLY to carry the force_republish_frozen
+#     input (see below and images.yaml's `frozen:` field) -- it is not a
+#     general "run this from anywhere" escape hatch, because guard-main-ref
+#     applies to it exactly the same as to a scheduled or pushed run.
+#   - `packages: write` is scoped to ONLY the build-layer-N jobs, which are
+#     the only ones that call `docker push`. plan and guard-main-ref get the
+#     workflow-level `contents: read` default and nothing else.
+#   - Every build-layer-N job runs under the `publish` GitHub Environment,
+#     so a required-reviewer rule CAN be configured in repo settings (see
+#     PROJECT.md for how to turn that on -- it is not assumed to be on).
+#   - Each build-layer-N job now ALSO runs a "Refuse to republish an
+#     already-published frozen image" step BEFORE docker/login-action and
+#     BEFORE `docker build` (Phase 4 round 2 remediation) -- a doomed
+#     republish attempt is caught before the job ever logs in or spends 45
+#     minutes compiling, not just before the eventual `docker push`.
+#
+# REQUIRED REPOSITORY SECRET: `GH_READONLY_PAT` -- a fine-grained GitHub PAT
+# scoped to PUBLIC READ ONLY (no `packages: write`, no repo write of any
+# kind). It is fed into the "Build and push" step's GITHUB_PAT env var,
+# which `docker build` mounts as a BuildKit secret purely to raise pak's
+# GitHub API rate limit while resolving epirhandbook's 7 GitHub-SHA-pinned
+# packages. `secrets.GITHUB_TOKEN` is DELIBERATELY never used for this: this
+# job holds `packages: write` (see below), and feeding THAT token into 473
+# packages' worth of arbitrary, compiled-from-source install code would let
+# any of them push to `ghcr.io/appliedepi/aedockerpublic/` (Phase 4 round 2
+# blocker). `secrets.GITHUB_TOKEN` keeps its own, narrower legitimate job
+# here: docker/login-action and the actual `docker push`, both of which
+# genuinely need push-capable credentials. If `GH_READONLY_PAT` is not
+# configured as a repository secret, the build proceeds with NO token at
+# all (never a silent fallback to `secrets.GITHUB_TOKEN`) -- the only
+# consequence is that those 7 GitHub package lookups fall back to the
+# ANONYMOUS GitHub API rate limit, which is shared across every job running
+# on the same GitHub-hosted runner IP at that moment. See PROJECT.md
+# section 8 for how to create/rotate this secret.
+#
+# This file and nightly.yml deliberately duplicate the plan + build-layer-N
+# jobs rather than sharing them via a reusable (workflow_call) workflow.
+# That would remove the duplication, but it introduces GitHub-Actions-
+# specific mechanics (cross-workflow permission inheritance, JSON-array
+# string inputs feeding a matrix) that cannot be exercised or verified
+# without an actual push -- which this phase's brief explicitly forbids.
+# Two plain, statically-lintable files are the safer choice given that
+# constraint. Revisit if that constraint ever lifts.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      force_republish_frozen:
+        description: >-
+          Comma-separated image names (images.yaml's `name:` field) allowed
+          to republish over an already-published tag even though
+          frozen: true. Leave empty for a normal run. A deliberate,
+          human-supplied override for a rare "yes, really replace the
+          frozen artifact" action -- never set by automation, and still
+          subject to guard-main-ref (main only).
+        required: false
+        default: ""
+
+concurrency:
+  # Deliberately NOT parameterized by ${{ github.ref }} (finding 8): a
+  # manual dispatch off a branch would otherwise get a DIFFERENT group than
+  # a push to main, so the two would NOT serialize against each other, even
+  # though both are capable of pushing the SAME tags. One fixed name means
+  # every run of EITHER this file or nightly.yml -- push, schedule, or
+  # dispatch, on any ref -- shares one queue. (guard-main-ref also means a
+  # non-main run never gets far enough to race anything, but the group is
+  # ref-independent regardless, as defense in depth and because nightly.yml
+  # shares this exact group name too.)
+  group: aedockerpublic-ghcr-builds
+  cancel-in-progress: false
+
+# Workflow-level default: read-only. Only the jobs that actually push
+# (build-layer-0..3, below) elevate to packages: write, and each does so in
+# its OWN job-level permissions block -- never at this top level.
+permissions:
+  contents: read
+
+jobs:
+  # Blocker 1: publishing may only ever happen from refs/heads/main. A
+  # job-level `if:` that gates the ENTIRE pipeline is used instead of a
+  # later fail-fast step, so a misdispatched run never even checks out
+  # branch content -- nothing downstream runs at all (plan `needs:` this
+  # job, and every build-layer-N job's existing `needs.plan.result ==
+  # 'success'` check already turns a skipped plan into a skipped build).
+  # Fails LOUD (a red X, not a quiet grey skip) so a bad dispatch is
+  # unmissable in the Actions UI, not just silently absent.
+  guard-main-ref:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse to run anything off refs/heads/main
+        run: |
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "::error::This workflow may only run against refs/heads/main (it is the only workflow in this repo that can publish). Actual ref: ${{ github.ref }} (event: ${{ github.event_name }}). Refusing to plan or build." >&2
+            exit 1
+          fi
+          echo "Ref check OK: ${{ github.ref }} (event: ${{ github.event_name }})"
+
+  plan:
+    needs: guard-main-ref
+    runs-on: ubuntu-latest
+    outputs:
+      layer_0: ${{ steps.plan.outputs.layer_0 }}
+      layer_1: ${{ steps.plan.outputs.layer_1 }}
+      layer_2: ${{ steps.plan.outputs.layer_2 }}
+      layer_3: ${{ steps.plan.outputs.layer_3 }}
+      num_layers: ${{ steps.plan.outputs.num_layers }}
+      trigger: ${{ steps.plan.outputs.trigger }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0 # need history to diff github.event.before -> github.sha
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.x"
+
+      # Hash-pinned: refuses to install anything whose downloaded artifact
+      # does not match one of requirements.txt's recorded sha256 hashes. See
+      # that file's header for why PyYAML is hash-pinned rather than either
+      # left unpinned (Phase 4 round 1 finding) or vendored (the four
+      # semantic-divergence blockers that decision then drew -- PROJECT.md
+      # section 8).
+      - name: Install pinned Python dependencies for the planner
+        run: python3 -m pip install --require-hashes --force-reinstall -r .github/scripts/requirements.txt
+
+      - name: Run planner unit tests (fail loud before planning a real build)
+        run: python3 .github/scripts/test_plan.py -v
+
+      - name: Compute changed files for this push
+        id: changed
+        run: |
+          BEFORE="${{ github.event.before }}"
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            # First-ever push of this ref, or a workflow_dispatch run (which
+            # has no "before" at all): nothing to diff against, so treat
+            # every file in the checked-out tree as changed. git's canonical
+            # empty-tree hash, computed rather than hardcoded.
+            BEFORE="$(git hash-object -t tree /dev/null)"
+          fi
+          git diff --name-only "$BEFORE" "${{ github.sha }}" > /tmp/changed_files.txt
+          echo "--- changed files ---"
+          cat /tmp/changed_files.txt
+
+      - name: Run planner
+        id: plan
+        run: |
+          ARGS=()
+          while IFS= read -r f; do
+            [ -n "$f" ] && ARGS+=(--changed-file "$f")
+          done < /tmp/changed_files.txt
+          python3 .github/scripts/plan.py --images-yaml images.yaml "${ARGS[@]}" > /tmp/plan.json
+          echo "--- plan ---"
+          cat /tmp/plan.json
+
+          {
+            echo "layer_0=$(jq -c '.layers[0] // []' /tmp/plan.json)"
+            echo "layer_1=$(jq -c '.layers[1] // []' /tmp/plan.json)"
+            echo "layer_2=$(jq -c '.layers[2] // []' /tmp/plan.json)"
+            echo "layer_3=$(jq -c '.layers[3] // []' /tmp/plan.json)"
+            echo "num_layers=$(jq -r '.num_layers' /tmp/plan.json)"
+            echo "trigger=$(jq -r '.trigger' /tmp/plan.json)"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### Build plan (trigger: \`$(jq -r '.trigger' /tmp/plan.json)\`)"
+            echo ""
+            echo '```json'
+            cat /tmp/plan.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # --- Layered build, base-most first ----------------------------------------
+  # Static ceiling of 4 layers (0-3): comfortably more than today's catalog
+  # (rbase -> epirhandbook is 2 layers) and more than the depth Phase 5a's
+  # roadmap implies (rbase -> epirhandbook-common -> ~50 per-chapter images
+  # would be 3). plan.py itself now HARD-FAILS (raises, before any build
+  # starts) if a catalog needs a 5th layer -- see plan.py's
+  # MAX_SUPPORTED_LAYERS -- so exceeding this ceiling is a loud planning
+  # error, never a silent partial publish. If the catalog ever needs a 5th
+  # layer, add a `build-layer-4` job below following the exact same pattern
+  # AND bump MAX_SUPPORTED_LAYERS in plan.py.
+  #
+  # Each matrix entry is a full image record from plan.py (name, dir, tags,
+  # base_name/base_tag/base_digest/base_freshly_built/frozen) --
+  # build_image.sh consumes it directly, so there is exactly one place (the
+  # planner, then this one script) that knows how to resolve a base image,
+  # not one copy per layer.
+  #
+  # `always()` plus explicit needs.*.result checks (rather than bare
+  # success()): a job's default implicit condition treats an upstream SKIPPED
+  # job the same as a blocker, which would wrongly skip build-layer-1 purely
+  # because build-layer-0 had nothing to do in a run that never touches it
+  # (or because guard-main-ref failed and plan was skipped entirely --
+  # needs.plan.result would be 'skipped', which already fails the
+  # `== 'success'` check below without any extra wiring). plan.py's layer
+  # output is always dense (no gaps), so the "nothing to do" case never
+  # actually arises in practice, but the condition is written to not depend
+  # on that invariant either.
+  build-layer-0:
+    needs: [guard-main-ref, plan]
+    if: >-
+      always() &&
+      needs.plan.result == 'success' &&
+      fromJSON(needs.plan.outputs.num_layers) > 0
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    environment: publish
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJSON(needs.plan.outputs.layer_0) }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Set lowercase repository name
+        run: echo "REPO_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+      # Phase 4 round 2 remediation: runs BEFORE docker/login-action and
+      # BEFORE `docker build`, not just before `docker push` -- a doomed
+      # republish attempt (frozen: true, tag already exists, no override)
+      # now fails here, so the job never exchanges the registry-push
+      # credential via docker/login-action and never spends the ~45-minute
+      # compile on a build that was always going to be refused. No auth
+      # needed: a pure registry read of a public image (see
+      # build_image.sh's check_frozen_or_die). The identical check still
+      # also runs inside `publish` mode itself, immediately below -- see
+      # build_image.sh's header comment for why that is not redundant to
+      # remove.
+      - name: Refuse to republish an already-published frozen image
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
+        env:
+          FORCE_REPUBLISH_FROZEN: ${{ inputs.force_republish_frozen || '' }}
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_wait_seconds: 15
+          command: bash .github/scripts/build_image.sh check-frozen "$REPO_NAME" "${{ matrix.image.name }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.frozen }}"
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push ${{ matrix.image.name }}
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
+        env:
+          # Phase 4 round 2 blocker fix: NEVER secrets.GITHUB_TOKEN here.
+          # This job holds packages: write (see the job's own permissions:
+          # block above) so its GITHUB_TOKEN can push to GHCR -- feeding
+          # that into the build would hand arbitrary package-build code
+          # (473 CRAN/Bioconductor/GitHub packages, several compiled from
+          # source with their own post-install scripts) a credential that
+          # can write to ghcr.io/appliedepi/aedockerpublic/. GH_READONLY_PAT
+          # is a SEPARATE repository secret: a fine-grained PAT scoped to
+          # public read only (no packages:write, no repo write) -- see
+          # PROJECT.md section 8 for how to create/rotate it. If it is not
+          # configured, this evaluates to an empty string and the build
+          # proceeds with NO token at all (see build_image.sh's header) --
+          # it never falls back to secrets.GITHUB_TOKEN or any other
+          # write-capable credential. GITHUB_TOKEN remains in use above,
+          # for docker/login-action and the eventual `docker push` -- that
+          # is its legitimate use; the point is only that it must never
+          # enter the build itself.
+          GITHUB_PAT: ${{ secrets.GH_READONLY_PAT }}
+          FORCE_REPUBLISH_FROZEN: ${{ inputs.force_republish_frozen || '' }}
+        with:
+          timeout_minutes: 120
+          max_attempts: 2
+          retry_wait_seconds: 60
+          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_digest }}" "${{ matrix.image.base_freshly_built }}" "${{ matrix.image.frozen }}"
+
+  build-layer-1:
+    needs: [guard-main-ref, plan, build-layer-0]
+    if: >-
+      always() &&
+      needs.plan.result == 'success' &&
+      (needs.build-layer-0.result == 'success' || needs.build-layer-0.result == 'skipped') &&
+      fromJSON(needs.plan.outputs.num_layers) > 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    environment: publish
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJSON(needs.plan.outputs.layer_1) }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Set lowercase repository name
+        run: echo "REPO_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+      # Phase 4 round 2 remediation: runs BEFORE docker/login-action and
+      # BEFORE `docker build`, not just before `docker push` -- a doomed
+      # republish attempt (frozen: true, tag already exists, no override)
+      # now fails here, so the job never exchanges the registry-push
+      # credential via docker/login-action and never spends the ~45-minute
+      # compile on a build that was always going to be refused. No auth
+      # needed: a pure registry read of a public image (see
+      # build_image.sh's check_frozen_or_die). The identical check still
+      # also runs inside `publish` mode itself, immediately below -- see
+      # build_image.sh's header comment for why that is not redundant to
+      # remove.
+      - name: Refuse to republish an already-published frozen image
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
+        env:
+          FORCE_REPUBLISH_FROZEN: ${{ inputs.force_republish_frozen || '' }}
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_wait_seconds: 15
+          command: bash .github/scripts/build_image.sh check-frozen "$REPO_NAME" "${{ matrix.image.name }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.frozen }}"
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push ${{ matrix.image.name }}
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
+        env:
+          # Phase 4 round 2 blocker fix: NEVER secrets.GITHUB_TOKEN here.
+          # This job holds packages: write (see the job's own permissions:
+          # block above) so its GITHUB_TOKEN can push to GHCR -- feeding
+          # that into the build would hand arbitrary package-build code
+          # (473 CRAN/Bioconductor/GitHub packages, several compiled from
+          # source with their own post-install scripts) a credential that
+          # can write to ghcr.io/appliedepi/aedockerpublic/. GH_READONLY_PAT
+          # is a SEPARATE repository secret: a fine-grained PAT scoped to
+          # public read only (no packages:write, no repo write) -- see
+          # PROJECT.md section 8 for how to create/rotate it. If it is not
+          # configured, this evaluates to an empty string and the build
+          # proceeds with NO token at all (see build_image.sh's header) --
+          # it never falls back to secrets.GITHUB_TOKEN or any other
+          # write-capable credential. GITHUB_TOKEN remains in use above,
+          # for docker/login-action and the eventual `docker push` -- that
+          # is its legitimate use; the point is only that it must never
+          # enter the build itself.
+          GITHUB_PAT: ${{ secrets.GH_READONLY_PAT }}
+          FORCE_REPUBLISH_FROZEN: ${{ inputs.force_republish_frozen || '' }}
+        with:
+          timeout_minutes: 120
+          max_attempts: 2
+          retry_wait_seconds: 60
+          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_digest }}" "${{ matrix.image.base_freshly_built }}" "${{ matrix.image.frozen }}"
+
+  build-layer-2:
+    needs: [guard-main-ref, plan, build-layer-1]
+    if: >-
+      always() &&
+      needs.plan.result == 'success' &&
+      (needs.build-layer-1.result == 'success' || needs.build-layer-1.result == 'skipped') &&
+      fromJSON(needs.plan.outputs.num_layers) > 2
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    environment: publish
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJSON(needs.plan.outputs.layer_2) }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Set lowercase repository name
+        run: echo "REPO_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+      # Phase 4 round 2 remediation: runs BEFORE docker/login-action and
+      # BEFORE `docker build`, not just before `docker push` -- a doomed
+      # republish attempt (frozen: true, tag already exists, no override)
+      # now fails here, so the job never exchanges the registry-push
+      # credential via docker/login-action and never spends the ~45-minute
+      # compile on a build that was always going to be refused. No auth
+      # needed: a pure registry read of a public image (see
+      # build_image.sh's check_frozen_or_die). The identical check still
+      # also runs inside `publish` mode itself, immediately below -- see
+      # build_image.sh's header comment for why that is not redundant to
+      # remove.
+      - name: Refuse to republish an already-published frozen image
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
+        env:
+          FORCE_REPUBLISH_FROZEN: ${{ inputs.force_republish_frozen || '' }}
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_wait_seconds: 15
+          command: bash .github/scripts/build_image.sh check-frozen "$REPO_NAME" "${{ matrix.image.name }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.frozen }}"
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push ${{ matrix.image.name }}
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
+        env:
+          # Phase 4 round 2 blocker fix: NEVER secrets.GITHUB_TOKEN here.
+          # This job holds packages: write (see the job's own permissions:
+          # block above) so its GITHUB_TOKEN can push to GHCR -- feeding
+          # that into the build would hand arbitrary package-build code
+          # (473 CRAN/Bioconductor/GitHub packages, several compiled from
+          # source with their own post-install scripts) a credential that
+          # can write to ghcr.io/appliedepi/aedockerpublic/. GH_READONLY_PAT
+          # is a SEPARATE repository secret: a fine-grained PAT scoped to
+          # public read only (no packages:write, no repo write) -- see
+          # PROJECT.md section 8 for how to create/rotate it. If it is not
+          # configured, this evaluates to an empty string and the build
+          # proceeds with NO token at all (see build_image.sh's header) --
+          # it never falls back to secrets.GITHUB_TOKEN or any other
+          # write-capable credential. GITHUB_TOKEN remains in use above,
+          # for docker/login-action and the eventual `docker push` -- that
+          # is its legitimate use; the point is only that it must never
+          # enter the build itself.
+          GITHUB_PAT: ${{ secrets.GH_READONLY_PAT }}
+          FORCE_REPUBLISH_FROZEN: ${{ inputs.force_republish_frozen || '' }}
+        with:
+          timeout_minutes: 120
+          max_attempts: 2
+          retry_wait_seconds: 60
+          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_digest }}" "${{ matrix.image.base_freshly_built }}" "${{ matrix.image.frozen }}"
+
+  build-layer-3:
+    needs: [guard-main-ref, plan, build-layer-2]
+    if: >-
+      always() &&
+      needs.plan.result == 'success' &&
+      (needs.build-layer-2.result == 'success' || needs.build-layer-2.result == 'skipped') &&
+      fromJSON(needs.plan.outputs.num_layers) > 3
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    environment: publish
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJSON(needs.plan.outputs.layer_3) }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Set lowercase repository name
+        run: echo "REPO_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+      # Phase 4 round 2 remediation: runs BEFORE docker/login-action and
+      # BEFORE `docker build`, not just before `docker push` -- a doomed
+      # republish attempt (frozen: true, tag already exists, no override)
+      # now fails here, so the job never exchanges the registry-push
+      # credential via docker/login-action and never spends the ~45-minute
+      # compile on a build that was always going to be refused. No auth
+      # needed: a pure registry read of a public image (see
+      # build_image.sh's check_frozen_or_die). The identical check still
+      # also runs inside `publish` mode itself, immediately below -- see
+      # build_image.sh's header comment for why that is not redundant to
+      # remove.
+      - name: Refuse to republish an already-published frozen image
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
+        env:
+          FORCE_REPUBLISH_FROZEN: ${{ inputs.force_republish_frozen || '' }}
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_wait_seconds: 15
+          command: bash .github/scripts/build_image.sh check-frozen "$REPO_NAME" "${{ matrix.image.name }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.frozen }}"
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push ${{ matrix.image.name }}
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
+        env:
+          # Phase 4 round 2 blocker fix: NEVER secrets.GITHUB_TOKEN here.
+          # This job holds packages: write (see the job's own permissions:
+          # block above) so its GITHUB_TOKEN can push to GHCR -- feeding
+          # that into the build would hand arbitrary package-build code
+          # (473 CRAN/Bioconductor/GitHub packages, several compiled from
+          # source with their own post-install scripts) a credential that
+          # can write to ghcr.io/appliedepi/aedockerpublic/. GH_READONLY_PAT
+          # is a SEPARATE repository secret: a fine-grained PAT scoped to
+          # public read only (no packages:write, no repo write) -- see
+          # PROJECT.md section 8 for how to create/rotate it. If it is not
+          # configured, this evaluates to an empty string and the build
+          # proceeds with NO token at all (see build_image.sh's header) --
+          # it never falls back to secrets.GITHUB_TOKEN or any other
+          # write-capable credential. GITHUB_TOKEN remains in use above,
+          # for docker/login-action and the eventual `docker push` -- that
+          # is its legitimate use; the point is only that it must never
+          # enter the build itself.
+          GITHUB_PAT: ${{ secrets.GH_READONLY_PAT }}
+          FORCE_REPUBLISH_FROZEN: ${{ inputs.force_republish_frozen || '' }}
+        with:
+          timeout_minutes: 120
+          max_attempts: 2
+          retry_wait_seconds: 60
+          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_digest }}" "${{ matrix.image.base_freshly_built }}" "${{ matrix.image.frozen }}"

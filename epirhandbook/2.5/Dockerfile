@@ -6,7 +6,18 @@
 # pak is driven by the EXACT renv.lock pins (same versions/SHAs) via
 # pak_install.R — a test of pak's machinery, not a re-pin. The rendered book
 # must come out identical to Phase 1 (regression bar: verify/manifest.tsv).
-FROM rbase:4.3.2
+#
+# BASE_IMAGE defaults to the floating local tag for a plain local build
+# (`docker build -t epirhandbook:2.5 epirhandbook/2.5` still works exactly
+# as documented in README.md, using whatever rbase:4.3.2 is on the local
+# machine). CI overrides it with a DIGEST pin
+# (ghcr.io/appliedepi/aedockerpublic/rbase@sha256:...), never a floating
+# tag -- see images.yaml's "Digest-pinning procedure" for how that digest is
+# obtained and kept in sync, and why a floating tag is not safe to publish
+# against (it can move to a different rbase build after this image is
+# published, silently changing what a "pull and run" gets).
+ARG BASE_IMAGE=rbase:4.3.2
+FROM ${BASE_IMAGE}
 
 WORKDIR /home/handbook
 

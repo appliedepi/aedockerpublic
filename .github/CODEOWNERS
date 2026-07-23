@@ -1,0 +1,17 @@
+# CODEOWNERS -- required reviewers for supply-chain-sensitive paths
+# (Phase 4, blocker 4).
+#
+# This ONLY takes effect where GitHub is configured to require it: repo
+# Settings -> Rules (or the classic Settings -> Branches -> branch
+# protection) -> "Require review from Code Owners" on a rule covering
+# `main`. See PROJECT.md for the current state -- this repo currently
+# allows direct pushes to `main` by design, so today this file documents
+# ownership and would only start gating anything the moment that setting is
+# turned on. It does not, by itself, block a direct push.
+#
+# .github/** is the entire publish path: every workflow, the planner, and
+# the build/push script. images.yaml is the catalog deciding what gets
+# built, with what base image, and under what tags. A change to either is
+# exactly as sensitive as a change to the images themselves.
+.github/**    @raubreywhite
+images.yaml   @raubreywhite

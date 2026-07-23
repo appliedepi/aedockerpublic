@@ -1,0 +1,42 @@
+# Hash-pinned Python dependencies for the CI planner (plan.py / test_plan.py).
+#
+# Phase 4 round 1 review flagged an unpinned `pip install pyyaml` reached over
+# the network, at CI-plan time, on the exact code path that decides what gets
+# built and published -- an unpinned install on a publish-decision path is a
+# supply-chain risk (a compromised or yanked release on PyPI would run
+# straight into the planner with no check at all). Round 1's response was to
+# remove the dependency entirely and vendor a narrow hand-rolled YAML reader
+# instead (`minimal_yaml.py`). That reader then drew three further rounds of
+# adversarial-review blockers for silently diverging from real YAML semantics
+# (a capitalized `False`, YAML boolean aliases, comma-in-quotes splitting, a
+# `#` abutting a value, bare numeric scalars, duplicate keys -- see
+# PROJECT.md section 8.9 for the full history and section 8.4/8.8 for the
+# original findings). Four rounds total spent on the same "how do we read
+# images.yaml" question, once round 1's original vendoring decision is
+# counted too -- YAML's implicit scalar grammar is larger than any
+# hand-rolled rejection list can bound.
+#
+# Phase 4 reverses that decision: use the real PyYAML, and close the ORIGINAL
+# round-1 finding the correct way -- hash-pin it, rather than leave it
+# unpinned. `pip install --require-hashes -r this-file` refuses to install
+# anything whose downloaded artifact does not match one of the sha256 hashes
+# below, so a compromised or substituted release cannot silently run. Fetched
+# from PyPI's JSON API (https://pypi.org/pypi/PyYAML/6.0.3/json), not guessed.
+#
+# 6.0.3 is PyPI's current stable release (Sept 2025; 6.0.2 is now one
+# version behind) and is not yanked.
+#
+# Hashes cover: the sdist (pure-Python fallback, in case no wheel matches the
+# runner's exact Python build) plus manylinux2014/2_17/2_28 x86_64 wheels for
+# CPython 3.9 through 3.14 -- GitHub's `ubuntu-latest` runner is a glibc
+# x86_64 host, and `actions/setup-python`'s `python-version: "3.x"` tracks
+# whatever the latest stable release is at the time a workflow runs, so this
+# intentionally covers more than just today's resolved version.
+PyYAML==6.0.3 \
+    --hash=sha256:d76623373421df22fb4cf8817020cbb7ef15c725b9d5e45f17e189bfc384190f \
+    --hash=sha256:0150219816b6a1fa26fb4699fb7daa9caf09eb1999f3b70fb6e786805e80375a \
+    --hash=sha256:9c7708761fccb9397fe64bbc0395abcae8c4bf7b0eac081e12b809bf47700d0b \
+    --hash=sha256:b8bb0864c5a28024fac8a632c443c87c5aa6f215c0b126c449ae1a150412f31d \
+    --hash=sha256:ba1cc08a7ccde2d2ec775841541641e4548226580ab850948cbfda66a1befcdc \
+    --hash=sha256:0f29edc409a6392443abf94b9cf89ce99889a1dd5376d94316ae5145dfedd5d6 \
+    --hash=sha256:c458b6d084f9b935061bc36216e8a69a7e293a2f1e68bf956dcd9e6cbcd143f5
