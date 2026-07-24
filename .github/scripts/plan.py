@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
-"""Phase 4 CI planner: images.yaml + a changed-file list -> the ordered set
-of images to build.
+"""CI planner: images.yaml + a list of already-CHANGED image names -> the
+ordered set of images to build.
 
-Pure logic, no GitHub Actions / subprocess dependency, so it is directly
-unit-testable (see test_plan.py) -- this is the part of the CI most likely
-to be wrong and hardest to observe failing inside an actual Actions run.
+Pure logic, no GitHub Actions / subprocess / registry / git dependency, so
+it is directly unit-testable (see test_plan.py) -- this is the part of the
+CI most likely to be wrong and hardest to observe failing inside an actual
+Actions run. Deciding WHICH images changed is a separate, impure concern
+(it needs git and the registry) that lives entirely in the sibling
+`changed_images.py` -- this module only ever consumes that decision's
+OUTPUT (a list of image names), never recomputes it and never talks to
+git or the registry itself.
 
 Loading images.yaml is a two-stage contract, not a hand-rolled parser: real
 PyYAML (`yaml.safe_load`, hash-pinned -- see requirements.txt) does the
@@ -21,8 +26,7 @@ every field against one declared type, and anything else is a hard error --
 we never try to out-parse YAML ourselves.
 
 CLI:
-    python3 plan.py --images-yaml images.yaml --changed-file a --changed-file b
-    python3 plan.py --images-yaml images.yaml --nightly
+    python3 plan.py --images-yaml images.yaml --changed-image name-a --changed-image name-b
 Prints one JSON object to stdout -- see build_plan()'s docstring for the shape.
 """
 import argparse
@@ -32,7 +36,7 @@ import sys
 
 import yaml
 
-# Static ceiling matching build.yml/nightly.yml's wired-up jobs
+# Static ceiling matching build.yml's wired-up jobs
 # (build-layer-0 .. build-layer-3, i.e. 4 layers). This is NOT a soft limit:
 # a catalog that needs a 5th layer must not be silently truncated -- with
 # only 2 images today that would go unnoticed, but Phase 5a adds ~50
@@ -72,7 +76,7 @@ REQUIRED_IMAGE_KEYS = {"name", "dir", "tags", "base", "base_digest"}
 # renv.lock and pak_install_subset.R from epirhandbook/2.6/, so the context
 # must be 2.6/ while change detection must stay per-chapter. Building with the
 # chapter dir as context fails -- the COPY sources are outside it.
-OPTIONAL_IMAGE_KEYS = {"live", "frozen", "renders", "context"}
+OPTIONAL_IMAGE_KEYS = {"live", "renders", "context"}
 ALLOWED_IMAGE_KEYS = REQUIRED_IMAGE_KEYS | OPTIONAL_IMAGE_KEYS
 
 # Image-name-safe: what is legal in a Docker/GHCR image name component.
@@ -166,7 +170,7 @@ def _validate_image(image, path, index):
         raise ValueError(
             f"{path}: image {label!r} has unknown key(s) {sorted(unknown)} -- "
             f"allowed keys are {sorted(ALLOWED_IMAGE_KEYS)} (a typo, e.g. "
-            f"'froze' for 'frozen', lands here)."
+            f"'liev' for 'live', lands here)."
         )
     missing = REQUIRED_IMAGE_KEYS - set(image)
     if missing:
@@ -322,14 +326,13 @@ def _validate_image(image, path, index):
                 f"inside it."
             )
 
-    for boolkey in ("live", "frozen"):
-        if boolkey in image and not isinstance(image[boolkey], bool):
-            raise ValueError(
-                f"{path}: image {label!r} field {boolkey!r} must be a real "
-                f"boolean (true/false); got {image[boolkey]!r} "
-                f"({type(image[boolkey]).__name__}). A quoted \"true\"/\"false\" "
-                f"loads as a string, not a boolean -- write it unquoted."
-            )
+    if "live" in image and not isinstance(image["live"], bool):
+        raise ValueError(
+            f"{path}: image {label!r} field 'live' must be a real "
+            f"boolean (true/false); got {image['live']!r} "
+            f"({type(image['live']).__name__}). A quoted \"true\"/\"false\" "
+            f"loads as a string, not a boolean -- write it unquoted."
+        )
 
 
 def load_images(images_yaml_path):
@@ -422,10 +425,10 @@ def topological_order(images):
 
     if len(layers) > MAX_SUPPORTED_LAYERS:
         raise ValueError(
-            f"catalog requires {len(layers)} layers, but build.yml/nightly.yml only "
-            f"wire up build-layer-0..{MAX_SUPPORTED_LAYERS - 1} ({MAX_SUPPORTED_LAYERS} "
-            f"layers). Add a build-layer-{MAX_SUPPORTED_LAYERS} job to BOTH workflow "
-            f"files (following the existing build-layer-N pattern) and bump "
+            f"catalog requires {len(layers)} layers, but build.yml only wires "
+            f"up build-layer-0..{MAX_SUPPORTED_LAYERS - 1} ({MAX_SUPPORTED_LAYERS} "
+            f"layers). Add a build-layer-{MAX_SUPPORTED_LAYERS} job to build.yml "
+            f"(following the existing build-layer-N pattern) and bump "
             f"MAX_SUPPORTED_LAYERS in plan.py before adding a base image this deep -- "
             f"otherwise the deepest images would silently never be planned at all."
         )
@@ -438,115 +441,73 @@ def matching_dir(changed_file, dir_):
     return changed_file == d or changed_file.startswith(d + "/")
 
 
-def is_special_trigger(changed_file):
-    """A change that must rebuild every live image, regardless of dir
-    matching: the catalog itself, any workflow file, or the planner/build
-    machinery in .github/scripts/ (a bug there is exactly as dangerous as a
-    bug in the workflow YAML, and deserves the same blanket revalidation --
-    deliberately broader than the brief's literal "images.yaml or a workflow
-    file", for that reason -- see README/plan for the call-out).
-
-    "The catalog" means ANY images.yaml, not just the root one. The catalog is
-    split across files by ownership (hand-maintained root + generated per-phase,
-    e.g. epirhandbook/2.6/images.yaml), and a row in ANY of them defines what
-    exists and how it is built. Matching only the root path meant editing the
-    generated split catalog -- which defines 51 of the 53 images -- planned
-    NOTHING: the catalog could change what should exist while CI built nothing."""
-    return (
-        changed_file == "images.yaml"
-        or changed_file.endswith("/images.yaml")
-        or changed_file.startswith(".github/workflows/")
-        or changed_file.startswith(".github/scripts/")
-    )
-
-
-def build_plan(images, changed_files=None, nightly=False):
+def build_plan(images, changed_images=None):
     """Returns:
       {
         "layers": [ [image_record, ...], ... ],  # dependency order, base-most first
         "num_layers": int,
         "image_names": [str, ...],               # flat, in layer order
-        "trigger": "nightly" | "special" | "selective" | "none",
+        "trigger": "selective" | "none",
       }
     Each image_record is the image's images.yaml dict PLUS:
       base_name, base_tag    -- parsed from `base`
       base_freshly_built     -- true iff base_name is ALSO in this plan (i.e.
                                  being built in an earlier layer of this SAME
-                                 run). true means "re-resolve the digest live
-                                 from the registry after the base's push";
-                                 false means "use base_digest as recorded in
-                                 images.yaml" -- this is the digest-pinning
-                                 chicken-and-egg resolution (see images.yaml).
-      frozen                 -- normalized bool (defaults False), passed
-                                 through so build_image.sh can refuse to
-                                 republish over an already-published frozen
-                                 tag (see images.yaml's `frozen:` field).
+                                 run). Either way build_image.sh resolves the
+                                 base's digest LIVE from the registry: true =
+                                 from the image just pushed this run; false =
+                                 from the base's published (unchanged) tag.
+                                 base_digest is only an optional cross-check.
+
+    `changed_images` is a list of image NAMES that are already known to have
+    changed -- i.e. the output of the sibling `changed_images.py` helper,
+    which is the ONLY thing in this CI that decides WHETHER an image
+    changed (by reading each image's published org.opencontainers.image.
+    revision label and diffing its own dir + the shared build inputs +
+    the .github/ machinery since that commit -- see that module's header).
+    This function does not know or care WHY a name is in the list; it only
+    ever does two PURE things with it:
+      1. seed `direct` with exactly those names (every name must exist in
+         the catalog -- an unknown name is a hard error, the same class of
+         mistake as a typo'd `base:` reference, below);
+      2. CASCADE: transitively add anyone whose base (direct or
+         already-cascaded) is in the selected set -- but ONLY if that
+         dependent image is `live`. A cascade is an AUTOMATIC rebuild
+         triggered by the base moving, which is exactly the class of
+         automatic rebuild `live: false` opts out of. A DIRECT edit to a
+         non-live image's own files still builds it (that is an
+         intentional, explicit change, not an automatic one) -- `direct`
+         is never filtered by `live` for that reason.
     """
     all_layers = topological_order(images)
     by_name = {img["name"]: img for img in images}
 
-    if nightly:
-        trigger = "nightly"
-        selected = {name for name, img in by_name.items() if img.get("live", True)}
-    else:
-        changed_files = changed_files or []
-        if any(is_special_trigger(f) for f in changed_files):
-            trigger = "special"
-            selected = {name for name, img in by_name.items() if img.get("live", True)}
-        else:
-            # Files that live in a build CONTEXT but inside no image's own dir
-            # are SHARED build inputs: epirhandbook/2.6/renv.lock and
-            # pak_install_subset.R sit at the 2.6 context root and are COPYed by
-            # common AND every chapter Dockerfile. Matching `dir` alone missed
-            # them entirely -- editing the installer or the lockfile copy planned
-            # NOTHING, while actually changing every image built from that
-            # context. A file that IS under some image's dir is that image's own
-            # file, so it must not fan out to the whole context (that would
-            # destroy per-chapter selectivity).
-            all_dirs = [img["dir"] for img in images if img.get("dir")]
+    changed_images = changed_images or []
+    unknown = sorted(set(changed_images) - set(by_name))
+    if unknown:
+        raise ValueError(
+            f"--changed-image named {unknown}, which do not exist in the "
+            f"catalog (typo, or a stale name from a since-renamed image?). "
+            f"Known image names: {sorted(by_name)}."
+        )
+    direct = set(changed_images)
 
-            def is_shared_context_input(f):
-                return not any(matching_dir(f, d) for d in all_dirs)
+    selected = set(direct)
+    changed_this_pass = True
+    while changed_this_pass:
+        changed_this_pass = False
+        for img in images:
+            name = img["name"]
+            if name in selected:
+                continue
+            if not img.get("live", True):
+                continue
+            base_name, _ = parse_base(img.get("base"))
+            if base_name and base_name in selected:
+                selected.add(name)
+                changed_this_pass = True
 
-            direct = set()
-            for f in changed_files:
-                for img in images:
-                    ctx = img.get("context")
-                    if (
-                        ctx
-                        and ctx != img.get("dir")
-                        and matching_dir(f, ctx)
-                        and is_shared_context_input(f)
-                    ):
-                        direct.add(img["name"])
-                        continue
-                    if img.get("dir") and matching_dir(f, img["dir"]):
-                        direct.add(img["name"])
-
-            # Cascade: transitively add anyone whose base (direct or
-            # already-cascaded) is in the selected set -- but ONLY if that
-            # dependent image is live. A cascade is an AUTOMATIC rebuild
-            # triggered by the base moving, which is exactly the class of
-            # automatic rebuild `live: false` opts out of. A DIRECT edit to
-            # a frozen image's own files still builds it (that is an
-            # intentional, explicit change, not an automatic one) --
-            # `direct` above is never filtered by `live` for that reason.
-            selected = set(direct)
-            changed_this_pass = True
-            while changed_this_pass:
-                changed_this_pass = False
-                for img in images:
-                    name = img["name"]
-                    if name in selected:
-                        continue
-                    if not img.get("live", True):
-                        continue
-                    base_name, _ = parse_base(img.get("base"))
-                    if base_name and base_name in selected:
-                        selected.add(name)
-                        changed_this_pass = True
-
-            trigger = "selective" if selected else "none"
+    trigger = "selective" if selected else "none"
 
     layers_out = []
     for layer in all_layers:
@@ -559,15 +520,12 @@ def build_plan(images, changed_files=None, nightly=False):
             rec["base_name"] = base_name
             rec["base_tag"] = base_tag
             rec["base_freshly_built"] = bool(base_name) and base_name in selected
-            # Normalized (defaults to False for a catalog entry that omits
-            # the field) so build_image.sh always receives an explicit
-            # true/false rather than having to special-case "missing".
-            rec["frozen"] = bool(img.get("frozen", False))
             # Normalized so the build step never has to decide: the docker
             # build context, defaulting to `dir` when the catalog omits it
-            # (rbase, the 2.5 monolith). The 2.6 split images set it, because
-            # their Dockerfile's COPY paths resolve against epirhandbook/2.6,
-            # not against the chapter directory the Dockerfile sits in.
+            # (rbase, the 2.5 monolith). The per-chapter split images set it,
+            # because their Dockerfile's COPY paths resolve against the
+            # shared context root, not against the chapter directory the
+            # Dockerfile sits in.
             rec["context"] = img.get("context", img["dir"])
             layer_out.append(rec)
         if layer_out:
@@ -592,8 +550,12 @@ def main():
     ap.add_argument("--images-yaml", required=True, action="append",
                     dest="images_yaml_paths",
                     help="catalog file; repeat for each file in the catalog")
-    ap.add_argument("--changed-file", action="append", default=[], dest="changed_files")
-    ap.add_argument("--nightly", action="store_true")
+    # Repeatable: the already-resolved CHANGED image names -- the output of
+    # .github/scripts/changed_images.py, which is the only thing in this CI
+    # that decides whether an image changed (git diff + registry). This
+    # module never re-derives that decision from raw file paths; see
+    # build_plan()'s docstring.
+    ap.add_argument("--changed-image", action="append", default=[], dest="changed_images")
     # For shell consumers (build/render loops): print "chapter<TAB>image:tag"
     # for every row that names a chapter. This is how a script learns which
     # image renders which chapter -- it must NEVER reconstruct
@@ -616,7 +578,7 @@ def main():
             print(f"{chapter}\t{img['name']}:{img['tags'][0]}\t{img['renders']}")
         return
 
-    result = build_plan(images, changed_files=args.changed_files, nightly=args.nightly)
+    result = build_plan(images, changed_images=args.changed_images)
     json.dump(result, sys.stdout, indent=2)
     print()
 

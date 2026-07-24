@@ -21,7 +21,6 @@ images:
     base: "rbase:4.6.0-2026-07-01"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-age_pyramid
     renders: new_pages/age_pyramid.qmd
     dir: epirhandbook/2.7/chapters/age_pyramid
@@ -30,7 +29,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-basics
     renders: new_pages/basics.qmd
     dir: epirhandbook/2.7/chapters/basics
@@ -39,7 +37,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-characters_strings
     renders: new_pages/characters_strings.qmd
     dir: epirhandbook/2.7/chapters/characters_strings
@@ -48,7 +45,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-cleaning
     renders: new_pages/cleaning.qmd
     dir: epirhandbook/2.7/chapters/cleaning
@@ -57,7 +53,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-collaboration
     renders: new_pages/collaboration.qmd
     dir: epirhandbook/2.7/chapters/collaboration
@@ -66,7 +61,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-combination_analysis
     renders: new_pages/combination_analysis.qmd
     dir: epirhandbook/2.7/chapters/combination_analysis
@@ -75,7 +69,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-contact_tracing
     renders: new_pages/contact_tracing.qmd
     dir: epirhandbook/2.7/chapters/contact_tracing
@@ -84,7 +77,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-data_table
     renders: new_pages/data_table.qmd
     dir: epirhandbook/2.7/chapters/data_table
@@ -93,7 +85,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-data_used
     renders: new_pages/data_used.qmd
     dir: epirhandbook/2.7/chapters/data_used
@@ -102,7 +93,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-dates
     renders: new_pages/dates.qmd
     dir: epirhandbook/2.7/chapters/dates
@@ -111,7 +101,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-deduplication
     renders: new_pages/deduplication.qmd
     dir: epirhandbook/2.7/chapters/deduplication
@@ -120,7 +109,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-diagrams
     renders: new_pages/diagrams.qmd
     dir: epirhandbook/2.7/chapters/diagrams
@@ -129,7 +117,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-directories
     renders: new_pages/directories.qmd
     dir: epirhandbook/2.7/chapters/directories
@@ -138,7 +125,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-editorial_style
     renders: new_pages/editorial_style.qmd
     dir: epirhandbook/2.7/chapters/editorial_style
@@ -147,7 +133,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-epicurves
     renders: new_pages/epicurves.qmd
     dir: epirhandbook/2.7/chapters/epicurves
@@ -156,7 +141,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-errors
     renders: new_pages/errors.qmd
     dir: epirhandbook/2.7/chapters/errors
@@ -165,7 +149,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-factors
     renders: new_pages/factors.qmd
     dir: epirhandbook/2.7/chapters/factors
@@ -174,7 +157,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-flexdashboard
     renders: new_pages/flexdashboard.qmd
     dir: epirhandbook/2.7/chapters/flexdashboard
@@ -183,7 +165,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-ggplot_basics
     renders: new_pages/ggplot_basics.qmd
     dir: epirhandbook/2.7/chapters/ggplot_basics
@@ -192,7 +173,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-ggplot_tips
     renders: new_pages/ggplot_tips.qmd
     dir: epirhandbook/2.7/chapters/ggplot_tips
@@ -201,7 +181,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-grouping
     renders: new_pages/grouping.qmd
     dir: epirhandbook/2.7/chapters/grouping
@@ -210,7 +189,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-heatmaps
     renders: new_pages/heatmaps.qmd
     dir: epirhandbook/2.7/chapters/heatmaps
@@ -219,7 +197,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-help
     renders: new_pages/help.qmd
     dir: epirhandbook/2.7/chapters/help
@@ -228,7 +205,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-importing
     renders: new_pages/importing.qmd
     dir: epirhandbook/2.7/chapters/importing
@@ -237,7 +213,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-index
     renders: index.qmd
     dir: epirhandbook/2.7/chapters/index
@@ -246,7 +221,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-interactive_plots
     renders: new_pages/interactive_plots.qmd
     dir: epirhandbook/2.7/chapters/interactive_plots
@@ -255,7 +229,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-iteration
     renders: new_pages/iteration.qmd
     dir: epirhandbook/2.7/chapters/iteration
@@ -264,7 +237,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-joining_matching
     renders: new_pages/joining_matching.qmd
     dir: epirhandbook/2.7/chapters/joining_matching
@@ -273,7 +245,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-missing_data
     renders: new_pages/missing_data.qmd
     dir: epirhandbook/2.7/chapters/missing_data
@@ -282,7 +253,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-moving_average
     renders: new_pages/moving_average.qmd
     dir: epirhandbook/2.7/chapters/moving_average
@@ -291,7 +261,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-network_drives
     renders: new_pages/network_drives.qmd
     dir: epirhandbook/2.7/chapters/network_drives
@@ -300,7 +269,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-packages_suggested
     renders: new_pages/packages_suggested.qmd
     dir: epirhandbook/2.7/chapters/packages_suggested
@@ -309,7 +277,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-phylogenetic_trees
     renders: new_pages/phylogenetic_trees.qmd
     dir: epirhandbook/2.7/chapters/phylogenetic_trees
@@ -318,7 +285,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-pivoting
     renders: new_pages/pivoting.qmd
     dir: epirhandbook/2.7/chapters/pivoting
@@ -327,7 +293,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-r_projects
     renders: new_pages/r_projects.qmd
     dir: epirhandbook/2.7/chapters/r_projects
@@ -336,7 +301,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-regression
     renders: new_pages/regression.qmd
     dir: epirhandbook/2.7/chapters/regression
@@ -345,7 +309,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-reportfactory
     renders: new_pages/reportfactory.qmd
     dir: epirhandbook/2.7/chapters/reportfactory
@@ -354,7 +317,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-rmarkdown
     renders: new_pages/rmarkdown.qmd
     dir: epirhandbook/2.7/chapters/rmarkdown
@@ -363,7 +325,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-shiny_basics
     renders: new_pages/shiny_basics.qmd
     dir: epirhandbook/2.7/chapters/shiny_basics
@@ -372,7 +333,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-standardization
     renders: new_pages/standardization.qmd
     dir: epirhandbook/2.7/chapters/standardization
@@ -381,7 +341,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-stat_tests
     renders: new_pages/stat_tests.qmd
     dir: epirhandbook/2.7/chapters/stat_tests
@@ -390,7 +349,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-survey_analysis
     renders: new_pages/survey_analysis.qmd
     dir: epirhandbook/2.7/chapters/survey_analysis
@@ -399,7 +357,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-survival_analysis
     renders: new_pages/survival_analysis.qmd
     dir: epirhandbook/2.7/chapters/survival_analysis
@@ -408,7 +365,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-tables_descriptive
     renders: new_pages/tables_descriptive.qmd
     dir: epirhandbook/2.7/chapters/tables_descriptive
@@ -417,7 +373,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-tables_presentation
     renders: new_pages/tables_presentation.qmd
     dir: epirhandbook/2.7/chapters/tables_presentation
@@ -426,7 +381,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-time_series
     renders: new_pages/time_series.qmd
     dir: epirhandbook/2.7/chapters/time_series
@@ -435,7 +389,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-transition_to_r
     renders: new_pages/transition_to_R.qmd
     dir: epirhandbook/2.7/chapters/transition_to_R
@@ -444,7 +397,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-transmission_chains
     renders: new_pages/transmission_chains.qmd
     dir: epirhandbook/2.7/chapters/transmission_chains
@@ -453,7 +405,6 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true
   - name: epirhandbook-writing_functions
     renders: new_pages/writing_functions.qmd
     dir: epirhandbook/2.7/chapters/writing_functions
@@ -462,4 +413,3 @@ images:
     base: "epirhandbook-common:2.7"
     base_digest: null
     live: true
-    frozen: true

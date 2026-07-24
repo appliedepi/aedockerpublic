@@ -1,15 +1,21 @@
 # images.yaml — the image catalog. Single source of truth for what gets
 # built, in what order, and where.
 #
-# Read by: .github/scripts/plan.py (the CI planner) and by anyone building
+# Read by: .github/scripts/plan.py (the CI planner), .github/scripts/
+# changed_images.py (decides WHICH images changed), and by anyone building
 # locally who wants to know the current base_digest pin.
 #
 # Fields:
 #   name        Image name. Published as ghcr.io/<owner>/<repo>/<name>:<tag>
 #               (repo lowercased from GITHUB_REPOSITORY).
-#   dir         Build context, relative to repo root. A changed file under
-#               this directory marks this image "directly changed" for the
-#               selective build (.github/workflows/build.yml).
+#   dir         Build context, relative to repo root, and THIS image's own
+#               change-detection scope: changed_images.py rebuilds this
+#               image iff a file under `dir` (or a shared build-context
+#               input, or the .github/ build machinery -- see that
+#               module's header) changed since the commit this image's
+#               CURRENTLY-PUBLISHED tag was built from (its
+#               org.opencontainers.image.revision OCI label). Never
+#               published, or no revision label -> always rebuild.
 #   tags        List of tags to publish. First tag is used for the local
 #               `docker build -t` invocation; all tags are pushed.
 #   base        "<name>:<tag>" of another image IN THIS CATALOG that this
@@ -17,48 +23,42 @@
 #               Dockerfile FROMs something external, like ubuntu:jammy).
 #               This edge drives the cascade: a rebuild of `base` forces a
 #               rebuild of everything FROM it, transitively.
-#   base_digest The last known-good digest of `base`, e.g.
-#               "sha256:abcd...". null until the base has been published at
-#               least once. See "Digest-pinning procedure" below — this is
-#               the steady-state pin; it is NOT consulted when `base` is
-#               ALSO being rebuilt in the same CI run (that case re-resolves
+#   base_digest OPTIONAL cross-check. Under the OCI-revision change model,
+#               build_image.sh ALWAYS resolves `base`'s digest live from the
+#               registry: if `base` was rebuilt this run, from the image it
+#               just pushed; if not, from the base's published tag (a
+#               BASE_FRESH=false base is unchanged by construction, since a
+#               changed base would be in this run's plan). base_digest, when
+#               recorded (non-null), is checked to still match that live
+#               digest and fails the build if the base moved; when null (the
+#               normal case now, incl. the first publish and any partial-
+#               publish resume) the live digest is used directly. The
+#               "Digest-pinning procedure" below is legacy detail --
+#               recording base_digest is no longer required.
+#               (Historic notes; base_digest is NOT consulted when `base` is
+#               ALSO being rebuilt in the same CI run -- that case re-resolves
 #               the digest fresh from the registry instead, since the run
 #               just pushed it).
-#   live        true  = included in the nightly full rebuild, and in the
-#                       "images.yaml or a workflow file changed -> rebuild
-#                       everything" special case.
-#               false = frozen from AUTOMATIC rebuilds. A direct edit to
-#                       this image's own `dir` still builds it (an explicit
-#                       change must still be buildable), but it is never
-#                       swept in by the nightly schedule, by the
-#                       images.yaml/workflow special case, or by a cascade
-#                       from its base rebuilding. Freezing a version means
-#                       nothing rebuilds it automatically. (This is about
-#                       WHO TRIGGERS a build; see `frozen` below for WHETHER
-#                       A SUCCESSFUL BUILD IS ALLOWED TO PUBLISH.)
-#   frozen      true  = this image's whole point is that its content never
-#                       moves once published. build_image.sh enforces this:
-#                       in "publish" mode, it REFUSES to push any tag of a
-#                       `frozen: true` image that already exists in the
-#                       registry, UNLESS the image's name is explicitly
-#                       listed in build.yml's workflow_dispatch input
-#                       `force_republish_frozen`. So a frozen image is
-#                       published exactly once -- by WHICHEVER run of
-#                       build.yml first reaches that tag (an ordinary push
-#                       to main is enough; build.yml is not human-triggered
-#                       only -- see its `on:` block), not necessarily a
-#                       human manually dispatching the workflow. What IS a
-#                       deliberate, human-supplied, one-time action is the
-#                       OVERRIDE that replaces an already-published frozen
-#                       tag: force_republish_frozen, never set by
-#                       automation (nightly.yml has no such input and never
-#                       pushes at all -- see nightly.yml's header for why
-#                       it can never republish anything). the one image in
-#                       this catalog (rbase) is frozen: the whole premise of
-#                       this project is that this exact stack does not move
-#                       once it reproduces the target render.
-#               false = (or omitted) no such refusal; a normal publish
-#                       overwrites the tag same as any other image.
+#   live        true  = eligible for the CASCADE: a rebuild of `base`
+#                       automatically rebuilds this image too, transitively.
+#               false = opts OUT of that automatic cascade only. A DIRECT
+#                       edit to this image's own `dir` still builds it (an
+#                       explicit change must still be buildable) --
+#                       `live: false` only means "don't sweep me in
+#                       automatically when my base moves."
+#
+# The previous per-image republish-guard field and the "images.yaml/
+# workflow file changed -> rebuild everything" special case are both gone.
+# ONE rule replaces both (owner-designed):
+# an image is rebuilt+republished iff its own files changed since the
+# commit its CURRENTLY-PUBLISHED image was built from, read back from that
+# image's org.opencontainers.image.revision OCI label (build_image.sh
+# stamps it; changed_images.py reads it via a metadata-only registry read,
+# never a `docker pull`). A .github/ machinery change shows up in EVERY
+# image's own diff, which is what used to need a separate special case.
+# This same rule is also the RESUME mechanism after a partial publish: the
+# images that published carry the current commit in their label and are
+# skipped on a rerun; the one(s) that failed do not, and are rebuilt.
 #
 # --- Digest-pinning procedure (hard rule: pin epirhandbook's base by digest,
 #     never by floating tag) ---
@@ -94,13 +94,11 @@
 #   AFTER a run that rebuilds a base image, a human updates that image's
 #   dependents' `base_digest` field below to match, and commits — this is a
 #   deliberate MANUAL step, not automated by the workflow. Reasoning: an
-#   auto-commit back to images.yaml would itself be a change to
-#   images.yaml, which is the exact trigger that rebuilds ALL live images —
-#   an automated write-back risks the workflow re-triggering a full rebuild
-#   of everything on every single run, for no code reason. A human updating
-#   the pin, deliberately, after confirming the new base is good, matches
-#   this project's existing discipline of gating promotion on human/codex
-#   review rather than auto-promoting.
+#   auto-commit would be an unattended write to a public-registry publish
+#   input, with no human confirmation that the new base is actually good.
+#   A human updating the pin, deliberately, after confirming the new base
+#   is good, matches this project's existing discipline of gating
+#   promotion on human/codex review rather than auto-promoting.
 #
 #   To find the digest to paste in: read it from the build job's step
 #   summary (the workflow prints "Published <name>:<tag> digest: sha256:...”
@@ -115,4 +113,3 @@ images:
     base: null
     base_digest: null
     live: true
-    frozen: true

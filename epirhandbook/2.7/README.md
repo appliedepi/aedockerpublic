@@ -20,7 +20,7 @@ This directory is generated. Do not hand-edit `images.yaml`, the Dockerfiles, or
 - **GitHub** — the one thing not recoverable from a dated CRAN snapshot: a commit SHA per package.
   The 8 GitHub packages and their pinned commits are in `packages_github.json`.
 - **System (apt) packages** — the `ubuntu:26.04` base is digest-pinned, but apt packages installed
-  on top are NOT individually version-pinned (see `nightly.yml`). Known, accepted limitation.
+  on top are NOT individually version-pinned. Known, accepted limitation.
 
 ## How packages install (footprint-based, pak resolves the rest)
 

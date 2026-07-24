@@ -1,13 +1,27 @@
 name: Build images
 
-# Selective + cascade build: diffs the pushed commit, maps changed files to
-# images via images.yaml (.github/scripts/plan.py), applies the cascade (a
-# changed image rebuilds everything FROM it, transitively -- but see
-# plan.py for why a cascade respects `live: false` while a direct edit to a
-# frozen image's own files still does not), and builds the result as a
-# matrix in dependency order. A change to images.yaml, to any
-# .github/workflows/* file, or to any .github/scripts/* file rebuilds every
-# `live: true` image (see plan.py's is_special_trigger()).
+# Selective + cascade build, per-image OCI-revision diff: for each catalog
+# image, .github/scripts/changed_images.py reads that image's CURRENTLY-
+# PUBLISHED org.opencontainers.image.revision label (a metadata-only
+# registry read, never a `docker pull`) and diffs its own dir + the shared
+# build inputs + the .github/ machinery since that commit. Never-published,
+# or no revision label, is always CHANGED. .github/scripts/plan.py (pure,
+# no registry/git calls of its own) then takes that resolved list of
+# changed image NAMES, applies the cascade (a changed image rebuilds
+# everything FROM it, transitively -- but a cascade respects `live: false`
+# while a direct edit to a not-live image's own files still does not; see
+# plan.py's build_plan()), and builds the result as a matrix in dependency
+# order. A change under .github/scripts/ or .github/workflows/ shows up in
+# EVERY image's own diff (see changed_images.py), so it rebuilds everything
+# without a separate special case.
+#
+# This same mechanism is also the RESUME path for a partial publish: after
+# a run where some images published and others failed, a rerun (a new push,
+# or a plain workflow_dispatch with no new commit at all) re-reads each
+# image's published revision -- the ones that succeeded now carry the
+# current commit and are skipped; the one(s) that failed still carry an
+# older (or no) revision and are rebuilt. There is nothing else to
+# reconcile: content-change-rebuild and clean resume are the SAME check.
 #
 # This is the ONLY workflow in this repo that can publish. Every other
 # safeguard in this file exists to keep that true:
@@ -16,21 +30,17 @@ name: Build images
 #     gate -- never only via this file's own `on: push: branches: [main]`
 #     filter or any repo setting, both of which are themselves config that
 #     could be edited or bypassed. See that job for exactly how it fails.
-#   - `workflow_dispatch` exists ONLY to carry the force_republish_frozen
-#     input (see below and images.yaml's `frozen:` field) -- it is not a
-#     general "run this from anywhere" escape hatch, because guard-main-ref
-#     applies to it exactly the same as to a scheduled or pushed run.
+#     Applies equally to workflow_dispatch (below).
+#   - `workflow_dispatch` takes NO inputs -- it exists only as a manual
+#     "run this again" trigger (e.g. to resume a partial publish without
+#     waiting for a new commit), never a general escape hatch, and
+#     guard-main-ref applies to it exactly the same as to a pushed run.
 #   - `packages: write` is scoped to ONLY the build-layer-N jobs, which are
 #     the only ones that call `docker push`. plan and guard-main-ref get the
 #     workflow-level `contents: read` default and nothing else.
 #   - Every build-layer-N job runs under the `publish` GitHub Environment,
 #     so a required-reviewer rule CAN be configured in repo settings (see
 #     PROJECT.md for how to turn that on -- it is not assumed to be on).
-#   - Each build-layer-N job now ALSO runs a "Refuse to republish an
-#     already-published frozen image" step BEFORE docker/login-action and
-#     BEFORE `docker build` (Phase 4 round 2 remediation) -- a doomed
-#     republish attempt is caught before the job ever logs in or spends 45
-#     minutes compiling, not just before the eventual `docker push`.
 #
 # REQUIRED REPOSITORY SECRET: `GH_READONLY_PAT` -- a fine-grained GitHub PAT
 # scoped to PUBLIC READ ONLY (no `packages: write`, no repo write of any
@@ -51,41 +61,29 @@ name: Build images
 # on the same GitHub-hosted runner IP at that moment. See PROJECT.md
 # section 8 for how to create/rotate this secret.
 #
-# This file and nightly.yml deliberately duplicate the plan + build-layer-N
-# jobs rather than sharing them via a reusable (workflow_call) workflow.
-# That would remove the duplication, but it introduces GitHub-Actions-
-# specific mechanics (cross-workflow permission inheritance, JSON-array
-# string inputs feeding a matrix) that cannot be exercised or verified
-# without an actual push -- which this phase's brief explicitly forbids.
-# Two plain, statically-lintable files are the safer choice given that
+# This file deliberately duplicates the plan + build-layer-N jobs rather
+# than sharing them via a reusable (workflow_call) workflow. That would
+# remove the duplication, but it introduces GitHub-Actions-specific
+# mechanics (cross-workflow permission inheritance, JSON-array string
+# inputs feeding a matrix) that cannot be exercised or verified without an
+# actual push -- which this phase's brief explicitly forbids. A single
+# plain, statically-lintable file is the safer choice given that
 # constraint. Revisit if that constraint ever lifts.
 
 on:
   push:
     branches: [main]
-  workflow_dispatch:
-    inputs:
-      force_republish_frozen:
-        description: >-
-          Comma-separated image names (images.yaml's `name:` field) allowed
-          to republish over an already-published tag even though
-          frozen: true. Leave empty for a normal run. A deliberate,
-          human-supplied override for a rare "yes, really replace the
-          frozen artifact" action -- never set by automation, and still
-          subject to guard-main-ref (main only).
-        required: false
-        default: ""
+  workflow_dispatch: {}
 
 concurrency:
   # Deliberately NOT parameterized by ${{ github.ref }} (finding 8): a
   # manual dispatch off a branch would otherwise get a DIFFERENT group than
   # a push to main, so the two would NOT serialize against each other, even
   # though both are capable of pushing the SAME tags. One fixed name means
-  # every run of EITHER this file or nightly.yml -- push, schedule, or
-  # dispatch, on any ref -- shares one queue. (guard-main-ref also means a
-  # non-main run never gets far enough to race anything, but the group is
-  # ref-independent regardless, as defense in depth and because nightly.yml
-  # shares this exact group name too.)
+  # every run of this file -- push or dispatch, on any ref -- shares one
+  # queue. (guard-main-ref also means a non-main run never gets far enough
+  # to race anything, but the group is ref-independent regardless, as
+  # defense in depth.)
   group: aedockerpublic-ghcr-builds
   cancel-in-progress: false
 
@@ -128,7 +126,8 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          fetch-depth: 0 # need history to diff github.event.before -> github.sha
+          fetch-depth: 0 # full history -- changed_images.py diffs each image's
+                         # published revision against this push's tip locally
 
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
@@ -146,28 +145,34 @@ jobs:
       - name: Run planner unit tests (fail loud before planning a real build)
         run: python3 .github/scripts/test_plan.py -v
 
-      - name: Compute changed files for this push
-        id: changed
-        run: |
-          BEFORE="${{ github.event.before }}"
-          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
-            # First-ever push of this ref, or a workflow_dispatch run (which
-            # has no "before" at all): nothing to diff against, so treat
-            # every file in the checked-out tree as changed. git's canonical
-            # empty-tree hash, computed rather than hardcoded.
-            BEFORE="$(git hash-object -t tree /dev/null)"
-          fi
-          git diff --name-only "$BEFORE" "${{ github.sha }}" > /tmp/changed_files.txt
-          echo "--- changed files ---"
-          cat /tmp/changed_files.txt
+      - name: Run change-detection unit tests (fail loud before planning a real build)
+        run: python3 .github/scripts/test_changed_images.py -v
+
+      - name: Set lowercase repository name
+        run: echo "REPO_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      # Per-image OCI-revision diff: a metadata-only registry read per
+      # catalog image (docker buildx imagetools inspect), plus a local git
+      # diff -- no docker login needed (reads of public images), wrapped in
+      # retry for the same reason the registry reads below are.
+      - name: Compute changed images (per-image OCI-revision diff)
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 15
+          command: python3 .github/scripts/changed_images.py --images-yaml images.yaml --images-yaml epirhandbook/2.7/images.yaml --repo "$REPO_NAME" --sha "${{ github.sha }}" > /tmp/changed_images.txt
 
       - name: Run planner
         id: plan
         run: |
+          echo "--- changed images (own files / shared inputs / .github machinery changed since each image's published revision) ---"
+          cat /tmp/changed_images.txt
+
           ARGS=()
-          while IFS= read -r f; do
-            [ -n "$f" ] && ARGS+=(--changed-file "$f")
-          done < /tmp/changed_files.txt
+          while IFS= read -r name; do
+            [ -n "$name" ] && ARGS+=(--changed-image "$name")
+          done < /tmp/changed_images.txt
           # BOTH halves of the catalog: the hand-maintained root and the
           # generated 2.7 split. Base edges cross them (epirhandbook-common is
           # FROM rbase), so passing only one makes the base look like a typo
@@ -208,7 +213,7 @@ jobs:
   # AND bump MAX_SUPPORTED_LAYERS in plan.py.
   #
   # Each matrix entry is a full image record from plan.py (name, dir, tags,
-  # base_name/base_tag/base_digest/base_freshly_built/frozen) --
+  # base_name/base_tag/base_digest/base_freshly_built/context) --
   # build_image.sh consumes it directly, so there is exactly one place (the
   # planner, then this one script) that knows how to resolve a base image,
   # not one copy per layer.
@@ -243,26 +248,6 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Set lowercase repository name
         run: echo "REPO_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
-      # Phase 4 round 2 remediation: runs BEFORE docker/login-action and
-      # BEFORE `docker build`, not just before `docker push` -- a doomed
-      # republish attempt (frozen: true, tag already exists, no override)
-      # now fails here, so the job never exchanges the registry-push
-      # credential via docker/login-action and never spends the ~45-minute
-      # compile on a build that was always going to be refused. No auth
-      # needed: a pure registry read of a public image (see
-      # build_image.sh's check_frozen_or_die). The identical check still
-      # also runs inside `publish` mode itself, immediately below -- see
-      # build_image.sh's header comment for why that is not redundant to
-      # remove.
-      - name: Refuse to republish an already-published frozen image
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
-        env:
-          FORCE_REPUBLISH_FROZEN: ${{ inputs.force_republish_frozen || '' }}
-        with:
-          timeout_minutes: 5
-          max_attempts: 3
-          retry_wait_seconds: 15
-          command: bash .github/scripts/build_image.sh check-frozen "$REPO_NAME" "${{ matrix.image.name }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.frozen }}" "${{ matrix.image.context }}"
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
@@ -290,12 +275,11 @@ jobs:
           # is its legitimate use; the point is only that it must never
           # enter the build itself.
           GITHUB_PAT: ${{ secrets.GH_READONLY_PAT }}
-          FORCE_REPUBLISH_FROZEN: ${{ inputs.force_republish_frozen || '' }}
         with:
           timeout_minutes: 120
           max_attempts: 2
           retry_wait_seconds: 60
-          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_digest }}" "${{ matrix.image.base_freshly_built }}" "${{ matrix.image.frozen }}" "${{ matrix.image.context }}"
+          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_digest }}" "${{ matrix.image.base_freshly_built }}" "${{ github.sha }}" "${{ matrix.image.context }}"
 
   build-layer-1:
     needs: [guard-main-ref, plan, build-layer-0]
@@ -318,26 +302,6 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Set lowercase repository name
         run: echo "REPO_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
-      # Phase 4 round 2 remediation: runs BEFORE docker/login-action and
-      # BEFORE `docker build`, not just before `docker push` -- a doomed
-      # republish attempt (frozen: true, tag already exists, no override)
-      # now fails here, so the job never exchanges the registry-push
-      # credential via docker/login-action and never spends the ~45-minute
-      # compile on a build that was always going to be refused. No auth
-      # needed: a pure registry read of a public image (see
-      # build_image.sh's check_frozen_or_die). The identical check still
-      # also runs inside `publish` mode itself, immediately below -- see
-      # build_image.sh's header comment for why that is not redundant to
-      # remove.
-      - name: Refuse to republish an already-published frozen image
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
-        env:
-          FORCE_REPUBLISH_FROZEN: ${{ inputs.force_republish_frozen || '' }}
-        with:
-          timeout_minutes: 5
-          max_attempts: 3
-          retry_wait_seconds: 15
-          command: bash .github/scripts/build_image.sh check-frozen "$REPO_NAME" "${{ matrix.image.name }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.frozen }}" "${{ matrix.image.context }}"
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
@@ -365,12 +329,11 @@ jobs:
           # is its legitimate use; the point is only that it must never
           # enter the build itself.
           GITHUB_PAT: ${{ secrets.GH_READONLY_PAT }}
-          FORCE_REPUBLISH_FROZEN: ${{ inputs.force_republish_frozen || '' }}
         with:
           timeout_minutes: 120
           max_attempts: 2
           retry_wait_seconds: 60
-          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_digest }}" "${{ matrix.image.base_freshly_built }}" "${{ matrix.image.frozen }}" "${{ matrix.image.context }}"
+          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_digest }}" "${{ matrix.image.base_freshly_built }}" "${{ github.sha }}" "${{ matrix.image.context }}"
 
   build-layer-2:
     needs: [guard-main-ref, plan, build-layer-1]
@@ -393,26 +356,6 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Set lowercase repository name
         run: echo "REPO_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
-      # Phase 4 round 2 remediation: runs BEFORE docker/login-action and
-      # BEFORE `docker build`, not just before `docker push` -- a doomed
-      # republish attempt (frozen: true, tag already exists, no override)
-      # now fails here, so the job never exchanges the registry-push
-      # credential via docker/login-action and never spends the ~45-minute
-      # compile on a build that was always going to be refused. No auth
-      # needed: a pure registry read of a public image (see
-      # build_image.sh's check_frozen_or_die). The identical check still
-      # also runs inside `publish` mode itself, immediately below -- see
-      # build_image.sh's header comment for why that is not redundant to
-      # remove.
-      - name: Refuse to republish an already-published frozen image
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
-        env:
-          FORCE_REPUBLISH_FROZEN: ${{ inputs.force_republish_frozen || '' }}
-        with:
-          timeout_minutes: 5
-          max_attempts: 3
-          retry_wait_seconds: 15
-          command: bash .github/scripts/build_image.sh check-frozen "$REPO_NAME" "${{ matrix.image.name }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.frozen }}" "${{ matrix.image.context }}"
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
@@ -440,12 +383,11 @@ jobs:
           # is its legitimate use; the point is only that it must never
           # enter the build itself.
           GITHUB_PAT: ${{ secrets.GH_READONLY_PAT }}
-          FORCE_REPUBLISH_FROZEN: ${{ inputs.force_republish_frozen || '' }}
         with:
           timeout_minutes: 120
           max_attempts: 2
           retry_wait_seconds: 60
-          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_digest }}" "${{ matrix.image.base_freshly_built }}" "${{ matrix.image.frozen }}" "${{ matrix.image.context }}"
+          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_digest }}" "${{ matrix.image.base_freshly_built }}" "${{ github.sha }}" "${{ matrix.image.context }}"
 
   build-layer-3:
     needs: [guard-main-ref, plan, build-layer-2]
@@ -468,26 +410,6 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Set lowercase repository name
         run: echo "REPO_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
-      # Phase 4 round 2 remediation: runs BEFORE docker/login-action and
-      # BEFORE `docker build`, not just before `docker push` -- a doomed
-      # republish attempt (frozen: true, tag already exists, no override)
-      # now fails here, so the job never exchanges the registry-push
-      # credential via docker/login-action and never spends the ~45-minute
-      # compile on a build that was always going to be refused. No auth
-      # needed: a pure registry read of a public image (see
-      # build_image.sh's check_frozen_or_die). The identical check still
-      # also runs inside `publish` mode itself, immediately below -- see
-      # build_image.sh's header comment for why that is not redundant to
-      # remove.
-      - name: Refuse to republish an already-published frozen image
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
-        env:
-          FORCE_REPUBLISH_FROZEN: ${{ inputs.force_republish_frozen || '' }}
-        with:
-          timeout_minutes: 5
-          max_attempts: 3
-          retry_wait_seconds: 15
-          command: bash .github/scripts/build_image.sh check-frozen "$REPO_NAME" "${{ matrix.image.name }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.frozen }}" "${{ matrix.image.context }}"
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
@@ -515,9 +437,8 @@ jobs:
           # is its legitimate use; the point is only that it must never
           # enter the build itself.
           GITHUB_PAT: ${{ secrets.GH_READONLY_PAT }}
-          FORCE_REPUBLISH_FROZEN: ${{ inputs.force_republish_frozen || '' }}
         with:
           timeout_minutes: 120
           max_attempts: 2
           retry_wait_seconds: 60
-          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_digest }}" "${{ matrix.image.base_freshly_built }}" "${{ matrix.image.frozen }}" "${{ matrix.image.context }}"
+          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_digest }}" "${{ matrix.image.base_freshly_built }}" "${{ github.sha }}" "${{ matrix.image.context }}"

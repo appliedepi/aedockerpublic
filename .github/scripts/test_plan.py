@@ -26,9 +26,8 @@ CATALOG = [
      "base": "rbase:4.3.2", "base_digest": "sha256:aaaa", "live": True},
 ]
 
-# A synthetic 3-image chain with a frozen (live: false) leaf, used for the
-# live-skip and frozen-image tests the 2-image real catalog can't exercise
-# on its own.
+# A synthetic 3-image chain with a not-live (live: false) leaf, used for the
+# cascade-exclusion tests the 2-image real catalog can't exercise on its own.
 CHAIN = [
     {"name": "rbase", "dir": "rbase/4.3.2", "tags": ["4.3.2"], "base": None,
      "base_digest": None, "live": True},
@@ -43,11 +42,16 @@ def names(result):
     return set(result["image_names"])
 
 
-class RequiredCases(unittest.TestCase):
-    """The 5 cases named explicitly in the Phase 4 brief."""
+class ChangedImageAndCascadeCases(unittest.TestCase):
+    """Core selective-build + cascade behavior. plan.py no longer matches
+    raw file paths at all -- it is fed an already-resolved list of changed
+    image NAMES (--changed-image, one per name; the output of
+    changed_images.py in production) and only ever does two pure things
+    with it: seed direct selection, then cascade. See build_plan()'s
+    docstring."""
 
-    def test_1_rbase_change_cascades_to_epirhandbook(self):
-        r = plan.build_plan(CATALOG, changed_files=["rbase/4.3.2/Dockerfile"])
+    def test_changed_base_cascades_to_its_dependent(self):
+        r = plan.build_plan(CATALOG, changed_images=["rbase"])
         self.assertEqual(names(r), {"rbase", "epirhandbook"})
         self.assertEqual(r["trigger"], "selective")
         self.assertEqual(r["layers"][0][0]["name"], "rbase")
@@ -55,80 +59,53 @@ class RequiredCases(unittest.TestCase):
         # base was rebuilt in this same run -> re-resolve its digest live
         self.assertTrue(r["layers"][1][0]["base_freshly_built"])
 
-    def test_2_epirhandbook_change_does_not_rebuild_rbase(self):
-        r = plan.build_plan(CATALOG, changed_files=["epirhandbook/2.5/pak_install.R"])
+    def test_changed_dependent_does_not_rebuild_its_base(self):
+        r = plan.build_plan(CATALOG, changed_images=["epirhandbook"])
         self.assertEqual(names(r), {"epirhandbook"})
         self.assertNotIn("rbase", names(r))
         self.assertEqual(r["trigger"], "selective")
         # base was NOT rebuilt this run -> must use the recorded pin
         self.assertFalse(r["layers"][0][0]["base_freshly_built"])
 
-    def test_3_images_yaml_change_rebuilds_all_live(self):
-        r = plan.build_plan(CATALOG, changed_files=["images.yaml"])
-        self.assertEqual(names(r), {"rbase", "epirhandbook"})
-        self.assertEqual(r["trigger"], "special")
-
-    def test_4_unrelated_file_selects_nothing(self):
-        r = plan.build_plan(CATALOG, changed_files=["README.md", "LICENSE"])
+    def test_no_changed_images_selects_nothing(self):
+        r = plan.build_plan(CATALOG, changed_images=[])
         self.assertEqual(names(r), set())
         self.assertEqual(r["num_layers"], 0)
         self.assertEqual(r["trigger"], "none")
 
-    def test_5_nightly_skips_live_false(self):
-        r = plan.build_plan(CHAIN, nightly=True)
+    def test_omitting_changed_images_entirely_also_selects_nothing(self):
+        r = plan.build_plan(CATALOG)
+        self.assertEqual(names(r), set())
+        self.assertEqual(r["trigger"], "none")
+
+    def test_unknown_changed_image_name_is_a_hard_error(self):
+        # changed_images.py should never emit a name outside the catalog,
+        # but if it (or a hand-typed --changed-image) ever does, this must
+        # be a loud failure -- the same class of mistake as a typo'd
+        # `base:` reference (test_unknown_base_name_is_a_hard_error below).
+        with self.assertRaises(ValueError) as ctx:
+            plan.build_plan(CATALOG, changed_images=["nonexistent-image"])
+        self.assertIn("nonexistent-image", str(ctx.exception))
+
+    def test_multiple_changed_images_union_correctly(self):
+        r = plan.build_plan(CATALOG, changed_images=["rbase", "epirhandbook"])
         self.assertEqual(names(r), {"rbase", "epirhandbook"})
-        self.assertNotIn("epirhandbook_old", names(r))
-        self.assertEqual(r["trigger"], "nightly")
 
-
-class ExtraCases(unittest.TestCase):
-    """Beyond the 5 required cases: the subtler design decisions (frozen-image
-    semantics, workflow-file trigger, multi-level cascade) pinned down
-    explicitly so a future change can't silently regress the reasoning."""
-
-    def test_workflow_file_change_is_also_a_special_trigger(self):
-        r = plan.build_plan(CATALOG, changed_files=[".github/workflows/build.yml"])
-        self.assertEqual(names(r), {"rbase", "epirhandbook"})
-        self.assertEqual(r["trigger"], "special")
-
-    def test_planner_script_change_is_also_a_special_trigger(self):
-        # Deliberate extension beyond the brief's literal "images.yaml or a
-        # workflow file": a bug in the planner itself is exactly as
-        # dangerous and deserves the same blanket revalidation.
-        r = plan.build_plan(CATALOG, changed_files=[".github/scripts/plan.py"])
-        self.assertEqual(r["trigger"], "special")
-
-    def test_frozen_image_is_not_swept_in_by_a_base_cascade(self):
+    def test_not_live_image_is_not_swept_in_by_a_base_cascade(self):
         # epirhandbook_old is live:false. rbase changing must NOT drag it in
-        # via cascade -- freezing means "nothing rebuilds you automatically",
-        # and a cascade IS automatic.
-        r = plan.build_plan(CHAIN, changed_files=["rbase/4.3.2/Dockerfile"])
+        # via cascade -- live:false means "nothing rebuilds you
+        # automatically via cascade", and a cascade IS automatic.
+        r = plan.build_plan(CHAIN, changed_images=["rbase"])
         self.assertEqual(names(r), {"rbase", "epirhandbook"})
         self.assertNotIn("epirhandbook_old", names(r))
 
-    def test_frozen_image_still_builds_on_a_direct_edit_to_its_own_files(self):
-        # A human explicitly editing a frozen image's own directory is not
-        # an automatic rebuild -- it must still build.
-        r = plan.build_plan(CHAIN, changed_files=["epirhandbook/2.4/Dockerfile"])
+    def test_not_live_image_still_builds_on_a_direct_edit_to_its_own_files(self):
+        # A not-live image explicitly named in --changed-image (a direct
+        # edit to its own files, as changed_images.py would report) is not
+        # an automatic cascade -- it must still build.
+        r = plan.build_plan(CHAIN, changed_images=["epirhandbook_old"])
         self.assertIn("epirhandbook_old", names(r))
         self.assertNotIn("rbase", names(r))  # no edge points from rbase to it
-
-    def test_images_yaml_special_case_still_respects_live_false(self):
-        r = plan.build_plan(CHAIN, changed_files=["images.yaml"])
-        self.assertEqual(names(r), {"rbase", "epirhandbook"})
-        self.assertNotIn("epirhandbook_old", names(r))
-
-    def test_multi_file_diff_unions_correctly(self):
-        r = plan.build_plan(
-            CATALOG,
-            changed_files=["epirhandbook/2.5/Dockerfile", "README.md", "rbase/4.3.2/Dockerfile"],
-        )
-        self.assertEqual(names(r), {"rbase", "epirhandbook"})
-
-    def test_dir_prefix_does_not_false_match_a_sibling_directory(self):
-        # epirhandbook/2.5-other/... must NOT match dir "epirhandbook/2.5"
-        r = plan.build_plan(CATALOG, changed_files=["epirhandbook/2.5-other/x.txt"])
-        self.assertEqual(names(r), set())
 
     def test_cycle_raises(self):
         cyclic = [
@@ -136,7 +113,7 @@ class ExtraCases(unittest.TestCase):
             {"name": "b", "dir": "b", "tags": ["1"], "base": "a:1", "base_digest": None, "live": True},
         ]
         with self.assertRaises(ValueError):
-            plan.build_plan(cyclic, changed_files=["a/x"])
+            plan.build_plan(cyclic)
 
     def test_unknown_base_name_is_a_hard_error(self):
         # A typo in `base:` ("rbse" instead of "rbase") must be a loud
@@ -152,17 +129,20 @@ class ExtraCases(unittest.TestCase):
              "base": "rbse:4.3.2", "base_digest": "sha256:aaaa", "live": True},  # "rbse" typo
         ]
         with self.assertRaises(ValueError) as ctx:
-            plan.build_plan(typo_catalog, changed_files=["images.yaml"])
+            plan.build_plan(typo_catalog)
         # The error must name both the offending image and the bad base, so
         # an operator can find and fix the typo without re-deriving it.
         self.assertIn("epirhandbook", str(ctx.exception))
         self.assertIn("rbse", str(ctx.exception))
 
     def test_catalog_deeper_than_max_layers_is_a_hard_error(self):
-        # build.yml/nightly.yml only wire up build-layer-0..3 (4 layers).
-        # A catalog needing a 5th layer must fail loudly, not silently
-        # publish only its first 4 layers (finding 7) -- invisible today
-        # with 2 images, but Phase 5a adds ~50 chapter images.
+        # build.yml only wires up build-layer-0..3 (4 layers). A catalog
+        # needing a 5th layer must fail loudly, not silently publish only
+        # its first 4 layers (finding 7) -- invisible today with 2 images,
+        # but Phase 5a adds ~50 chapter images. This check fires inside
+        # topological_order(), which build_plan() calls unconditionally
+        # before it ever looks at changed_images -- so no selection is
+        # needed to trigger it.
         deep_chain = []
         prev = None
         for i in range(plan.MAX_SUPPORTED_LAYERS + 1):  # 5 layers when the ceiling is 4
@@ -177,8 +157,28 @@ class ExtraCases(unittest.TestCase):
             })
             prev = name
         with self.assertRaises(ValueError) as ctx:
-            plan.build_plan(deep_chain, nightly=True)
+            plan.build_plan(deep_chain)
         self.assertIn(str(plan.MAX_SUPPORTED_LAYERS), str(ctx.exception))
+
+
+class TestMatchingDir(unittest.TestCase):
+    """plan.matching_dir() directly -- plan.py still owns this function
+    (changed_images.py imports and reuses it rather than re-deriving it;
+    see that module's header), so its own invariants are pinned here
+    independent of any consumer."""
+
+    def test_exact_dir_match(self):
+        self.assertTrue(plan.matching_dir("rbase/4.3.2", "rbase/4.3.2"))
+
+    def test_file_under_dir_matches(self):
+        self.assertTrue(plan.matching_dir("rbase/4.3.2/Dockerfile", "rbase/4.3.2"))
+
+    def test_sibling_directory_prefix_does_not_false_match(self):
+        # epirhandbook/2.5-other/... must NOT match dir "epirhandbook/2.5"
+        self.assertFalse(plan.matching_dir("epirhandbook/2.5-other/x.txt", "epirhandbook/2.5"))
+
+    def test_unrelated_path_does_not_match(self):
+        self.assertFalse(plan.matching_dir("README.md", "epirhandbook/2.5"))
 
 
 class TestValidateCatalog(unittest.TestCase):
@@ -217,10 +217,18 @@ class TestValidateCatalog(unittest.TestCase):
     # --- unknown / missing keys -----------------------------------------
 
     def test_unknown_key_is_rejected(self):
-        # The exact typo from the brief: 'froze' instead of 'frozen'.
         with self.assertRaises(ValueError) as ctx:
-            self._validate(self.VALID + "    froze: true\n")
-        self.assertIn("froze", str(ctx.exception))
+            self._validate(self.VALID + "    nonexistent_key: true\n")
+        self.assertIn("nonexistent_key", str(ctx.exception))
+
+    def test_frozen_key_is_now_rejected_as_unknown(self):
+        # `frozen:` was a real catalog field; it no longer exists. Using it
+        # must now be a hard "unknown key" error, the same as any other
+        # unrecognized field -- this pins the removal itself.
+        with self.assertRaises(ValueError) as ctx:
+            self._validate(self.VALID + "    frozen: true\n")
+        self.assertIn("frozen", str(ctx.exception))
+        self.assertNotIn("frozen", sorted(plan.ALLOWED_IMAGE_KEYS))
 
     def test_missing_required_key_is_rejected(self):
         # 'dir' omitted entirely.
@@ -236,7 +244,7 @@ class TestValidateCatalog(unittest.TestCase):
             self._validate(text)
         self.assertIn("dir", str(ctx.exception))
 
-    # --- live/frozen: must be a REAL bool, not a string that looks like one -
+    # --- live: must be a REAL bool, not a string that looks like one -----
 
     def test_quoted_true_string_is_rejected_for_live(self):
         # live: "true" loads as the STRING "true", not a bool.
@@ -350,14 +358,6 @@ class TestValidateCatalog(unittest.TestCase):
         with self.assertRaises(ValueError) as ctx:
             self._validate(text)
         self.assertIn("images", str(ctx.exception))
-
-    def test_frozen_must_also_be_a_real_bool(self):
-        # Same rule as 'live', applied to 'frozen' -- both are truth-tested
-        # downstream by build_plan()/build_image.sh.
-        text = self.VALID.rstrip("\n") + '\n    frozen: "false"\n'
-        with self.assertRaises(ValueError) as ctx:
-            self._validate(text)
-        self.assertIn("frozen", str(ctx.exception))
 
     # --- round-6 review: malformed field values reaching the publish plan --
 
@@ -523,16 +523,20 @@ class TestMergedCatalogs(unittest.TestCase):
         root, split = self._write(self.ROOT), self._write(self.SPLIT)
         images = plan.load_catalogs([root, split])
         self.assertEqual(len(images), 2)
-        # The real boundary: build_plan (not just the schema check) must work.
-        r = plan.build_plan(images, nightly=True)
+        # The real boundary: build_plan (not just the schema check) must
+        # work, AND the cascade must cross the file boundary: rbase changing
+        # must reach epirhandbook-common, defined in the OTHER file.
+        r = plan.build_plan(images, changed_images=["rbase"])
         self.assertEqual(names(r), {"rbase", "epirhandbook-common"})
         self.assertEqual(r["layers"][0][0]["name"], "rbase")
 
     def test_split_catalog_alone_is_rejected_by_the_planner(self):
-        # Loading only the generated half leaves the base dangling.
+        # Loading only the generated half leaves the base dangling. This
+        # fires inside topological_order(), before build_plan() ever looks
+        # at changed_images, so no selection argument is needed to trigger it.
         split = self._write(self.SPLIT)
         with self.assertRaises(ValueError) as ctx:
-            plan.build_plan(plan.load_catalogs([split]), nightly=True)
+            plan.build_plan(plan.load_catalogs([split]))
         self.assertIn("rbase", str(ctx.exception))
 
     def test_same_name_in_two_catalogs_is_rejected(self):
@@ -551,35 +555,37 @@ class TestAgainstRealCatalog(unittest.TestCase):
     per-chapter split lives in epirhandbook/2.7/images.yaml, FROM this rbase
     across the file boundary."""
 
-    def test_real_images_yaml_matches_assumed_shape(self):
+    def _real_catalog_paths(self):
         repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-        images_yaml = os.path.join(repo_root, "images.yaml")
-        if not os.path.exists(images_yaml):
-            self.skipTest(f"images.yaml not found at {images_yaml}")
-        images = plan.load_images(images_yaml)
+        root_yaml = os.path.join(repo_root, "images.yaml")
+        split_yaml = os.path.join(repo_root, "epirhandbook", "2.7", "images.yaml")
+        return root_yaml, split_yaml
+
+    def test_real_images_yaml_matches_assumed_shape(self):
+        root_yaml, _ = self._real_catalog_paths()
+        if not os.path.exists(root_yaml):
+            self.skipTest(f"images.yaml not found at {root_yaml}")
+        images = plan.load_images(root_yaml)
         by_name = {img["name"]: img for img in images}
         self.assertEqual(set(by_name), {"rbase"})
         self.assertIsNone(by_name["rbase"]["base"])
         self.assertEqual(by_name["rbase"]["dir"], "rbase/4.6.0")
         self.assertEqual(by_name["rbase"]["tags"], ["4.6.0-2026-07-01"])
         self.assertTrue(by_name["rbase"]["live"])
-        # Frozen (blocker 2): this project's whole premise is that this
-        # exact stack never moves once it reproduces the target render.
-        self.assertTrue(by_name["rbase"]["frozen"])
 
     def test_real_catalogs_merge_and_plan_2_7_only(self):
-        # Exercises the actual production planner invocation (build.yml /
-        # nightly.yml both pass exactly these two real files): confirms the
-        # cross-file base edge (epirhandbook-common:2.7 FROM rbase:4.6.0-2026-07-01)
-        # resolves without error, and that no 2.5/2.6/4.3.2 artifact survives
-        # in the merged plan.
-        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-        root_yaml = os.path.join(repo_root, "images.yaml")
-        split_yaml = os.path.join(repo_root, "epirhandbook", "2.7", "images.yaml")
+        # Exercises the actual production planner invocation (build.yml
+        # passes exactly these two real files): confirms the cross-file base
+        # edge (epirhandbook-common:2.7 FROM rbase:4.6.0-2026-07-01) resolves
+        # without error, and that no 2.5/2.6/4.3.2 artifact survives in the
+        # merged plan. `changed_images` lists every real name directly (no
+        # nightly/"select everything" mode exists any more) to force full
+        # selection for this shape check.
+        root_yaml, split_yaml = self._real_catalog_paths()
         if not os.path.exists(root_yaml) or not os.path.exists(split_yaml):
             self.skipTest("real catalog files not found")
         images = plan.load_catalogs([root_yaml, split_yaml])
-        r = plan.build_plan(images, nightly=True)
+        r = plan.build_plan(images, changed_images=[img["name"] for img in images])
         image_names = names(r)
         self.assertIn("rbase", image_names)
         self.assertIn("epirhandbook-common", image_names)
@@ -592,6 +598,43 @@ class TestAgainstRealCatalog(unittest.TestCase):
             self.assertNotIn("2.6", img["tags"])
             self.assertNotIn("4.3.2", img["tags"])
         self.assertEqual(r["layers"][0][0]["name"], "rbase")  # base-most first
+
+    def test_common_change_cascades_to_every_chapter_but_not_rbase(self):
+        # Discriminator (a): a change to common's dir must plan common +
+        # all 49 chapters (the cascade), but NOT rbase -- the cascade only
+        # flows base -> dependent, never upstream.
+        root_yaml, split_yaml = self._real_catalog_paths()
+        if not os.path.exists(root_yaml) or not os.path.exists(split_yaml):
+            self.skipTest("real catalog files not found")
+        images = plan.load_catalogs([root_yaml, split_yaml])
+        r = plan.build_plan(images, changed_images=["epirhandbook-common"])
+        image_names = names(r)
+        self.assertEqual(len(image_names), 50)  # common + 49 chapters
+        self.assertIn("epirhandbook-common", image_names)
+        self.assertNotIn("rbase", image_names)
+
+    def test_single_chapter_change_selects_only_that_chapter(self):
+        # Discriminator (b): a change to one chapter selects ONLY that
+        # chapter -- no cascade (nothing in this catalog is FROM a chapter),
+        # and no fan-out to common or rbase.
+        root_yaml, split_yaml = self._real_catalog_paths()
+        if not os.path.exists(root_yaml) or not os.path.exists(split_yaml):
+            self.skipTest("real catalog files not found")
+        images = plan.load_catalogs([root_yaml, split_yaml])
+        r = plan.build_plan(images, changed_images=["epirhandbook-basics"])
+        self.assertEqual(names(r), {"epirhandbook-basics"})
+
+    def test_unchanged_real_catalog_selects_nothing(self):
+        # Discriminator (d), the plan.py half: an empty --changed-image list
+        # (every image unchanged since its published revision, as
+        # changed_images.py would report) plans nothing at all.
+        root_yaml, split_yaml = self._real_catalog_paths()
+        if not os.path.exists(root_yaml) or not os.path.exists(split_yaml):
+            self.skipTest("real catalog files not found")
+        images = plan.load_catalogs([root_yaml, split_yaml])
+        r = plan.build_plan(images, changed_images=[])
+        self.assertEqual(names(r), set())
+        self.assertEqual(r["trigger"], "none")
 
 
 class TestBuildContextAndChapterRenders(unittest.TestCase):
@@ -618,7 +661,7 @@ class TestBuildContextAndChapterRenders(unittest.TestCase):
     def test_context_is_accepted_and_reaches_the_plan(self):
         imgs = self._validate(self.ROW)
         self.assertEqual(imgs[0]["context"], "epirhandbook/2.6")
-        r = plan.build_plan(imgs, changed_files=["epirhandbook/2.6/chapters/basics/x"])
+        r = plan.build_plan(imgs, changed_images=["epirhandbook-basics"])
         self.assertEqual(r["layers"][0][0]["context"], "epirhandbook/2.6")
 
     def test_context_defaults_to_dir_when_absent(self):
@@ -627,7 +670,7 @@ class TestBuildContextAndChapterRenders(unittest.TestCase):
             "images:\n  - name: rbase\n    dir: rbase/4.3.2\n"
             '    tags: ["4.3.2"]\n    base: null\n    base_digest: null\n'
         )
-        r = plan.build_plan(self._validate(text), nightly=True)
+        r = plan.build_plan(self._validate(text), changed_images=["rbase"])
         self.assertEqual(r["layers"][0][0]["context"], "rbase/4.3.2")
 
     def test_dir_outside_context_is_rejected(self):
@@ -635,48 +678,6 @@ class TestBuildContextAndChapterRenders(unittest.TestCase):
         with self.assertRaises(ValueError) as ctx:
             self._validate(text)
         self.assertIn("context", str(ctx.exception))
-
-    def test_a_change_to_ANY_catalog_file_is_a_special_trigger(self):
-        # The catalog is split across files. Matching only the ROOT images.yaml
-        # meant editing the GENERATED split catalog -- which defines 51 of the
-        # 53 images -- planned nothing at all: the catalog could change what
-        # should exist while CI built nothing.
-        self.assertTrue(plan.is_special_trigger("images.yaml"))
-        self.assertTrue(plan.is_special_trigger("epirhandbook/2.6/images.yaml"))
-        # ...but an unrelated yaml is still not a catalog.
-        self.assertFalse(plan.is_special_trigger("epirhandbook/2.6/other.yaml"))
-
-    SHARED = (
-        "images:\n"
-        "  - name: epirhandbook-common\n"
-        "    dir: epirhandbook/2.6/common\n"
-        "    context: epirhandbook/2.6\n"
-        '    tags: ["2.6"]\n    base: null\n    base_digest: null\n'
-        "  - name: epirhandbook-basics\n"
-        "    renders: new_pages/basics.qmd\n"
-        "    dir: epirhandbook/2.6/chapters/basics\n"
-        "    context: epirhandbook/2.6\n"
-        '    tags: ["2.6"]\n    base: "epirhandbook-common:2.6"\n    base_digest: null\n'
-    )
-
-    def test_shared_context_input_rebuilds_everything_using_that_context(self):
-        # renv.lock / pak_install_subset.R sit at the CONTEXT root and are
-        # COPYed by common AND every chapter Dockerfile, but live in no image's
-        # own dir -- so dir-matching alone planned NOTHING while actually
-        # changing every image built from that context.
-        imgs = self._validate(self.SHARED)
-        for f in ("epirhandbook/2.6/pak_install_subset.R", "epirhandbook/2.6/renv.lock"):
-            r = plan.build_plan(imgs, changed_files=[f])
-            self.assertEqual(names(r), {"epirhandbook-common", "epirhandbook-basics"},
-                             msg=f"{f} should rebuild everything sharing that context")
-
-    def test_a_chapters_own_file_does_not_fan_out_to_the_whole_context(self):
-        # The other half of the rule: a file that IS under an image's dir is
-        # that image's own file. If it also fanned out via `context`, every
-        # per-chapter edit would rebuild all 51 and selectivity would be gone.
-        imgs = self._validate(self.SHARED)
-        r = plan.build_plan(imgs, changed_files=["epirhandbook/2.6/chapters/basics/packages.txt"])
-        self.assertEqual(names(r), {"epirhandbook-basics"})
 
     def test_chapter_image_without_renders_is_rejected(self):
         text = self.ROW.replace("    renders: new_pages/basics.qmd\n", "")

@@ -556,7 +556,6 @@ def main():
             f.write(f"    base: {base}\n")
             f.write(f"    base_digest: null\n")
             f.write(f"    live: true\n")
-            f.write(f"    frozen: true\n")
 
     # --- stdout summary (audit trail; also the reproducibility check reads this) ---
     print(f"chapters in footprints.tsv: {n_chapters_total}")
