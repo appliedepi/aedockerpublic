@@ -71,10 +71,16 @@ fail() {
 }
 
 usage() {
-  echo "usage: build_all_chapters.sh <handbook_dir> <registry_prefix> [<output_dir>]" >&2
-  echo "  <handbook_dir>    checkout of the handbook repo (has _quarto.yml + docker-images.yml)" >&2
-  echo "  <registry_prefix> e.g. ghcr.io/appliedepi/aedockerpublic -- images are '<registry_prefix>/<image>'" >&2
-  echo "  <output_dir>      where the assembled site is written (default: ./html_outputs)" >&2
+  echo "usage: build_all_chapters.sh [--only-lang <code>] [--no-inject] <handbook_dir> <registry_prefix> [<output_dir>]" >&2
+  echo "  --only-lang <code>  render just this ONE language, which must already be declared in" >&2
+  echo "                      _quarto.yml. Its site lands at the ROOT of <output_dir>, with no" >&2
+  echo "                      <lang>/ nesting. Use one leg per language in a CI matrix." >&2
+  echo "  --no-inject         skip the language-switcher pass. REQUIRED when languages are split" >&2
+  echo "                      across legs: the injector is not idempotent, so it must run exactly" >&2
+  echo "                      once, over the fully assembled site." >&2
+  echo "  <handbook_dir>      checkout of the handbook repo (has _quarto.yml + docker-images.yml)" >&2
+  echo "  <registry_prefix>   e.g. ghcr.io/appliedepi/aedockerpublic -- images are '<registry_prefix>/<image>'" >&2
+  echo "  <output_dir>        where the assembled site is written (default: ./html_outputs)" >&2
 }
 
 # --- book-level tooling always runs against THIS common image, never a
@@ -86,6 +92,25 @@ usage() {
 COMMON_TAG="2.7"
 
 # --- arg parsing -------------------------------------------------------------
+# Two optional flags, both there so a CI matrix can put ONE language in each
+# leg. Without them a caller has to render every language in every leg and
+# throw most of it away, and has to strip this script's own switcher markup
+# back out of the HTML afterwards -- both of which were real workarounds in
+# the first version of the handbook workflow.
+ONLY_LANG=""
+DO_INJECT=1
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --only-lang)
+      [ "$#" -ge 2 ] || { echo "--only-lang needs a language code" >&2; usage; exit 2; }
+      ONLY_LANG="$2"; shift 2 ;;
+    --no-inject) DO_INJECT=0; shift ;;
+    --) shift; break ;;
+    -*) echo "unknown option: $1" >&2; usage; exit 2 ;;
+    *) break ;;
+  esac
+done
+
 if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then
   usage
   exit 2
@@ -136,6 +161,34 @@ read -r -a OTHER_LANGS <<< "$(sed -n '2p' "$lang_info_file")"
 rm -f "$lang_info_file"
 ALL_LANGS=("$MAIN_LANG" "${OTHER_LANGS[@]}")
 
+# --only-lang narrows the run to ONE of the languages _quarto.yml declares.
+# It never invents a language: the code must already be in that list, so this
+# cannot be used to render something the book does not ship.
+#
+# LAYOUT NOTE, load-bearing for the caller: under --only-lang the OUTPUT_DIR
+# holds that language's site AT ITS ROOT, with no <lang>/ nesting -- there is
+# nothing to nest it under, because no other language was rendered. A CI leg
+# uploads that directory as-is; whoever assembles the legs decides where each
+# one lands. Without the flag, the layout is unchanged: main language at the
+# root, every other language under <lang>/.
+# ASSEMBLE_ROOT_LANG is the language that ends up at OUTPUT_DIR's root. It is
+# NOT the same thing as MAIN_LANG, and conflating the two is a silent-failure
+# trap: MAIN_LANG decides whether a workspace gets rewrite_lang_config.R run
+# over it (prepare_workspace) and whether a chapter path carries a .<lang>
+# infix (chapter_path_for_lang), so it must stay the book's REAL main language
+# even when --only-lang fr puts French at the root. Setting MAIN_LANG=fr here
+# would skip French's config rewrite entirely -- and that failure exits 0.
+ASSEMBLE_ROOT_LANG="$MAIN_LANG"
+if [ -n "$ONLY_LANG" ]; then
+  found=0
+  for l in "${ALL_LANGS[@]}"; do [ "$l" = "$ONLY_LANG" ] && found=1; done
+  [ "$found" -eq 1 ] || fail "--only-lang '$ONLY_LANG' is not one of _quarto.yml's babelquarto languages (${ALL_LANGS[*]})"
+  ALL_LANGS=("$ONLY_LANG")
+  OTHER_LANGS=()
+  ASSEMBLE_ROOT_LANG="$ONLY_LANG"
+  echo "build_all_chapters.sh: --only-lang $ONLY_LANG -- rendering that language alone, output at the root of $OUTPUT_DIR"
+fi
+
 # --- read the chapter->image manifest ---------------------------------------
 # docker-images.yml lives at the HANDBOOK repo's root (a separate repo from
 # this one) -- read via the checkout passed in as $HANDBOOK_DIR.
@@ -170,22 +223,48 @@ fi
 # have a manifest row; a chapter the manifest never mentions is a MISSING
 # ENTRY (someone added a chapter and forgot the manifest), not a chapter to
 # quietly skip.
+# The book is what _quarto.yml DECLARES, not what happens to be on disk.
+# chapters/ also holds obsolete drafts and category stubs that no longer
+# appear in book.chapters (plot_continuous, modeling, relational_databases,
+# the cat_* files, and any chapter deliberately commented out). Globbing the
+# directory instead of reading the config demands a manifest row for every one
+# of them and fails the build outright -- which is exactly what it did.
+#
+# Checked in BOTH directions, because each catches a different mistake:
+# a declared chapter with no row means someone added a chapter and forgot the
+# manifest; a row for an undeclared chapter means the manifest would render an
+# orphan page that is in no book, or name an image that need not exist.
 check_manifest_covers_book() {
-  local stem f missing=()
-  while IFS= read -r -d '' f; do
-    stem="$(basename "$f" .qmd)"
-    if ! grep -q -P "^${stem}\t" "$MANIFEST_FILE"; then
-      missing+=("$stem")
-    fi
-  done < <(find "$HANDBOOK_DIR/chapters" -maxdepth 1 -name '*.qmd' ! -name '*.*.qmd' -print0)
+  local declared missing extra
+  declared="$(python3 - "$HANDBOOK_DIR/_quarto.yml" <<'PY'
+import sys, yaml
+cfg = yaml.safe_load(open(sys.argv[1]))
+paths = []
+def walk(node):
+    if isinstance(node, str) and node.endswith(".qmd"):
+        paths.append(node)
+    elif isinstance(node, list):
+        for item in node: walk(item)
+    elif isinstance(node, dict):
+        for value in node.values(): walk(value)
+walk(cfg["book"]["chapters"])
+for stem in sorted({p.split("/")[-1][:-4] for p in paths}):
+    print(stem)
+PY
+)" || fail "could not read book.chapters from $HANDBOOK_DIR/_quarto.yml"
 
-  if [ -f "$HANDBOOK_DIR/index.qmd" ] && ! grep -q -P '^index\t' "$MANIFEST_FILE"; then
-    missing+=("index")
-  fi
+  missing=""
+  while IFS= read -r stem; do
+    [ -n "$stem" ] || continue
+    grep -q -P "^${stem}\t" "$MANIFEST_FILE" || missing="$missing $stem"
+  done <<< "$declared"
+  [ -z "$missing" ] || fail "chapter(s) declared in _quarto.yml with no docker-images.yml entry:$missing -- add a manifest row for each"
 
-  if [ "${#missing[@]}" -gt 0 ]; then
-    fail "chapter(s) with no docker-images.yml entry: ${missing[*]} -- add a manifest row for each"
-  fi
+  extra=""
+  while IFS=$'\t' read -r stem _; do
+    grep -q -x -F "$stem" <<< "$declared" || extra="$extra $stem"
+  done < "$MANIFEST_FILE"
+  [ -z "$extra" ] || fail "docker-images.yml row(s) for chapter(s) _quarto.yml does not declare:$extra -- remove them, or add the chapter to book.chapters"
 }
 check_manifest_covers_book
 
@@ -353,25 +432,40 @@ done
 # the site root. Each other language is copied to html_outputs/<lang>/.
 rm -rf "$OUTPUT_DIR"
 mkdir -p "$OUTPUT_DIR"
-cp -a "$WORK_ROOT/$MAIN_LANG/html_outputs"/. "$OUTPUT_DIR"/
-for lang in "${OTHER_LANGS[@]}"; do
-  mkdir -p "$OUTPUT_DIR/$lang"
-  cp -a "$WORK_ROOT/$lang/html_outputs"/. "$OUTPUT_DIR/$lang"/
-done
-echo "build_all_chapters.sh: assembled $OUTPUT_DIR (main=$MAIN_LANG, others=${OTHER_LANGS[*]})"
+# ASSEMBLE_ROOT_LANG, not MAIN_LANG: under --only-lang fr there is no English
+# workspace to copy from, and French is what goes at the root.
+cp -a "$WORK_ROOT/$ASSEMBLE_ROOT_LANG/html_outputs"/. "$OUTPUT_DIR"/
+if [ "${#OTHER_LANGS[@]}" -gt 0 ]; then
+  for lang in "${OTHER_LANGS[@]}"; do
+    mkdir -p "$OUTPUT_DIR/$lang"
+    cp -a "$WORK_ROOT/$lang/html_outputs"/. "$OUTPUT_DIR/$lang"/
+  done
+fi
+echo "build_all_chapters.sh: assembled $OUTPUT_DIR (root=$ASSEMBLE_ROOT_LANG, nested=${OTHER_LANGS[*]:-none})"
 
-# --- the mandatory language-switcher post-pass ------------------------------
+# --- the language-switcher post-pass ----------------------------------------
 # Runs once, over the FULLY ASSEMBLED tree, in the common image (this is a
 # per-book step, not a per-chapter one -- see COMMON_IMAGE above). The
 # pristine _quarto.yml is mounted alongside the site read-only, purely for
 # its babelquarto metadata (language list + display labels); it is never
 # written to.
-if ! docker run --rm \
-    -v "$OUTPUT_DIR:/site" \
-    -v "$HANDBOOK_DIR/_quarto.yml:/quarto/_quarto.yml:ro" \
-    -w /site "$COMMON_IMAGE" \
-    inject_language_links.sh /site /quarto/_quarto.yml; then
-  fail "inject_language_links.sh failed over the assembled site at $OUTPUT_DIR"
+#
+# --no-inject skips it, and a caller that splits languages across machines
+# MUST use it. inject_language_links.R is NOT idempotent: add_dropdown_links()
+# REUSES an existing <ul id="languages-links"> rather than rebuilding it, so
+# injecting per-language and then again over the assembled site APPENDS a
+# second set of links to every translated page instead of replacing the first.
+# Inject exactly once, over the complete tree.
+if [ "$DO_INJECT" -eq 1 ]; then
+  if ! docker run --rm \
+      -v "$OUTPUT_DIR:/site" \
+      -v "$HANDBOOK_DIR/_quarto.yml:/quarto/_quarto.yml:ro" \
+      -w /site "$COMMON_IMAGE" \
+      inject_language_links.sh /site /quarto/_quarto.yml; then
+    fail "inject_language_links.sh failed over the assembled site at $OUTPUT_DIR"
+  fi
+else
+  echo "build_all_chapters.sh: --no-inject -- skipping the language-switcher pass; the caller must run it once over the assembled site"
 fi
 
 echo "build_all_chapters.sh: done -- $OUTPUT_DIR is ready to publish"
