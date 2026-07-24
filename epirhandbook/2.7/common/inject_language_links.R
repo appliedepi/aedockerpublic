@@ -25,7 +25,7 @@
 ## with this repo's per-chapter-image architecture, so there is nothing to
 ## call instead of porting the logic.
 ##
-## Two deliberate departures from the original while porting:
+## Three deliberate departures from the original while porting:
 ##
 ## 1. THE <li> BUG IS FIXED. The original builds `<a>` as a direct child of
 ##    the `<ul>`, then tries to wrap it in `<li>` with
@@ -238,7 +238,9 @@ is_asset <- function(paths) {
   grepl("(^|/)site_libs/", paths) | grepl("_files/", paths)
 }
 all_docs <- fs::dir_ls(site_dir, glob = "*.html", recurse = TRUE)
-all_docs <- all_docs[!is_asset(as.character(fs::path_rel(all_docs, start = site_dir)))]
+all_docs <- all_docs[
+  !is_asset(as.character(fs::path_rel(all_docs, start = site_dir)))
+]
 
 ## A page's language is its first path segment when that segment is a declared
 ## language directory; anything else is the main language. From that, derive
@@ -252,7 +254,11 @@ canonical_of <- function(doc_rel, lang) {
   if (identical(lang, main_language)) {
     doc_rel
   } else {
-    sub(sprintf("^%s/", lang), "", sub(sprintf("\\.%s\\.html$", lang), ".html", doc_rel))
+    sub(
+      sprintf("^%s/", lang),
+      "",
+      sub(sprintf("\\.%s\\.html$", lang), ".html", doc_rel)
+    )
   }
 }
 
@@ -268,14 +274,27 @@ for (doc in all_docs) {
   ## Only offer a language whose version of THIS page actually exists -- a
   ## link to a page that was never rendered is worse than no link.
   present <- Filter(
-    function(l) fs::file_exists(file.path(site_dir, target_rel_from_root(l, canonical))),
+    function(l) {
+      fs::file_exists(file.path(site_dir, target_rel_from_root(l, canonical)))
+    },
     others
   )
-  if (length(present) == 0) next
+  if (length(present) == 0) {
+    next
+  }
 
   targets <- stats::setNames(as.list(rep(canonical, length(present))), present)
   changed <- add_dropdown_links(doc, doc_rel = doc_rel, targets = targets)
-  if (identical(lang, main_language)) n_main <- n_main + 1L else n_translated <- n_translated + 1L
+  ## Count only pages actually MODIFIED. Redirect stubs return FALSE from
+  ## add_dropdown_links(), and reporting them as processed is exactly the kind
+  ## of reassuring-but-wrong number this script already shipped once.
+  if (isTRUE(changed)) {
+    if (identical(lang, main_language)) {
+      n_main <- n_main + 1L
+    } else {
+      n_translated <- n_translated + 1L
+    }
+  }
   ## Count on the CANONICAL path, not doc_rel. doc_rel has a "/" for any page
   ## in a language directory, including <lang>/index.<lang>.html -- which the
   ## broken non-recursive version DID reach, so counting doc_rel would let the
@@ -304,5 +323,5 @@ cat(sprintf(
   n_main,
   n_translated,
   n_touched_chapters,
-  length(language_codes)
+  length(c(main_language, language_codes))
 ))
