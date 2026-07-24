@@ -22,168 +22,168 @@ images:
     base: "rbase:4.6.0-2026-07-01"
     live: true
   - name: epirhandbook-age_pyramid
-    renders: new_pages/age_pyramid.qmd
+    renders: chapters/age_pyramid.qmd
     dir: epirhandbook/2.7/chapters/age_pyramid
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-basics
-    renders: new_pages/basics.qmd
+    renders: chapters/basics.qmd
     dir: epirhandbook/2.7/chapters/basics
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-characters_strings
-    renders: new_pages/characters_strings.qmd
+    renders: chapters/characters_strings.qmd
     dir: epirhandbook/2.7/chapters/characters_strings
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-cleaning
-    renders: new_pages/cleaning.qmd
+    renders: chapters/cleaning.qmd
     dir: epirhandbook/2.7/chapters/cleaning
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-collaboration
-    renders: new_pages/collaboration.qmd
+    renders: chapters/collaboration.qmd
     dir: epirhandbook/2.7/chapters/collaboration
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-combination_analysis
-    renders: new_pages/combination_analysis.qmd
+    renders: chapters/combination_analysis.qmd
     dir: epirhandbook/2.7/chapters/combination_analysis
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-contact_tracing
-    renders: new_pages/contact_tracing.qmd
+    renders: chapters/contact_tracing.qmd
     dir: epirhandbook/2.7/chapters/contact_tracing
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-data_table
-    renders: new_pages/data_table.qmd
+    renders: chapters/data_table.qmd
     dir: epirhandbook/2.7/chapters/data_table
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-data_used
-    renders: new_pages/data_used.qmd
+    renders: chapters/data_used.qmd
     dir: epirhandbook/2.7/chapters/data_used
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-dates
-    renders: new_pages/dates.qmd
+    renders: chapters/dates.qmd
     dir: epirhandbook/2.7/chapters/dates
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-deduplication
-    renders: new_pages/deduplication.qmd
+    renders: chapters/deduplication.qmd
     dir: epirhandbook/2.7/chapters/deduplication
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-diagrams
-    renders: new_pages/diagrams.qmd
+    renders: chapters/diagrams.qmd
     dir: epirhandbook/2.7/chapters/diagrams
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-directories
-    renders: new_pages/directories.qmd
+    renders: chapters/directories.qmd
     dir: epirhandbook/2.7/chapters/directories
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-editorial_style
-    renders: new_pages/editorial_style.qmd
+    renders: chapters/editorial_style.qmd
     dir: epirhandbook/2.7/chapters/editorial_style
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-epicurves
-    renders: new_pages/epicurves.qmd
+    renders: chapters/epicurves.qmd
     dir: epirhandbook/2.7/chapters/epicurves
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-errors
-    renders: new_pages/errors.qmd
+    renders: chapters/errors.qmd
     dir: epirhandbook/2.7/chapters/errors
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-factors
-    renders: new_pages/factors.qmd
+    renders: chapters/factors.qmd
     dir: epirhandbook/2.7/chapters/factors
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-flexdashboard
-    renders: new_pages/flexdashboard.qmd
+    renders: chapters/flexdashboard.qmd
     dir: epirhandbook/2.7/chapters/flexdashboard
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-ggplot_basics
-    renders: new_pages/ggplot_basics.qmd
+    renders: chapters/ggplot_basics.qmd
     dir: epirhandbook/2.7/chapters/ggplot_basics
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-ggplot_tips
-    renders: new_pages/ggplot_tips.qmd
+    renders: chapters/ggplot_tips.qmd
     dir: epirhandbook/2.7/chapters/ggplot_tips
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-grouping
-    renders: new_pages/grouping.qmd
+    renders: chapters/grouping.qmd
     dir: epirhandbook/2.7/chapters/grouping
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-heatmaps
-    renders: new_pages/heatmaps.qmd
+    renders: chapters/heatmaps.qmd
     dir: epirhandbook/2.7/chapters/heatmaps
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-help
-    renders: new_pages/help.qmd
+    renders: chapters/help.qmd
     dir: epirhandbook/2.7/chapters/help
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-importing
-    renders: new_pages/importing.qmd
+    renders: chapters/importing.qmd
     dir: epirhandbook/2.7/chapters/importing
     context: epirhandbook/2.7
     tags: ["2.7"]
@@ -197,168 +197,168 @@ images:
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-interactive_plots
-    renders: new_pages/interactive_plots.qmd
+    renders: chapters/interactive_plots.qmd
     dir: epirhandbook/2.7/chapters/interactive_plots
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-iteration
-    renders: new_pages/iteration.qmd
+    renders: chapters/iteration.qmd
     dir: epirhandbook/2.7/chapters/iteration
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-joining_matching
-    renders: new_pages/joining_matching.qmd
+    renders: chapters/joining_matching.qmd
     dir: epirhandbook/2.7/chapters/joining_matching
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-missing_data
-    renders: new_pages/missing_data.qmd
+    renders: chapters/missing_data.qmd
     dir: epirhandbook/2.7/chapters/missing_data
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-moving_average
-    renders: new_pages/moving_average.qmd
+    renders: chapters/moving_average.qmd
     dir: epirhandbook/2.7/chapters/moving_average
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-network_drives
-    renders: new_pages/network_drives.qmd
+    renders: chapters/network_drives.qmd
     dir: epirhandbook/2.7/chapters/network_drives
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-packages_suggested
-    renders: new_pages/packages_suggested.qmd
+    renders: chapters/packages_suggested.qmd
     dir: epirhandbook/2.7/chapters/packages_suggested
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-phylogenetic_trees
-    renders: new_pages/phylogenetic_trees.qmd
+    renders: chapters/phylogenetic_trees.qmd
     dir: epirhandbook/2.7/chapters/phylogenetic_trees
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-pivoting
-    renders: new_pages/pivoting.qmd
+    renders: chapters/pivoting.qmd
     dir: epirhandbook/2.7/chapters/pivoting
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-r_projects
-    renders: new_pages/r_projects.qmd
+    renders: chapters/r_projects.qmd
     dir: epirhandbook/2.7/chapters/r_projects
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-regression
-    renders: new_pages/regression.qmd
+    renders: chapters/regression.qmd
     dir: epirhandbook/2.7/chapters/regression
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-reportfactory
-    renders: new_pages/reportfactory.qmd
+    renders: chapters/reportfactory.qmd
     dir: epirhandbook/2.7/chapters/reportfactory
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-rmarkdown
-    renders: new_pages/rmarkdown.qmd
+    renders: chapters/rmarkdown.qmd
     dir: epirhandbook/2.7/chapters/rmarkdown
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-shiny_basics
-    renders: new_pages/shiny_basics.qmd
+    renders: chapters/shiny_basics.qmd
     dir: epirhandbook/2.7/chapters/shiny_basics
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-standardization
-    renders: new_pages/standardization.qmd
+    renders: chapters/standardization.qmd
     dir: epirhandbook/2.7/chapters/standardization
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-stat_tests
-    renders: new_pages/stat_tests.qmd
+    renders: chapters/stat_tests.qmd
     dir: epirhandbook/2.7/chapters/stat_tests
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-survey_analysis
-    renders: new_pages/survey_analysis.qmd
+    renders: chapters/survey_analysis.qmd
     dir: epirhandbook/2.7/chapters/survey_analysis
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-survival_analysis
-    renders: new_pages/survival_analysis.qmd
+    renders: chapters/survival_analysis.qmd
     dir: epirhandbook/2.7/chapters/survival_analysis
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-tables_descriptive
-    renders: new_pages/tables_descriptive.qmd
+    renders: chapters/tables_descriptive.qmd
     dir: epirhandbook/2.7/chapters/tables_descriptive
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-tables_presentation
-    renders: new_pages/tables_presentation.qmd
+    renders: chapters/tables_presentation.qmd
     dir: epirhandbook/2.7/chapters/tables_presentation
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-time_series
-    renders: new_pages/time_series.qmd
+    renders: chapters/time_series.qmd
     dir: epirhandbook/2.7/chapters/time_series
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-transition_to_r
-    renders: new_pages/transition_to_r.qmd
+    renders: chapters/transition_to_r.qmd
     dir: epirhandbook/2.7/chapters/transition_to_r
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-transmission_chains
-    renders: new_pages/transmission_chains.qmd
+    renders: chapters/transmission_chains.qmd
     dir: epirhandbook/2.7/chapters/transmission_chains
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
     live: true
   - name: epirhandbook-writing_functions
-    renders: new_pages/writing_functions.qmd
+    renders: chapters/writing_functions.qmd
     dir: epirhandbook/2.7/chapters/writing_functions
     context: epirhandbook/2.7
     tags: ["2.7"]
