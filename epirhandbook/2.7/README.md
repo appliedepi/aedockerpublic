@@ -4,8 +4,10 @@
 `epirhandbook-common` image plus a thin per-chapter image (49 chapters). Each image is a **package
 environment**; the chapter content is rendered at runtime from mounted `.qmd` files, never baked in.
 
-This directory is generated. Do not hand-edit `images.yaml`, the Dockerfiles, or `packages_cran.txt`
-— change an input and rerun `generate.py`.
+`images.yaml`, the Dockerfiles, and `packages_cran.txt` were originally generated but are now
+hand-maintained sources of truth. Edit them directly. The generator that first produced them
+(`generate.py`) is archived at `epirhandbook/2.7/archive/` as a record of method, not as a tool to
+run again — see `epirhandbook/2.7/archive/README.md`.
 
 ## Reproducibility: one source of truth per axis
 
