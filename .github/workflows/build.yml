@@ -36,7 +36,7 @@ name: Build images
 # scoped to PUBLIC READ ONLY (no `packages: write`, no repo write of any
 # kind). It is fed into the "Build and push" step's GITHUB_PAT env var,
 # which `docker build` mounts as a BuildKit secret purely to raise pak's
-# GitHub API rate limit while resolving epirhandbook's 7 GitHub-SHA-pinned
+# GitHub API rate limit while resolving epirhandbook's 8 GitHub-SHA-pinned
 # packages. `secrets.GITHUB_TOKEN` is DELIBERATELY never used for this: this
 # job holds `packages: write` (see below), and feeding THAT token into 473
 # packages' worth of arbitrary, compiled-from-source install code would let
@@ -46,7 +46,7 @@ name: Build images
 # genuinely need push-capable credentials. If `GH_READONLY_PAT` is not
 # configured as a repository secret, the build proceeds with NO token at
 # all (never a silent fallback to `secrets.GITHUB_TOKEN`) -- the only
-# consequence is that those 7 GitHub package lookups fall back to the
+# consequence is that those 8 GitHub package lookups fall back to the
 # ANONYMOUS GitHub API rate limit, which is shared across every job running
 # on the same GitHub-hosted runner IP at that moment. See PROJECT.md
 # section 8 for how to create/rotate this secret.
@@ -169,12 +169,12 @@ jobs:
             [ -n "$f" ] && ARGS+=(--changed-file "$f")
           done < /tmp/changed_files.txt
           # BOTH halves of the catalog: the hand-maintained root and the
-          # generated 2.6 split. Base edges cross them (epirhandbook-common is
+          # generated 2.7 split. Base edges cross them (epirhandbook-common is
           # FROM rbase), so passing only one makes the base look like a typo
           # and the plan dies. See plan.py's load_catalogs.
           python3 .github/scripts/plan.py \
             --images-yaml images.yaml \
-            --images-yaml epirhandbook/2.6/images.yaml \
+            --images-yaml epirhandbook/2.7/images.yaml \
             "${ARGS[@]}" > /tmp/plan.json
           echo "--- plan ---"
           cat /tmp/plan.json

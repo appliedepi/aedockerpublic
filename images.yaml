@@ -53,10 +53,10 @@
 #                       tag: force_republish_frozen, never set by
 #                       automation (nightly.yml has no such input and never
 #                       pushes at all -- see nightly.yml's header for why
-#                       it can never republish anything). Both images in
-#                       this catalog are frozen: the whole premise of this
-#                       project is that this exact stack does not move once
-#                       it reproduces the target render.
+#                       it can never republish anything). the one image in
+#                       this catalog (rbase) is frozen: the whole premise of
+#                       this project is that this exact stack does not move
+#                       once it reproduces the target render.
 #               false = (or omitted) no such refusal; a normal publish
 #                       overwrites the tag same as any other image.
 #
@@ -105,22 +105,14 @@
 #   To find the digest to paste in: read it from the build job's step
 #   summary (the workflow prints "Published <name>:<tag> digest: sha256:...”
 #   for every image it builds), or run:
-#     docker buildx imagetools inspect ghcr.io/appliedepi/aedockerpublic/rbase:4.3.2
+#     docker buildx imagetools inspect ghcr.io/appliedepi/aedockerpublic/rbase:4.6.0-2026-07-01
 #   and copy the Digest: value.
 
 images:
   - name: rbase
-    dir: rbase/4.3.2
-    tags: ["4.3.2"]
+    dir: rbase/4.6.0
+    tags: ["4.6.0-2026-07-01"]
     base: null
-    base_digest: null
-    live: true
-    frozen: true
-
-  - name: epirhandbook
-    dir: epirhandbook/2.5
-    tags: ["2.5"]
-    base: "rbase:4.3.2"
     base_digest: null
     live: true
     frozen: true

@@ -1,0 +1,52 @@
+{
+  "GitHubPins": {
+    "babeldown": {
+      "RemoteUsername": "ropensci-review-tools",
+      "RemoteRepo": "babeldown",
+      "RemoteRef": "HEAD",
+      "RemoteSha": "c6ed926981e29cf47cbef3b00462f791a0b827d2"
+    },
+    "babelquarto": {
+      "RemoteUsername": "ropensci-review-tools",
+      "RemoteRepo": "babelquarto",
+      "RemoteRef": "HEAD",
+      "RemoteSha": "ba9a2a020dbda6f73305e46413341b69fc13cf22"
+    },
+    "epicontacts": {
+      "RemoteUsername": "reconhub",
+      "RemoteRepo": "epicontacts",
+      "RemoteRef": "timeline",
+      "RemoteSha": "e68f2287892f57f5d2dcd8e05dd62193fdfc78c4"
+    },
+    "epidict": {
+      "RemoteUsername": "R4EPI",
+      "RemoteRepo": "epidict",
+      "RemoteRef": "HEAD",
+      "RemoteSha": "af2929949cb2f1579c66aa32cdd9274d493a1af0"
+    },
+    "epitabulate": {
+      "RemoteUsername": "R4EPI",
+      "RemoteRepo": "epitabulate",
+      "RemoteRef": "HEAD",
+      "RemoteSha": "6f5539d85bf02ebfe2a78516b7b7f0a520da3b48"
+    },
+    "googlesheets4": {
+      "RemoteUsername": "tidyverse",
+      "RemoteRepo": "googlesheets4",
+      "RemoteRef": "HEAD",
+      "RemoteSha": "55cd9fdbf9c74c20de1eeb9ec2629a7d16c76aa4"
+    },
+    "sitrep": {
+      "RemoteUsername": "R4EPI",
+      "RemoteRepo": "sitrep",
+      "RemoteRef": "HEAD",
+      "RemoteSha": "72c205f0d532d560044d3db8d58fcd90bcefe4b2"
+    },
+    "tinkr": {
+      "RemoteUsername": "ropensci",
+      "RemoteRepo": "tinkr",
+      "RemoteRef": "HEAD",
+      "RemoteSha": "5da21423bdac92d90d86198e987350222dafc9f9"
+    }
+  }
+}

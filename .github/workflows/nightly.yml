@@ -149,7 +149,7 @@ jobs:
           # BOTH halves of the catalog -- see build.yml / plan.py load_catalogs.
           python3 .github/scripts/plan.py \
             --images-yaml images.yaml \
-            --images-yaml epirhandbook/2.6/images.yaml \
+            --images-yaml epirhandbook/2.7/images.yaml \
             --nightly > /tmp/plan.json
           echo "--- plan ---"
           cat /tmp/plan.json

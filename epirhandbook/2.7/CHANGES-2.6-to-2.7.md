@@ -205,37 +205,44 @@ tracked separately.
 
 ---
 
-## Part E — Open item: stale prose for translators
+## Part E — Translator backlog: stale prose to reword
 
-**This is the one piece of work the upgrade could not finish, and it is not engineering work.**
+**This section IS the backlog. It is the one piece of work the upgrade could not finish, and it
+is not engineering work.** Owner decision: the book **ships with these passages present**; a
+translator rewords them later. Nothing here breaks the build — all 49 chapters render. These are
+correctness problems in the *explanation*, not the code.
 
-The code was fixed in all 9 languages. But some surrounding *prose* explains code that no
-longer exists, and rewriting teaching text in 8 languages we do not read is a translator's job,
-not ours. **Nothing here breaks the build** — all 49 chapters render. These are correctness
-problems in the *explanation*.
+The code was fixed in all 9 languages. But some surrounding *prose* explains code that no longer
+exists. Rewording teaching text in 8 languages we do not read is a translator's job.
 
-| # | Chapter | What the text still claims | Why it is now wrong |
-|---|---|---|---|
-| 1 | `standardization` | "This page will show you **two ways** to standardize…" | Only one way remains — the `dsr` way was cut (C1) |
-| 2 | `standardization` | "the package **dsr** expects … the column … called `pop`" | `dsr` is gone. The rename is still *needed* (the code does `stdpop = pop`) but no longer for this reason |
-| 3 | `standardization` | "**Another way** of calculating standardized rates is with **PHEindicatormethods**" | "Another" has no antecedent now — it is the only way shown |
-| 4 | `survey_analysis` | "There are **four different options** … we recommend the **sitrep** function" | Three options remain, and the recommended function was removed (C2) |
-| 5 | `ggplot_basics` | "the `size = ` aesthetic is assigned **twice** … both times as a static value" | The code now reads `size = 1` and `linewidth = 2` — it is no longer `size` twice |
+**How to fix each item:** use the **search token** below (a package or function name — it
+survives translation; never search for a translated word). Open
+`new_pages/<chapter>.<lang>.qmd`, find the token, reword the surrounding sentence to match
+"Should say". Languages: `de es fr jp pt ru tr vn` + English (no suffix). **Every item applies to
+all 9.**
 
-**Scope: 5 passages × 9 languages.** Item 2 is two spots per language (a sentence and a code
-comment), so roughly **54 edits**.
+| # | Chapter | Search token | Currently says (English) | Why stale | Should say |
+|---|---|---|---|---|---|
+| 1 | `standardization` | `two ways` | "This page will show you **two ways** to standardize…" | The `dsr` way was cut (C1); only PHEindicatormethods remains | Drop "two ways" — "…show you how to standardize…" |
+| 2 | `standardization` | `dsr` | "the package **dsr** expects … the column … called `pop`" (a sentence **and** a nearby code comment) | `dsr` is gone. The `pop` rename is still *needed* (code does `stdpop = pop`) but not for this reason | Attribute the `pop` requirement to **PHEindicatormethods** / `phe_dsr()`, not `dsr` |
+| 3 | `standardization` | `Another way` | "**Another way** of calculating standardized rates is with **PHEindicatormethods**" | "Another" had an antecedent (the `dsr` section) that is now cut | Drop "Another" — "We calculate standardized rates with **PHEindicatormethods**" |
+| 4 | `survey_analysis` | `four different options` | "There are **four different options** … we recommend the **sitrep** function" | The sitrep tabulation section was cut (C2); three options remain and the recommended one is gone | "There are **three** options (**survey**, **srvyr**, **gtsummary**)…"; drop the sitrep recommendation |
+| 5 | `ggplot_basics` | `assigned twice` | "the `size = ` aesthetic is **assigned twice** … both times a static value" | The code now reads `size = 1` and `linewidth = 2` — no longer `size` twice | Reword to `size = 1` (points) and `linewidth = 2` (the smoothing line) |
 
-**A note on how far we verified this.** Items 1–5 are quoted from the English source, which we
-read directly. For the other 8 languages we confirmed the *structure* matches exactly — same
-section count, same number of `dsr` references (2 in every language), same code — so the same
-stale passages are present. We did **not** verify the translated wording, because we cannot read
-it. A translator should expect to find these passages, not treat the list as literal strings.
+**Scope: 5 passages × 9 languages.** Item 2 is two spots per language (sentence + code comment),
+so roughly **54 edits**.
 
-**What is NOT stale:** `sitrep` is still a live dependency. Five of its references are correct
-and must stay — `find_start_date()`, `assert_positive_timespan()`, the install line, and the two
-links. Only the tabulation recommendation (item 4) is wrong.
+**Do NOT "fix" these — they are correct:**
+- **`sitrep` the package stays.** It is still a live dependency for `find_start_date()`,
+  `assert_positive_timespan()`, the install line, and two links in `survey_analysis`. Only the
+  tabulation *recommendation* (item 4) is stale.
+- **`survival_analysis`'s `size = 1` stays.** It is an argument to `survminer::ggsurvplot()`,
+  which has its own `size` parameter — not the deprecated ggplot2 aesthetic.
 
----
+**How far this was verified.** Items 1–5 are quoted from the **English** source, read directly.
+The other 8 languages were confirmed to match structurally (same section count, same `dsr`
+reference count — 2 in every language — same code), so the same passages are present. The
+translated *wording* was not read. Treat "Should say" as intent to convey, not a literal string.
 
 ---
 

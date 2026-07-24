@@ -83,7 +83,18 @@ ENV TZ=Etc/UTC
 # NEVER `latest`. A floating snapshot would silently re-resolve every rebuild,
 # which is the exact failure Phase 5b exists to characterise. The build-time
 # assert below rejects a URL that does not end in a literal YYYY-MM-DD.
-ARG CRAN_SNAPSHOT=https://packagemanager.posit.co/cran/__linux__/resolute/2026-07-01
+#
+# The snapshot DATE is the single source of truth for every package version,
+# and it is NOT typed here as a literal -- it is DERIVED FROM THIS IMAGE'S TAG.
+# build_image.sh reads the YYYY-MM-DD suffix of the tag
+# (rbase:4.6.0-2026-07-01) and passes it as --build-arg CRAN_SNAPSHOT_DATE; the
+# URL is built from it, so the date lives in exactly one place -- the tag.
+# There is deliberately NO default: a bare `docker build` for local testing
+# must pass --build-arg CRAN_SNAPSHOT_DATE=YYYY-MM-DD, and a forgotten one
+# yields a URL ending in "resolute/", which the YYYY-MM-DD assert below
+# rejects loudly rather than silently pinning a stale date.
+ARG CRAN_SNAPSHOT_DATE
+ARG CRAN_SNAPSHOT=https://packagemanager.posit.co/cran/__linux__/resolute/${CRAN_SNAPSHOT_DATE}
 
 # apt: resilient to transient network blips
 RUN echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/80-retries

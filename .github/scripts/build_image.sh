@@ -61,7 +61,7 @@
 # --build-arg: a build-arg lands in `docker history` even if it is never
 # promoted to an ENV, which is exactly the leak this project's own hard rule
 # forbids (see PROJECT.md section 4 / the Dockerfile's own comment on this).
-# It exists ONLY to raise pak's GitHub API rate limit while resolving the 7
+# It exists ONLY to raise pak's GitHub API rate limit while resolving the
 # GitHub-SHA-pinned packages in epirhandbook's build -- a repo-CONTENTS
 # read, nothing more -- so the caller (build.yml / nightly.yml) must source
 # it from a credential scoped to PUBLIC READ ONLY (this project's
@@ -72,7 +72,7 @@
 # credential). If GITHUB_PAT is unset or empty, this script builds with NO
 # token at all -- it never substitutes a different, more-privileged
 # credential on its own; the build then simply relies on the ANONYMOUS
-# GitHub API rate limit for those 7 lookups (fine in normal operation; see
+# GitHub API rate limit for those GitHub lookups (fine in normal operation; see
 # PROJECT.md for the documented consequence on a shared runner IP).
 #
 # FORCE_REPUBLISH_FROZEN (publish and check-frozen modes only): a
@@ -163,6 +163,19 @@ fi
 IFS=',' read -r -a TAGS <<< "$TAGS_CSV"
 
 BUILD_ARGS=()
+
+# Date-stamped tag -> CRAN_SNAPSHOT_DATE build-arg. If the first tag ends in a
+# literal YYYY-MM-DD (rbase's "4.6.0-2026-07-01"), that date IS the single
+# source of truth for the pinned CRAN snapshot: extract it and pass it so the
+# Dockerfile derives the snapshot URL from it (rbase/4.6.0/Dockerfile). The
+# rule is generic, not rbase-specific: a tag with no date suffix (a chapter's
+# "2.7") simply does not match, so no arg is passed and no Dockerfile consumes
+# one. One date, defined once, in the tag.
+if [[ "${TAGS[0]}" =~ -([0-9]{4}-[0-9]{2}-[0-9]{2})$ ]]; then
+  BUILD_ARGS+=(--build-arg "CRAN_SNAPSHOT_DATE=${BASH_REMATCH[1]}")
+  echo "$NAME: tag '${TAGS[0]}' carries snapshot date ${BASH_REMATCH[1]} -> passing as --build-arg CRAN_SNAPSHOT_DATE"
+fi
+
 BASE_REF=""
 if [ -n "$BASE_NAME" ]; then
   if [ "$BASE_FRESH" = "true" ]; then
@@ -228,7 +241,7 @@ echo "Building $NAME from $DIR (context: $CONTEXT) with tags: ${TAGS[*]} (mode: 
 if [ -n "${GITHUB_PAT:-}" ]; then
   echo "GITHUB_PAT is set (a read-only credential, or an operator-supplied token for local testing) -- passing it as a BuildKit secret."
 else
-  echo "GITHUB_PAT is NOT set -- building with no GitHub token at all. pak's github:: package resolution falls back to the ANONYMOUS GitHub API rate limit for this build's 7 GitHub-pinned packages (see this script's header comment)."
+  echo "GITHUB_PAT is NOT set -- building with no GitHub token at all. pak's github:: package resolution falls back to the ANONYMOUS GitHub API rate limit for any GitHub-pinned packages this build installs (see this script's header comment)."
 fi
 DOCKER_BUILDKIT=1 docker build \
   --secret id=github_pat,env=GITHUB_PAT \

@@ -543,8 +543,13 @@ class TestMergedCatalogs(unittest.TestCase):
 
 
 class TestAgainstRealCatalog(unittest.TestCase):
-    """Canary: the real images.yaml still has the shape the tests above
-    assume (2 images, epirhandbook FROM rbase:4.3.2, both live)."""
+    """Canary: the real catalogs still have the shape the tests above assume.
+    The public deliverable is now the 2.7 catalog only (2.5/2.6 removed from
+    the published set -- their directories stay on disk as provenance, but
+    the CI planner no longer loads their catalog entries): the root
+    images.yaml holds just the 2.7 base image (rbase:4.6.0-2026-07-01), and
+    per-chapter split lives in epirhandbook/2.7/images.yaml, FROM this rbase
+    across the file boundary."""
 
     def test_real_images_yaml_matches_assumed_shape(self):
         repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -553,15 +558,40 @@ class TestAgainstRealCatalog(unittest.TestCase):
             self.skipTest(f"images.yaml not found at {images_yaml}")
         images = plan.load_images(images_yaml)
         by_name = {img["name"]: img for img in images}
-        self.assertEqual(set(by_name), {"rbase", "epirhandbook"})
+        self.assertEqual(set(by_name), {"rbase"})
         self.assertIsNone(by_name["rbase"]["base"])
-        self.assertEqual(by_name["epirhandbook"]["base"], "rbase:4.3.2")
+        self.assertEqual(by_name["rbase"]["dir"], "rbase/4.6.0")
+        self.assertEqual(by_name["rbase"]["tags"], ["4.6.0-2026-07-01"])
         self.assertTrue(by_name["rbase"]["live"])
-        self.assertTrue(by_name["epirhandbook"]["live"])
-        # Both are frozen (blocker 2): this project's whole premise is that
-        # this exact stack never moves once it reproduces the target render.
+        # Frozen (blocker 2): this project's whole premise is that this
+        # exact stack never moves once it reproduces the target render.
         self.assertTrue(by_name["rbase"]["frozen"])
-        self.assertTrue(by_name["epirhandbook"]["frozen"])
+
+    def test_real_catalogs_merge_and_plan_2_7_only(self):
+        # Exercises the actual production planner invocation (build.yml /
+        # nightly.yml both pass exactly these two real files): confirms the
+        # cross-file base edge (epirhandbook-common:2.7 FROM rbase:4.6.0-2026-07-01)
+        # resolves without error, and that no 2.5/2.6/4.3.2 artifact survives
+        # in the merged plan.
+        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        root_yaml = os.path.join(repo_root, "images.yaml")
+        split_yaml = os.path.join(repo_root, "epirhandbook", "2.7", "images.yaml")
+        if not os.path.exists(root_yaml) or not os.path.exists(split_yaml):
+            self.skipTest("real catalog files not found")
+        images = plan.load_catalogs([root_yaml, split_yaml])
+        r = plan.build_plan(images, nightly=True)
+        image_names = names(r)
+        self.assertIn("rbase", image_names)
+        self.assertIn("epirhandbook-common", image_names)
+        self.assertEqual(len(image_names), 51)  # rbase + common + 49 chapters
+        self.assertNotIn("epirhandbook", image_names)  # the old 2.5 monolith name
+        by_name = {img["name"]: img for layer in r["layers"] for img in layer}
+        self.assertEqual(by_name["rbase"]["tags"], ["4.6.0-2026-07-01"])
+        for name, img in by_name.items():
+            self.assertNotIn("2.5", img["tags"])
+            self.assertNotIn("2.6", img["tags"])
+            self.assertNotIn("4.3.2", img["tags"])
+        self.assertEqual(r["layers"][0][0]["name"], "rbase")  # base-most first
 
 
 class TestBuildContextAndChapterRenders(unittest.TestCase):
