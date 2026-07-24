@@ -92,5 +92,8 @@ on and are independent of each other.
 ## What is NOT here
 
 - The 2024 frozen images (2.5 monolith, 2.6 split) are superseded; 2.7 is the published deliverable.
-- Stale translator prose (5 passages × 9 languages that explain now-deleted code) is disclosed in
-  `CHANGES-2.6-to-2.7.md` Part E — a translator backlog, not a build blocker.
+- Stale translator prose (5 passages × 9 languages that explain now-deleted code) is a translator
+  backlog, not a build blocker. It lives with the content, in the handbook repository:
+  [TRANSLATION-BACKLOG.md](https://github.com/appliedepi/epirhandbook/blob/main/TRANSLATION-BACKLOG.md).
+- The 2.6 → 2.7 change notes for readers and authors also moved to the handbook repository:
+  [CHANGES-2.6-to-2.7.md](https://github.com/appliedepi/epirhandbook/blob/main/CHANGES-2.6-to-2.7.md).
