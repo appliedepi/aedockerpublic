@@ -49,17 +49,23 @@
 ##        (root-relative to that base, same as the original when a real
 ##        site_url was supplied).
 ##      - empty base_url (the default) -> href is a TRUE relative path,
-##        computed from the CURRENT page's own depth (site root vs. one
-##        level down in <lang>/): "<path-from-site-root>" for a page at the
-##        root, "../<path-from-site-root>" for a page already one level
-##        down. This resolves correctly under ANY base path the site is
-##        served from, including none.
+##        computed with fs::path_rel() from the CURRENT page's own directory,
+##        so it is right at ANY depth. This resolves correctly under any base
+##        path the site is served from, including none.
 ##
-## Assumes the fixed, 2-level tree shape build_all_chapters.sh's assembly
-## step produces: the main language's pages sit directly at <site_dir>/*.html
-## (English is the root, not html_outputs/en/), and every other language's
-## pages sit at <site_dir>/<lang>/*.html. This script does not infer that
-## shape generically; it is a stated contract with build_all_chapters.sh.
+## 3. IT RECURSES. The original scanned only the top level of the site root
+##    and of each <lang>/ directory. Chapters do not live there -- they render
+##    into <root>/chapters/ and <root>/<lang>/chapters/ -- so a non-recursive
+##    scan touches the index pages and NOTHING ELSE, leaving all 49 chapters
+##    with no switcher while still printing "done" and exiting 0. This script
+##    walks the whole tree and refuses to exit 0 if it modified nothing below
+##    the site root.
+##
+## Tree shape produced by build_all_chapters.sh's assembly step: the main
+## language at the site root (<site_dir>/index.html, <site_dir>/chapters/*.html)
+## and every other language one level down (<site_dir>/<lang>/index.<lang>.html,
+## <site_dir>/<lang>/chapters/*.<lang>.html). A page's language is read from its
+## first path segment, so the depth below that is not assumed.
 ##
 ## Usage:
 ##   Rscript inject_language_links.R <site_dir> <quarto_yml> [<base_url>]
@@ -124,30 +130,39 @@ label_for <- function(lang) {
 ## "fr/time_series.fr.html" for French. `filename_main` is always the
 ## MAIN-LANGUAGE (lang-infix-free) filename; every other language's file
 ## name is derived from it, never stored separately.
-target_rel_from_root <- function(lang, filename_main) {
+## `canonical_rel` is a page's MAIN-LANGUAGE path relative to the site root,
+## INCLUDING its directory: "chapters/basics.html", or "index.html". It must
+## keep the directory. Reducing it to a basename was the original bug here:
+## chapters render into html_outputs/chapters/, not the output root, so a
+## basename-only scheme both misses those pages and, for a page nested at
+## <lang>/chapters/, computes a link one directory too shallow.
+target_rel_from_root <- function(lang, canonical_rel) {
   if (identical(lang, main_language)) {
-    filename_main
+    canonical_rel
   } else {
-    file.path(lang, sub("\\.html$", sprintf(".%s.html", lang), filename_main))
+    file.path(lang, sub("\\.html$", sprintf(".%s.html", lang), canonical_rel))
   }
 }
 
-## href_for(): see departure (2) in the header comment.
-href_for <- function(current_is_main, target_lang, filename_main) {
-  target <- target_rel_from_root(target_lang, filename_main)
+## href_for(): see departure (2) in the header comment. With no base_url the
+## href is computed from the CURRENT page's own directory, so it is correct at
+## any depth -- `chapters/basics.html` linking to French gives
+## "../fr/chapters/basics.fr.html", and `fr/chapters/basics.fr.html` linking
+## back to English gives "../../chapters/basics.html". Hard-coding ".." (the
+## original) is only ever right for a page exactly one level down.
+href_for <- function(doc_rel, target_lang, canonical_rel) {
+  target <- target_rel_from_root(target_lang, canonical_rel)
   if (nzchar(base_url)) {
     paste0(base_url, "/", target)
-  } else if (current_is_main) {
-    target
   } else {
-    file.path("..", target)
+    as.character(fs::path_rel(target, start = dirname(doc_rel)))
   }
 }
 
 ## add_dropdown_links(): mutate ONE HTML file in place, adding an <li><a>
 ## entry per target language. `targets` is a named list, target language
 ## code -> that page's main-language (infix-free) filename.
-add_dropdown_links <- function(path, current_is_main, targets) {
+add_dropdown_links <- function(path, doc_rel, targets) {
   html <- xml2::read_html(path)
 
   sidebar <- xml2::xml_find_first(
@@ -162,7 +177,7 @@ add_dropdown_links <- function(path, current_is_main, targets) {
       path,
       " -- skipping (redirect stub)"
     )
-    return(invisible(NULL))
+    return(FALSE)
   }
 
   ul <- xml2::xml_find_first(html, "//ul[@id='languages-links']")
@@ -201,49 +216,93 @@ add_dropdown_links <- function(path, current_is_main, targets) {
       "a",
       label_for(lang),
       class = "dropdown-item",
-      href = href_for(current_is_main, lang, targets[[lang]]),
+      href = href_for(doc_rel, lang, targets[[lang]]),
       id = sprintf("language-link-%s", lang)
     )
   }
 
   xml2::write_html(html, path)
+  TRUE
 }
 
-main_docs <- fs::dir_ls(site_dir, glob = "*.html", recurse = FALSE)
-lang_docs <- purrr::map(language_codes, function(l) {
-  d <- file.path(site_dir, l)
-  if (fs::dir_exists(d)) {
-    fs::dir_ls(d, glob = "*.html", recurse = FALSE)
+## Enumerate EVERY page in the assembled tree, at any depth. recurse = TRUE
+## is load-bearing: chapters render into <root>/chapters/ and
+## <root>/<lang>/chapters/, so a non-recursive scan touches only the index
+## pages and silently leaves all 49 chapters without a switcher -- while still
+## printing "done" and exiting 0. babelquarto's own version recurses; dropping
+## that was the bug.
+##
+## site_libs/ and Quarto's per-page *_files/ directories hold vendored JS/CSS,
+## not book pages.
+is_asset <- function(paths) {
+  grepl("(^|/)site_libs/", paths) | grepl("_files/", paths)
+}
+all_docs <- fs::dir_ls(site_dir, glob = "*.html", recurse = TRUE)
+all_docs <- all_docs[!is_asset(as.character(fs::path_rel(all_docs, start = site_dir)))]
+
+## A page's language is its first path segment when that segment is a declared
+## language directory; anything else is the main language. From that, derive
+## the page's canonical (main-language) root-relative path, which is what every
+## target path is built from.
+lang_of <- function(doc_rel) {
+  first <- strsplit(doc_rel, "/", fixed = TRUE)[[1]][1]
+  if (first %in% language_codes) first else main_language
+}
+canonical_of <- function(doc_rel, lang) {
+  if (identical(lang, main_language)) {
+    doc_rel
   } else {
-    character(0)
+    sub(sprintf("^%s/", lang), "", sub(sprintf("\\.%s\\.html$", lang), ".html", doc_rel))
   }
-})
-names(lang_docs) <- language_codes
-
-## Main-language pages: one link to every OTHER language.
-for (doc in main_docs) {
-  fname <- basename(doc)
-  targets <- stats::setNames(
-    as.list(rep(fname, length(language_codes))),
-    language_codes
-  )
-  add_dropdown_links(doc, current_is_main = TRUE, targets = targets)
 }
 
-## Each other language's pages: one link back to the main language, plus one
-## link to every OTHER translated language -- never to itself.
-for (lang in language_codes) {
-  others <- c(main_language, setdiff(language_codes, lang))
-  for (doc in lang_docs[[lang]]) {
-    base_fname <- sub(sprintf("\\.%s\\.html$", lang), ".html", basename(doc))
-    targets <- stats::setNames(as.list(rep(base_fname, length(others))), others)
-    add_dropdown_links(doc, current_is_main = FALSE, targets = targets)
+n_main <- 0L
+n_translated <- 0L
+n_touched_chapters <- 0L
+for (doc in all_docs) {
+  doc_rel <- as.character(fs::path_rel(doc, start = site_dir))
+  lang <- lang_of(doc_rel)
+  canonical <- canonical_of(doc_rel, lang)
+  others <- setdiff(c(main_language, language_codes), lang)
+
+  ## Only offer a language whose version of THIS page actually exists -- a
+  ## link to a page that was never rendered is worse than no link.
+  present <- Filter(
+    function(l) fs::file_exists(file.path(site_dir, target_rel_from_root(l, canonical))),
+    others
+  )
+  if (length(present) == 0) next
+
+  targets <- stats::setNames(as.list(rep(canonical, length(present))), present)
+  changed <- add_dropdown_links(doc, doc_rel = doc_rel, targets = targets)
+  if (identical(lang, main_language)) n_main <- n_main + 1L else n_translated <- n_translated + 1L
+  ## Count on the CANONICAL path, not doc_rel. doc_rel has a "/" for any page
+  ## in a language directory, including <lang>/index.<lang>.html -- which the
+  ## broken non-recursive version DID reach, so counting doc_rel would let the
+  ## guard pass on exactly the failure it exists to catch. The canonical path
+  ## strips the language directory, so a "/" in it means a real subdirectory
+  ## page: chapters/basics.html, never index.html.
+  if (isTRUE(changed) && grepl("/", canonical, fixed = TRUE)) {
+    n_touched_chapters <- n_touched_chapters + 1L
   }
+}
+
+## Guard against the exact failure this script just had: silently touching only
+## the index pages. If nothing below the top level was modified, the tree shape
+## is not what this script assumes and the site would deploy with no switcher
+## on any chapter.
+if (n_touched_chapters == 0L) {
+  cat(
+    "inject_language_links.R: no page below the site root was modified -- expected chapter pages under chapters/ and <lang>/chapters/. The assembled tree is not the shape this script assumes.\n",
+    file = stderr()
+  )
+  quit(status = 1L)
 }
 
 cat(sprintf(
-  "inject_language_links.R: done -- %d main-language page(s), %d translated page(s) across %d language(s)\n",
-  length(main_docs),
-  sum(lengths(lang_docs)),
+  "inject_language_links.R: done -- %d main-language page(s), %d translated page(s), %d of them below the site root, across %d language(s)\n",
+  n_main,
+  n_translated,
+  n_touched_chapters,
   length(language_codes)
 ))
