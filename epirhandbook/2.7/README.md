@@ -37,29 +37,57 @@ moves. There is no hand-computed dependency closure.
 
 ## Rendering a chapter
 
-`build_chapter.sh` lives in `common` and is inherited by every chapter image. It renders ONE
+`build_one_chapter.sh` lives in `common` and is inherited by every chapter image. It renders ONE
 chapter, with the `.qmd` passed as an argument:
 
 ```bash
 docker run --rm -v <book>:/book -w /book \
-  epirhandbook-<chapter>:2.7 build_chapter.sh new_pages/<chapter>.qmd
+  epirhandbook-<chapter>:2.7 build_one_chapter.sh chapters/<chapter>.qmd
 ```
 
 The navbar/sidebar/cross-links come from `_quarto.yml` (part of the mounted book content), so a
-single-chapter render already produces a page with correct, complete navigation.
+single-chapter render already produces a page with correct, complete navigation — **provided**
+`_quarto.yml` already matches the language being rendered (see "Assembling the book" below: this is
+NOT true by default for a translated chapter, and getting it right is most of what
+`build_all_chapters.sh` does).
 
-## Assembling the book (epirhandbook WEBSITE repo's CI — not this repo)
+## Assembling the book
 
-Turning 49 per-chapter renders into one site is a separate, future concern owned by the
-epiRhandbook website repo's GitHub Actions. The contract:
+This repo now owns assembly (it used to be a "separate, future concern owned by the epiRhandbook
+website repo's CI" — that repo doesn't exist yet, so this repo does it instead). Three scripts,
+all installed in `common` alongside `build_one_chapter.sh`:
 
-1. Render each chapter with its own image + `build_chapter.sh` into a shared output directory.
-   Navigation and chapter-to-chapter links already resolve (shared `_quarto.yml`, relative links).
-2. **Merge search:** a single-chapter render's `search.json` indexes only that chapter and
-   overwrites any previous one. The assembly step must merge every chapter's `search.json` into one
-   global index, or site search finds only the last-rendered chapter.
-3. Deep inline cross-references *into another chapter* (`@fig-`/section refs across chapters)
-   resolve fully only in a whole-book render; plain `[text](chapter.qmd)` links are fine.
+- **`build_all_chapters.sh`** — the orchestrator. Runs on the CI runner (not in a container): it
+  starts one container per chapter render. Reads the language list from `_quarto.yml`
+  (`babelquarto.mainlanguage`/`.languages`) and the chapter→image mapping from the handbook repo's
+  `docker-images.yml`. For each language, it renders every chapter **twice** in one shared
+  workspace, validates the result, then assembles English at the output root and every other
+  language under `<lang>/`.
+- **`rewrite_lang_config.R`** — rewrites one language's `_quarto.yml` in place (chapter paths,
+  title, part titles) before that language's chapters render. Without this, rendering a translated
+  `.qmd` against the English `_quarto.yml` fails SILENTLY: exit 0, but the HTML lands outside
+  `html_outputs/`, untitled, unnavigable, and duplicating the whole asset tree.
+- **`inject_language_links.R`** (+ `inject_language_links.sh` wrapper) — the mandatory post-pass
+  that adds the language-switcher dropdown to every emitted page. Quarto never produces this
+  itself: a single-language render has no way to know what other languages exist.
+
+**Why every chapter is rendered TWICE:** a chapter rendered before its cross-reference target has
+registered in `.quarto/xref` falls back to a same-page anchor that does not exist on that page —
+measured directly (`index.fr.html` emitted `href="#download_book_data"` three times, matching no
+`id=` anywhere in the page). A second full pass, once every chapter has registered once, resolves
+every one of them, reproducing the whole-book reference byte-for-byte. This looks redundant. It is
+not — see `build_all_chapters.sh`'s own comments before removing it.
+
+**Why there is no `merge_search.sh`:** the plan for this phase originally included one. It turned
+out to be unnecessary. Quarto accumulates the project search index (`search.json`) across separate
+`quarto render` invocations on its own, via the `.quarto/` state directory persisted on the shared
+mount — three chapters rendered by three separate invocations, in three separate containers,
+sharing one mounted project directory, produced ONE `search.json` covering all three pages, and
+this held at full scale (49 chapters, 394 search entries, one file). The constraint this replaces
+a merge step with: every chapter of one language must render into the SAME workspace, and those
+renders must run SEQUENTIALLY — parallel renders within a language would race on writing
+`search.json`. Different languages use separate workspaces, so they have no `search.json` to race
+on and are independent of each other.
 
 ## What is NOT here
 

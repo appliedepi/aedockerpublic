@@ -56,10 +56,26 @@ RUN --mount=type=cache,target=/root/.cache/R --mount=type=secret,id=github_pat \
     && rm -rf /tmp/*
 
 # --- The render entrypoint every chapter image inherits (FROM common) -------
-# common/build_chapter.sh ALREADY EXISTS -- not generated here, just
+# common/build_one_chapter.sh ALREADY EXISTS -- not generated here, just
 # installed onto PATH so every chapter image can call it by name.
-COPY common/build_chapter.sh /usr/local/bin/build_chapter.sh
-RUN chmod +x /usr/local/bin/build_chapter.sh
+COPY common/build_one_chapter.sh /usr/local/bin/build_one_chapter.sh
+RUN chmod +x /usr/local/bin/build_one_chapter.sh
+
+# --- Book-level render tooling: also installed onto PATH, also inherited by
+# --- every chapter image, but only ever RUN against the common image itself
+# --- (see build_all_chapters.sh's COMMON_IMAGE) -- these are per-BOOK steps
+# --- (per-language config rewrite, the language-switcher post-pass, and the
+# --- orchestrator script that drives both), not per-chapter ones, so which
+# --- chapter image happens to also carry them is irrelevant. Stored here
+# --- once so every image has the same single source of truth. -------------
+COPY common/rewrite_lang_config.R /usr/local/bin/rewrite_lang_config.R
+COPY common/inject_language_links.R /usr/local/bin/inject_language_links.R
+COPY common/inject_language_links.sh /usr/local/bin/inject_language_links.sh
+COPY common/build_all_chapters.sh /usr/local/bin/build_all_chapters.sh
+RUN chmod +x /usr/local/bin/rewrite_lang_config.R \
+             /usr/local/bin/inject_language_links.R \
+             /usr/local/bin/inject_language_links.sh \
+             /usr/local/bin/build_all_chapters.sh
 
 # --- Build-time invariant: every package in packages_cran.txt LOADS --------
 RUN R -e "targets <- readLines('packages_cran.txt'); targets <- targets[nzchar(targets)]; bad <- targets[!vapply(targets, requireNamespace, logical(1), quietly = TRUE)]; if (length(bad)) { message('LOAD CHECK FAILED (', length(bad), '): ', paste(bad, collapse = ', ')); quit(status = 1L) }; message('LOAD CHECK OK: all ', length(targets), ' target packages load')"
