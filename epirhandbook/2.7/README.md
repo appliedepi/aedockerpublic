@@ -95,5 +95,6 @@ on and are independent of each other.
 - Stale translator prose (5 passages × 9 languages that explain now-deleted code) is a translator
   backlog, not a build blocker. It lives with the content, in the handbook repository:
   [TRANSLATION-BACKLOG.md](https://github.com/appliedepi/epirhandbook/blob/main/TRANSLATION-BACKLOG.md).
-- The 2.6 → 2.7 change notes for readers and authors also moved to the handbook repository:
-  [CHANGES-2.6-to-2.7.md](https://github.com/appliedepi/epirhandbook/blob/main/CHANGES-2.6-to-2.7.md).
+- The 2.6 → 2.7 change notes for readers and authors also moved to the handbook repository, and
+  are now one cumulative document covering every release:
+  [STAKEHOLDERS.md](https://github.com/appliedepi/epirhandbook/blob/main/STAKEHOLDERS.md).
