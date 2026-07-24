@@ -26,7 +26,13 @@
 #
 # OUTPUTS (all generated; do not hand-edit, rerun this script instead):
 #   groups/<group>/packages_cran.txt    (6 files, one per groups.yaml key)
-#   groups/monolith/packages_cran.txt   (1 file: union of the 6 group files)
+#   monolith/packages_cran.txt          (1 file: union of the 6 group files)
+#
+# The monolith sits BESIDE groups/, not inside it. It is not a group: it
+# renders no chapter and exists for the .devcontainer.json, so a `groups`
+# path segment would make plan.py demand a `renders` list it cannot have
+# (the 6 groups already claim all 49 chapters, and no .qmd may be claimed
+# twice).
 #
 # METHOD: do NOT subtract the shared `common` base (epirhandbook/2.7/common/
 # packages_cran.txt) from anything here. v2.7's own chapter Dockerfiles
@@ -212,7 +218,7 @@ def build(groups):
             pkgs.update(read_chapter_packages(stem))
         outputs[f"groups/{key}/packages_cran.txt"] = sorted(pkgs)
         monolith.update(pkgs)
-    outputs["groups/monolith/packages_cran.txt"] = sorted(monolith)
+    outputs["monolith/packages_cran.txt"] = sorted(monolith)
     return outputs
 
 
@@ -238,6 +244,8 @@ def check(outputs):
     if os.path.isdir(GROUPS_OUT_DIR):
         for root, _dirs, files in os.walk(GROUPS_OUT_DIR):
             for fn in files:
+                if fn != "packages_cran.txt":
+                    continue          # Dockerfiles live here too; only the generated lists are ours
                 full = os.path.join(root, fn)
                 on_disk_rel.add(os.path.relpath(full, HERE))
 
@@ -298,7 +306,7 @@ def main():
     for key in sorted(groups):
         n = len(outputs[f"groups/{key}/packages_cran.txt"])
         print(f"{key}\t{len(groups[key])}\t{n}")
-    print(f"monolith\t{len(groups)} groups\t{len(outputs['groups/monolith/packages_cran.txt'])}")
+    print(f"monolith\t{len(groups)} groups\t{len(outputs['monolith/packages_cran.txt'])}")
 
 
 if __name__ == "__main__":

@@ -6,7 +6,7 @@
 #
 # FROM the shared common image (BiocManager, pak, and all 9 GitHub pins
 # already present there -- no re-bootstrap here). Installs the monolith's own
-# FULL package list (groups/monolith/packages_cran.txt) on top of common, not
+# FULL package list (monolith/packages_cran.txt) on top of common, not
 # a pre-subtracted delta: pak sees common's packages already present and
 # skips them (dependencies = NA only resolves what's missing), so installing
 # the full list here is what makes the final image a strict superset of the
@@ -19,7 +19,7 @@ FROM ${BASE_IMAGE}
 WORKDIR /home/handbook
 
 COPY pak_install_subset.R pak_install_subset.R
-COPY groups/monolith/packages_cran.txt packages_cran.txt
+COPY monolith/packages_cran.txt packages_cran.txt
 
 RUN --mount=type=cache,target=/root/.cache/R --mount=type=secret,id=github_pat \
     GITHUB_PAT="$(cat /run/secrets/github_pat 2>/dev/null)" \

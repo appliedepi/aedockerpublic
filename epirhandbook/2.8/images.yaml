@@ -120,3 +120,19 @@ images:
     tags: ["2.8"]
     base: "epirhandbook-common:2.8"
     live: true
+  # The monolith: every package from all six groups in one image. It renders
+  # NOTHING -- it exists for contributors, as the image .devcontainer.json in
+  # the handbook repo points at, so that opening the book in a dev container
+  # gives you an environment that can render any chapter.
+  #
+  # Hence no `renders` key, and hence it sits beside groups/ rather than in it:
+  # plan.py requires a `renders` list from anything under a `groups` path
+  # segment, and there is no list it could legally declare -- the six groups
+  # already claim all 49 chapters between them, and no .qmd may be claimed
+  # twice. `epirhandbook-common` omits `renders` for the same reason.
+  - name: epirhandbook-monolith
+    dir: epirhandbook/2.8/monolith
+    context: epirhandbook/2.8
+    tags: ["2.8"]
+    base: "epirhandbook-common:2.8"
+    live: true
