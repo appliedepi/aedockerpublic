@@ -14,8 +14,9 @@
 # immutable dated snapshot below.
 #
 # BASE_IMAGE mirrors epirhandbook/2.6/common/Dockerfile's own ARG pattern: a
-# floating local tag by default, overridable to a digest pin once rbase:4.6.0
-# is published to GHCR (see root images.yaml's digest-pinning procedure).
+# floating local tag by default, overridden at build time to a digest pin
+# that build_image.sh resolves LIVE from the registry (see that script's
+# base-resolution block).
 ARG BASE_IMAGE=rbase:4.6.0-2026-07-01
 FROM ${BASE_IMAGE}
 

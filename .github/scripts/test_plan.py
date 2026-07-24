@@ -21,20 +21,20 @@ import plan  # noqa: E402
 # check that the real file still matches this shape.
 CATALOG = [
     {"name": "rbase", "dir": "rbase/4.3.2", "tags": ["4.3.2"], "base": None,
-     "base_digest": None, "live": True},
+     "live": True},
     {"name": "epirhandbook", "dir": "epirhandbook/2.5", "tags": ["2.5"],
-     "base": "rbase:4.3.2", "base_digest": "sha256:aaaa", "live": True},
+     "base": "rbase:4.3.2", "live": True},
 ]
 
 # A synthetic 3-image chain with a not-live (live: false) leaf, used for the
 # cascade-exclusion tests the 2-image real catalog can't exercise on its own.
 CHAIN = [
     {"name": "rbase", "dir": "rbase/4.3.2", "tags": ["4.3.2"], "base": None,
-     "base_digest": None, "live": True},
+     "live": True},
     {"name": "epirhandbook", "dir": "epirhandbook/2.5", "tags": ["2.5"],
-     "base": "rbase:4.3.2", "base_digest": "sha256:aaaa", "live": True},
+     "base": "rbase:4.3.2", "live": True},
     {"name": "epirhandbook_old", "dir": "epirhandbook/2.4", "tags": ["2.4"],
-     "base": "rbase:4.3.2", "base_digest": "sha256:bbbb", "live": False},
+     "base": "rbase:4.3.2", "live": False},
 ]
 
 
@@ -64,7 +64,8 @@ class ChangedImageAndCascadeCases(unittest.TestCase):
         self.assertEqual(names(r), {"epirhandbook"})
         self.assertNotIn("rbase", names(r))
         self.assertEqual(r["trigger"], "selective")
-        # base was NOT rebuilt this run -> must use the recorded pin
+        # base was NOT rebuilt this run -> the published base tag is resolved
+        # LIVE from the registry (no recorded pin is consulted; there is none)
         self.assertFalse(r["layers"][0][0]["base_freshly_built"])
 
     def test_no_changed_images_selects_nothing(self):
@@ -109,8 +110,8 @@ class ChangedImageAndCascadeCases(unittest.TestCase):
 
     def test_cycle_raises(self):
         cyclic = [
-            {"name": "a", "dir": "a", "tags": ["1"], "base": "b:1", "base_digest": None, "live": True},
-            {"name": "b", "dir": "b", "tags": ["1"], "base": "a:1", "base_digest": None, "live": True},
+            {"name": "a", "dir": "a", "tags": ["1"], "base": "b:1", "live": True},
+            {"name": "b", "dir": "b", "tags": ["1"], "base": "a:1", "live": True},
         ]
         with self.assertRaises(ValueError):
             plan.build_plan(cyclic)
@@ -124,9 +125,9 @@ class ChangedImageAndCascadeCases(unittest.TestCase):
         # the typo'd image would silently build as if it had no base.
         typo_catalog = [
             {"name": "rbase", "dir": "rbase/4.3.2", "tags": ["4.3.2"], "base": None,
-             "base_digest": None, "live": True},
+             "live": True},
             {"name": "epirhandbook", "dir": "epirhandbook/2.5", "tags": ["2.5"],
-             "base": "rbse:4.3.2", "base_digest": "sha256:aaaa", "live": True},  # "rbse" typo
+             "base": "rbse:4.3.2", "live": True},  # "rbse" typo
         ]
         with self.assertRaises(ValueError) as ctx:
             plan.build_plan(typo_catalog)
@@ -152,7 +153,6 @@ class ChangedImageAndCascadeCases(unittest.TestCase):
                 "dir": name,
                 "tags": ["1"],
                 "base": f"{prev}:1" if prev else None,
-                "base_digest": None,
                 "live": True,
             })
             prev = name
@@ -201,7 +201,6 @@ class TestValidateCatalog(unittest.TestCase):
         "    dir: x\n"
         '    tags: ["1"]\n'
         "    base: null\n"
-        "    base_digest: null\n"
         "    live: true\n"
     )
 
@@ -212,7 +211,6 @@ class TestValidateCatalog(unittest.TestCase):
         images = self._validate(self.VALID)
         self.assertEqual(images[0]["name"], "x")
         self.assertIs(images[0]["live"], True)
-        self.assertIsNone(images[0]["base_digest"])
 
     # --- unknown / missing keys -----------------------------------------
 
@@ -230,6 +228,16 @@ class TestValidateCatalog(unittest.TestCase):
         self.assertIn("frozen", str(ctx.exception))
         self.assertNotIn("frozen", sorted(plan.ALLOWED_IMAGE_KEYS))
 
+    def test_base_digest_key_is_now_rejected_as_unknown(self):
+        # `base_digest:` was a real catalog field (an optional cross-check on
+        # the base's digest); it no longer exists (§8.10). Using it must now
+        # be a hard "unknown key" error, the same as any other unrecognized
+        # field -- this pins the removal itself.
+        with self.assertRaises(ValueError) as ctx:
+            self._validate(self.VALID + "    base_digest: null\n")
+        self.assertIn("base_digest", str(ctx.exception))
+        self.assertNotIn("base_digest", sorted(plan.ALLOWED_IMAGE_KEYS))
+
     def test_missing_required_key_is_rejected(self):
         # 'dir' omitted entirely.
         text = (
@@ -237,7 +245,6 @@ class TestValidateCatalog(unittest.TestCase):
             "  - name: x\n"
             '    tags: ["1"]\n'
             "    base: null\n"
-            "    base_digest: null\n"
             "    live: true\n"
         )
         with self.assertRaises(ValueError) as ctx:
@@ -287,27 +294,6 @@ class TestValidateCatalog(unittest.TestCase):
         with self.assertRaises(ValueError) as ctx:
             self._validate(text)
         self.assertIn("tags", str(ctx.exception))
-
-    # --- base_digest: null, or EXACTLY sha256:<64 lowercase hex> ---------
-
-    def test_short_base_digest_is_rejected(self):
-        text = self.VALID.replace("base_digest: null", "base_digest: sha256:abc")
-        with self.assertRaises(ValueError) as ctx:
-            self._validate(text)
-        self.assertIn("base_digest", str(ctx.exception))
-
-    def test_real_64_hex_digest_is_accepted(self):
-        digest = "sha256:" + "a" * 64
-        # A digest requires a base to pin (round-6 rule), so supply one too.
-        text = self.VALID.replace("base: null", 'base: "rbase:4.3.2"').replace(
-            "base_digest: null", f"base_digest: {digest}"
-        )
-        images = self._validate(text)
-        self.assertEqual(images[0]["base_digest"], digest)
-
-    def test_null_base_digest_is_accepted(self):
-        images = self._validate(self.VALID)
-        self.assertIsNone(images[0]["base_digest"])
 
     # --- name / dir -------------------------------------------------------
 
@@ -387,16 +373,6 @@ class TestValidateCatalog(unittest.TestCase):
         images = self._validate(text)
         self.assertEqual(images[0]["base"], "rbase:4.3.2")
 
-    def test_base_digest_without_a_base_is_rejected(self):
-        # A digest pin for a null base is meaningless and would be silently
-        # ignored -- reject it so it can't masquerade as an active pin.
-        text = self.VALID.replace(
-            "base_digest: null", "base_digest: sha256:" + "a" * 64
-        )
-        with self.assertRaises(ValueError) as ctx:
-            self._validate(text)
-        self.assertIn("base", str(ctx.exception).lower())
-
     def test_renders_qmd_is_accepted_and_stem_must_match_dir_basename(self):
         # The per-chapter split images STATE the .qmd they render. The stem is
         # validated against the dir basename so the stated source cannot drift
@@ -408,7 +384,7 @@ class TestValidateCatalog(unittest.TestCase):
             "    renders: new_pages/transition_to_R.qmd\n"
             "    dir: epirhandbook/2.6/chapters/transition_to_R\n"
             '    tags: ["2.6"]\n'
-            "    base: null\n    base_digest: null\n"
+            "    base: null\n"
         )
         images = self._validate(text)
         self.assertEqual(images[0]["renders"], "new_pages/transition_to_R.qmd")
@@ -422,7 +398,7 @@ class TestValidateCatalog(unittest.TestCase):
             "    renders: index.qmd\n"
             "    dir: epirhandbook/2.6/chapters/index\n"
             '    tags: ["2.6"]\n'
-            "    base: null\n    base_digest: null\n"
+            "    base: null\n"
         )
         images = self._validate(text)
         self.assertEqual(images[0]["renders"], "index.qmd")
@@ -434,7 +410,7 @@ class TestValidateCatalog(unittest.TestCase):
             "    renders: new_pages/basics.qmd\n"
             "    dir: epirhandbook/2.6/chapters/transition_to_R\n"
             '    tags: ["2.6"]\n'
-            "    base: null\n    base_digest: null\n"
+            "    base: null\n"
         )
         with self.assertRaises(ValueError) as ctx:
             self._validate(text)
@@ -450,7 +426,7 @@ class TestValidateCatalog(unittest.TestCase):
             "    renders: new_pages/basics.qmd\n"
             "    dir: epirhandbook/2.6/chapters/basics\n"
             '    tags: ["2.6"]\n'
-            "    base: null\n    base_digest: null\n"
+            "    base: null\n"
         )
         with self.assertRaises(ValueError) as ctx:
             self._validate(text)
@@ -464,7 +440,7 @@ class TestValidateCatalog(unittest.TestCase):
             "    renders: new_pages/transition_to_R.qmd\n"
             "    dir: epirhandbook/2.6/chapters/transition_to_R\n"
             '    tags: ["2.6"]\n'
-            "    base: null\n    base_digest: null\n"
+            "    base: null\n"
         )
         self.assertEqual(len(self._validate(text)), 1)
 
@@ -475,7 +451,7 @@ class TestValidateCatalog(unittest.TestCase):
             "    renders: new_pages/basics.Rmd\n"
             "    dir: epirhandbook/2.6/chapters/basics\n"
             '    tags: ["2.6"]\n'
-            "    base: null\n    base_digest: null\n"
+            "    base: null\n"
         )
         with self.assertRaises(ValueError):
             self._validate(text)
@@ -485,8 +461,8 @@ class TestValidateCatalog(unittest.TestCase):
         # duplicate; a change under the first would plan the second's dir/tags.
         text = (
             "images:\n"
-            '  - name: dup\n    dir: a\n    tags: ["1"]\n    base: null\n    base_digest: null\n'
-            '  - name: dup\n    dir: b\n    tags: ["2"]\n    base: null\n    base_digest: null\n'
+            '  - name: dup\n    dir: a\n    tags: ["1"]\n    base: null\n'
+            '  - name: dup\n    dir: b\n    tags: ["2"]\n    base: null\n'
         )
         with self.assertRaises(ValueError) as ctx:
             self._validate(text)
@@ -511,12 +487,12 @@ class TestMergedCatalogs(unittest.TestCase):
     ROOT = (
         "images:\n"
         "  - name: rbase\n    dir: rbase/4.3.2\n"
-        '    tags: ["4.3.2"]\n    base: null\n    base_digest: null\n'
+        '    tags: ["4.3.2"]\n    base: null\n'
     )
     SPLIT = (
         "images:\n"
         "  - name: epirhandbook-common\n    dir: epirhandbook/2.6/common\n"
-        '    tags: ["2.6"]\n    base: "rbase:4.3.2"\n    base_digest: null\n'
+        '    tags: ["2.6"]\n    base: "rbase:4.3.2"\n'
     )
 
     def test_cross_file_base_edge_resolves_when_merged(self):
@@ -655,7 +631,7 @@ class TestBuildContextAndChapterRenders(unittest.TestCase):
         "    dir: epirhandbook/2.6/chapters/basics\n"
         "    context: epirhandbook/2.6\n"
         '    tags: ["2.6"]\n'
-        "    base: null\n    base_digest: null\n"
+        "    base: null\n"
     )
 
     def test_context_is_accepted_and_reaches_the_plan(self):
@@ -668,7 +644,7 @@ class TestBuildContextAndChapterRenders(unittest.TestCase):
         # rbase / the 2.5 monolith: the Dockerfile sits in its own context.
         text = (
             "images:\n  - name: rbase\n    dir: rbase/4.3.2\n"
-            '    tags: ["4.3.2"]\n    base: null\n    base_digest: null\n'
+            '    tags: ["4.3.2"]\n    base: null\n'
         )
         r = plan.build_plan(self._validate(text), changed_images=["rbase"])
         self.assertEqual(r["layers"][0][0]["context"], "rbase/4.3.2")

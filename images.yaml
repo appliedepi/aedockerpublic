@@ -1,9 +1,8 @@
 # images.yaml — the image catalog. Single source of truth for what gets
 # built, in what order, and where.
 #
-# Read by: .github/scripts/plan.py (the CI planner), .github/scripts/
-# changed_images.py (decides WHICH images changed), and by anyone building
-# locally who wants to know the current base_digest pin.
+# Read by: .github/scripts/plan.py (the CI planner) and .github/scripts/
+# changed_images.py (decides WHICH images changed).
 #
 # Fields:
 #   name        Image name. Published as ghcr.io/<owner>/<repo>/<name>:<tag>
@@ -23,22 +22,6 @@
 #               Dockerfile FROMs something external, like ubuntu:jammy).
 #               This edge drives the cascade: a rebuild of `base` forces a
 #               rebuild of everything FROM it, transitively.
-#   base_digest OPTIONAL cross-check. Under the OCI-revision change model,
-#               build_image.sh ALWAYS resolves `base`'s digest live from the
-#               registry: if `base` was rebuilt this run, from the image it
-#               just pushed; if not, from the base's published tag (a
-#               BASE_FRESH=false base is unchanged by construction, since a
-#               changed base would be in this run's plan). base_digest, when
-#               recorded (non-null), is checked to still match that live
-#               digest and fails the build if the base moved; when null (the
-#               normal case now, incl. the first publish and any partial-
-#               publish resume) the live digest is used directly. The
-#               "Digest-pinning procedure" below is legacy detail --
-#               recording base_digest is no longer required.
-#               (Historic notes; base_digest is NOT consulted when `base` is
-#               ALSO being rebuilt in the same CI run -- that case re-resolves
-#               the digest fresh from the registry instead, since the run
-#               just pushed it).
 #   live        true  = eligible for the CASCADE: a rebuild of `base`
 #                       automatically rebuilds this image too, transitively.
 #               false = opts OUT of that automatic cascade only. A DIRECT
@@ -60,56 +43,16 @@
 # images that published carry the current commit in their label and are
 # skipped on a rerun; the one(s) that failed do not, and are rebuilt.
 #
-# --- Digest-pinning procedure (hard rule: pin epirhandbook's base by digest,
-#     never by floating tag) ---
-#
-# The chicken-and-egg: epirhandbook's Dockerfile needs a digest to pin, but
-# no digest exists until rbase has been pushed to GHCR at least once. Solved
-# by NEVER requiring images.yaml's base_digest to be current at the moment
-# it's needed:
-#
-#   1. BOOTSTRAP / any run where `base` is rebuilt in the SAME run as the
-#      dependent image (the cascade case): the workflow does not read
-#      base_digest at all. It builds+pushes the base first (an earlier
-#      matrix layer), then re-resolves that tag's digest LIVE from GHCR
-#      (`docker buildx imagetools inspect`) before building the dependent —
-#      correct by construction, because the job dependency (`needs:`)
-#      guarantees the push already landed. This is what makes the very
-#      first-ever publish work with base_digest still null: the run that
-#      first publishes rbase is, definitionally, also the run that must
-#      build epirhandbook against it (nothing downstream has ever built
-#      before), so it's always the cascade case on bootstrap.
-#   2. STEADY STATE, base NOT rebuilt this run (e.g. only epirhandbook/2.5/**
-#      changed): the workflow uses the recorded base_digest below as the
-#      actual pin — deliberately NOT "whatever rbase:<tag> currently
-#      resolves to" unchecked, which would silently follow drift. It DOES,
-#      however, first confirm the recorded digest still agrees with what
-#      the base's floating tag currently resolves to in the registry
-#      (build_image.sh) — if the base moved since this pin was recorded,
-#      the build fails loudly naming both digests, rather than silently
-#      building against a pin that no longer matches anything published.
-#   3. STEADY STATE, base rebuilt this run (e.g. rbase/4.3.2/** changed):
-#      same as case 1 — the fresh digest is used, not the stale recorded one.
-#
-#   AFTER a run that rebuilds a base image, a human updates that image's
-#   dependents' `base_digest` field below to match, and commits — this is a
-#   deliberate MANUAL step, not automated by the workflow. Reasoning: an
-#   auto-commit would be an unattended write to a public-registry publish
-#   input, with no human confirmation that the new base is actually good.
-#   A human updating the pin, deliberately, after confirming the new base
-#   is good, matches this project's existing discipline of gating
-#   promotion on human/codex review rather than auto-promoting.
-#
-#   To find the digest to paste in: read it from the build job's step
-#   summary (the workflow prints "Published <name>:<tag> digest: sha256:...”
-#   for every image it builds), or run:
-#     docker buildx imagetools inspect ghcr.io/appliedepi/aedockerpublic/rbase:4.6.0-2026-07-01
-#   and copy the Digest: value.
+# Trust boundary: a base that this rule decides NOT to rebuild is trusted to
+# be unchanged, and build_image.sh resolves its digest live from whatever its
+# published tag currently points to. That is only true if the registry tag is
+# written exclusively by this workflow -- an out-of-band retag or force-push
+# of a base tag is an accepted trust boundary, not something this rule or
+# build_image.sh detects.
 
 images:
   - name: rbase
     dir: rbase/4.6.0
     tags: ["4.6.0-2026-07-01"]
     base: null
-    base_digest: null
     live: true

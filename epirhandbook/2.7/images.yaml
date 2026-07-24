@@ -19,7 +19,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "rbase:4.6.0-2026-07-01"
-    base_digest: null
     live: true
   - name: epirhandbook-age_pyramid
     renders: new_pages/age_pyramid.qmd
@@ -27,7 +26,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-basics
     renders: new_pages/basics.qmd
@@ -35,7 +33,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-characters_strings
     renders: new_pages/characters_strings.qmd
@@ -43,7 +40,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-cleaning
     renders: new_pages/cleaning.qmd
@@ -51,7 +47,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-collaboration
     renders: new_pages/collaboration.qmd
@@ -59,7 +54,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-combination_analysis
     renders: new_pages/combination_analysis.qmd
@@ -67,7 +61,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-contact_tracing
     renders: new_pages/contact_tracing.qmd
@@ -75,7 +68,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-data_table
     renders: new_pages/data_table.qmd
@@ -83,7 +75,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-data_used
     renders: new_pages/data_used.qmd
@@ -91,7 +82,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-dates
     renders: new_pages/dates.qmd
@@ -99,7 +89,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-deduplication
     renders: new_pages/deduplication.qmd
@@ -107,7 +96,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-diagrams
     renders: new_pages/diagrams.qmd
@@ -115,7 +103,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-directories
     renders: new_pages/directories.qmd
@@ -123,7 +110,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-editorial_style
     renders: new_pages/editorial_style.qmd
@@ -131,7 +117,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-epicurves
     renders: new_pages/epicurves.qmd
@@ -139,7 +124,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-errors
     renders: new_pages/errors.qmd
@@ -147,7 +131,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-factors
     renders: new_pages/factors.qmd
@@ -155,7 +138,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-flexdashboard
     renders: new_pages/flexdashboard.qmd
@@ -163,7 +145,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-ggplot_basics
     renders: new_pages/ggplot_basics.qmd
@@ -171,7 +152,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-ggplot_tips
     renders: new_pages/ggplot_tips.qmd
@@ -179,7 +159,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-grouping
     renders: new_pages/grouping.qmd
@@ -187,7 +166,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-heatmaps
     renders: new_pages/heatmaps.qmd
@@ -195,7 +173,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-help
     renders: new_pages/help.qmd
@@ -203,7 +180,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-importing
     renders: new_pages/importing.qmd
@@ -211,7 +187,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-index
     renders: index.qmd
@@ -219,7 +194,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-interactive_plots
     renders: new_pages/interactive_plots.qmd
@@ -227,7 +201,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-iteration
     renders: new_pages/iteration.qmd
@@ -235,7 +208,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-joining_matching
     renders: new_pages/joining_matching.qmd
@@ -243,7 +215,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-missing_data
     renders: new_pages/missing_data.qmd
@@ -251,7 +222,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-moving_average
     renders: new_pages/moving_average.qmd
@@ -259,7 +229,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-network_drives
     renders: new_pages/network_drives.qmd
@@ -267,7 +236,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-packages_suggested
     renders: new_pages/packages_suggested.qmd
@@ -275,7 +243,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-phylogenetic_trees
     renders: new_pages/phylogenetic_trees.qmd
@@ -283,7 +250,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-pivoting
     renders: new_pages/pivoting.qmd
@@ -291,7 +257,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-r_projects
     renders: new_pages/r_projects.qmd
@@ -299,7 +264,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-regression
     renders: new_pages/regression.qmd
@@ -307,7 +271,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-reportfactory
     renders: new_pages/reportfactory.qmd
@@ -315,7 +278,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-rmarkdown
     renders: new_pages/rmarkdown.qmd
@@ -323,7 +285,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-shiny_basics
     renders: new_pages/shiny_basics.qmd
@@ -331,7 +292,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-standardization
     renders: new_pages/standardization.qmd
@@ -339,7 +299,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-stat_tests
     renders: new_pages/stat_tests.qmd
@@ -347,7 +306,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-survey_analysis
     renders: new_pages/survey_analysis.qmd
@@ -355,7 +313,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-survival_analysis
     renders: new_pages/survival_analysis.qmd
@@ -363,7 +320,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-tables_descriptive
     renders: new_pages/tables_descriptive.qmd
@@ -371,7 +327,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-tables_presentation
     renders: new_pages/tables_presentation.qmd
@@ -379,7 +334,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-time_series
     renders: new_pages/time_series.qmd
@@ -387,7 +341,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-transition_to_r
     renders: new_pages/transition_to_R.qmd
@@ -395,7 +348,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-transmission_chains
     renders: new_pages/transmission_chains.qmd
@@ -403,7 +355,6 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true
   - name: epirhandbook-writing_functions
     renders: new_pages/writing_functions.qmd
@@ -411,5 +362,4 @@ images:
     context: epirhandbook/2.7
     tags: ["2.7"]
     base: "epirhandbook-common:2.7"
-    base_digest: null
     live: true

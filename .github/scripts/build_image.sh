@@ -2,15 +2,13 @@
 # Build (and, in "publish" mode, push) ONE image from the CI plan, resolving
 # its base image (if any) by re-querying the registry LIVE for the base's
 # digest -- from the image it just pushed if the base was ALSO rebuilt this
-# run, else from the base's published (unchanged) tag. base_digest in
-# images.yaml is now only an OPTIONAL cross-check, never required (see the
-# base-resolution block below and images.yaml's base_digest field comment).
+# run, else from the base's published (unchanged) tag.
 #
 # Usage:
 #   build_image.sh <mode> <repo_lowercased> <name> <dir> <tags_csv> \
-#                   <base_name> <base_tag> <base_digest> <base_freshly_built> \
+#                   <base_name> <base_tag> <base_freshly_built> \
 #                   <git_commit> <context>
-# (base_name/base_tag/base_digest are empty strings, and base_freshly_built
+# (base_name/base_tag are empty strings, and base_freshly_built
 # is "false", for an image with no base, e.g. rbase itself. <context>
 # defaults to <dir> when omitted -- see CONTEXT below.)
 #
@@ -19,8 +17,8 @@
 #     $REGISTRY/<repo>/<name>:<tag> for EVERY tag and PUSHES every tag.
 #     Requires a prior `docker login` to $REGISTRY. A freshly-built base is
 #     re-resolved from the REGISTRY (it was pushed earlier in this run,
-#     possibly by a different job/runner -- see images.yaml's digest-pinning
-#     procedure).
+#     possibly by a different job/runner -- see the base-resolution block
+#     below).
 #   verify -- a drift-detection / local dry-run path. Builds the exact same
 #     Dockerfile with the exact same base-resolution RULES, but never
 #     pushes: a freshly-built base is referenced by its plain LOCAL tag (no
@@ -49,8 +47,7 @@
 # someone notices the excess rebuilding.
 #
 # REGISTRY defaults to ghcr.io; overridable via the environment for local
-# testing against a throwaway registry (e.g. REGISTRY=localhost:5000) --
-# see PROJECT.md for the base_digest-agreement simulation this enables.
+# testing against a throwaway registry (e.g. REGISTRY=localhost:5000).
 #
 # GITHUB_PAT is OPTIONAL and, when set, is passed to `docker build` as a
 # BuildKit secret (--secret id=github_pat,env=GITHUB_PAT), NEVER as
@@ -84,10 +81,10 @@ case "$MODE" in
 esac
 
 REPO="$1"; NAME="$2"; DIR="$3"; TAGS_CSV="$4"
-BASE_NAME="$5"; BASE_TAG="$6"; BASE_DIGEST="$7"; BASE_FRESH="$8"
-GIT_COMMIT="$9"
+BASE_NAME="$5"; BASE_TAG="$6"; BASE_FRESH="$7"
+GIT_COMMIT="$8"
 if [ -z "$GIT_COMMIT" ]; then
-  echo "::error::build_image.sh: no git commit given (arg 9) -- every build must stamp org.opencontainers.image.revision, or changed_images.py can never resolve this image's last-published commit and will treat it as changed on every future run." >&2
+  echo "::error::build_image.sh: no git commit given (arg 8) -- every build must stamp org.opencontainers.image.revision, or changed_images.py can never resolve this image's last-published commit and will treat it as changed on every future run." >&2
   exit 1
 fi
 # The docker build CONTEXT. Defaults to DIR (rbase, the 2.5 monolith: the
@@ -97,7 +94,7 @@ fi
 # epirhandbook/2.6 or 2.7, so the context must be that shared root while DIR
 # stays per-chapter (change-detection scope). Building a chapter with its
 # own dir as context fails -- the COPY sources are outside it.
-CONTEXT="${10:-$DIR}"
+CONTEXT="${9:-$DIR}"
 
 IFS=',' read -r -a TAGS <<< "$TAGS_CSV"
 
@@ -140,29 +137,23 @@ if [ -n "$BASE_NAME" ]; then
     # the registry, so its current published tag IS the correct base to build
     # FROM -- resolve its digest LIVE. This is what makes a partial-publish
     # RESUME clean: on a rerun the unchanged base is skipped (not rebuilt this
-    # run), but its dependent must still build against the published base, and
-    # on a FIRST publish there is no recorded base_digest yet (base_digest:
-    # null). A pure registry READ (imagetools inspect) -- never a docker pull,
-    # no auth for a public image.
+    # run), but its dependent must still build against the published base. A
+    # pure registry READ (imagetools inspect) -- never a docker pull, no auth
+    # for a public image.
+    #
+    # Trust boundary: "unchanged" holds provided the registry tag is written
+    # ONLY by this workflow. If a base tag is retagged or force-pushed OUT OF
+    # BAND (manually, or by some other process, outside this CI run), this
+    # script follows that moved tag silently -- there is no cross-check here
+    # to catch it. That is an accepted trust boundary, not a gap this script
+    # is meant to detect.
     REG_TAG="$REGISTRY/$REPO/$BASE_NAME:$BASE_TAG"
     echo "Resolving $BASE_NAME's digest live from $REGISTRY (not rebuilt this run; unchanged since last publish): $REG_TAG"
-    LIVE_DIGEST="$(docker buildx imagetools inspect "$REG_TAG" | awk '/^Digest:/{print $2; exit}')"
-    if [ -z "$LIVE_DIGEST" ]; then
+    DIGEST="$(docker buildx imagetools inspect "$REG_TAG" | awk '/^Digest:/{print $2; exit}')"
+    if [ -z "$DIGEST" ]; then
       echo "::error::'$BASE_NAME' was not rebuilt this run and its tag $REG_TAG does not resolve in the registry -- the base has never been published, so '$NAME' has nothing to build FROM. The layered plan builds a base before its dependents, so this should not happen in a normal run." >&2
       exit 1
     fi
-    # A recorded base_digest, when present, is an OPTIONAL cross-check that the
-    # base has not moved out from under it. When absent (null -- the
-    # first-publish / resume case) the live digest is used directly. This does
-    # NOT silently follow drift: under the OCI-revision model a base that
-    # actually changed would be in THIS run's plan (BASE_FRESH=true, resolved
-    # in the branch above), so a BASE_FRESH=false base is unchanged by
-    # construction and its live tag is the right one.
-    if [ -n "$BASE_DIGEST" ] && [ "$BASE_DIGEST" != "null" ] && [ "$BASE_DIGEST" != "$LIVE_DIGEST" ]; then
-      echo "::error::Recorded base_digest for '$BASE_NAME' ($BASE_DIGEST) does not match what $REG_TAG currently resolves to ($LIVE_DIGEST) -- the base moved since the pin was recorded. Update or clear the base_digest for '$NAME' and commit." >&2
-      exit 1
-    fi
-    DIGEST="$LIVE_DIGEST"
     echo "$NAME will build FROM the published $BASE_NAME at digest $DIGEST"
     BASE_REF="$REGISTRY/$REPO/$BASE_NAME@$DIGEST"
   fi
@@ -244,8 +235,6 @@ if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
         echo "- Built FROM: \`$BASE_REF\` (base unchanged this run; digest resolved live from its published tag)"
       fi
     fi
-    echo ""
-    echo "If other images pin their base to \`$NAME\`, update their \`base_digest\` in \`images.yaml\` to \`$PUSHED_DIGEST\` and commit."
     echo ""
   } >> "$GITHUB_STEP_SUMMARY"
 fi

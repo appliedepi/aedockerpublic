@@ -295,8 +295,9 @@ def common_dockerfile(n_raw_common, n_installable, n_cran):
 # immutable dated snapshot below.
 #
 # BASE_IMAGE mirrors epirhandbook/2.6/common/Dockerfile's own ARG pattern: a
-# floating local tag by default, overridable to a digest pin once rbase:4.6.0
-# is published to GHCR (see root images.yaml's digest-pinning procedure).
+# floating local tag by default, overridden at build time to a digest pin
+# that build_image.sh resolves LIVE from the registry (see that script's
+# base-resolution block).
 ARG BASE_IMAGE={BASE_IMAGE_RBASE}
 FROM ${{BASE_IMAGE}}
 
@@ -554,7 +555,6 @@ def main():
             f.write(f"    tags: [\"{IMAGE_TAG}\"]\n")
             base = "null" if row["base"] is None else f"\"{row['base']}\""
             f.write(f"    base: {base}\n")
-            f.write(f"    base_digest: null\n")
             f.write(f"    live: true\n")
 
     # --- stdout summary (audit trail; also the reproducibility check reads this) ---

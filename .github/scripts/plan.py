@@ -57,7 +57,7 @@ def parse_base(base):
     return name, tag
 
 
-REQUIRED_IMAGE_KEYS = {"name", "dir", "tags", "base", "base_digest"}
+REQUIRED_IMAGE_KEYS = {"name", "dir", "tags", "base"}
 # `renders`: for the per-chapter split images (epirhandbook/2.6), the .qmd this
 # image renders, repo-relative to the handbook source root. Optional -- rbase
 # and the 2.5 monolith render no single file. It states the CONCRETE artifact
@@ -104,10 +104,6 @@ BASE_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*:[a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}$"
 # The '.'/'..' segment cases are rejected explicitly below (the charset alone
 # would admit them).
 DIR_RE = re.compile(r"^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$")
-# Exactly "sha256:" + 64 lowercase hex chars. A malformed or truncated
-# digest must never look like a valid pin -- build_image.sh trusts this
-# field as the base's actual digest pin on the publish path.
-DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 
 def _label(image, index):
@@ -238,22 +234,6 @@ def _validate_image(image, path, index):
             f"reference matching {BASE_RE.pattern!r} (both halves non-empty); got "
             f"{base!r}. A bare 'name:' with no tag reaches the build with an empty "
             f"base tag."
-        )
-
-    base_digest = image["base_digest"]
-    if base_digest is not None and (
-        not isinstance(base_digest, str) or not DIGEST_RE.match(base_digest)
-    ):
-        raise ValueError(
-            f"{path}: image {label!r} field 'base_digest' must be null or match "
-            f"{DIGEST_RE.pattern!r} exactly; got {base_digest!r}. A malformed or "
-            f"truncated digest must never masquerade as a valid pin."
-        )
-    if base_digest is not None and base is None:
-        raise ValueError(
-            f"{path}: image {label!r} has base_digest={base_digest!r} but base is "
-            f"null -- a digest pin for no base is meaningless and would be silently "
-            f"ignored. Remove the base_digest, or give it a base to pin."
         )
 
     # `source`: the .qmd this image renders. Its STEM must equal the last
@@ -457,7 +437,6 @@ def build_plan(images, changed_images=None):
                                  base's digest LIVE from the registry: true =
                                  from the image just pushed this run; false =
                                  from the base's published (unchanged) tag.
-                                 base_digest is only an optional cross-check.
 
     `changed_images` is a list of image NAMES that are already known to have
     changed -- i.e. the output of the sibling `changed_images.py` helper,

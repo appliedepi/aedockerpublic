@@ -213,7 +213,7 @@ jobs:
   # AND bump MAX_SUPPORTED_LAYERS in plan.py.
   #
   # Each matrix entry is a full image record from plan.py (name, dir, tags,
-  # base_name/base_tag/base_digest/base_freshly_built/context) --
+  # base_name/base_tag/base_freshly_built/context) --
   # build_image.sh consumes it directly, so there is exactly one place (the
   # planner, then this one script) that knows how to resolve a base image,
   # not one copy per layer.
@@ -279,7 +279,7 @@ jobs:
           timeout_minutes: 120
           max_attempts: 2
           retry_wait_seconds: 60
-          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_digest }}" "${{ matrix.image.base_freshly_built }}" "${{ github.sha }}" "${{ matrix.image.context }}"
+          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_freshly_built }}" "${{ github.sha }}" "${{ matrix.image.context }}"
 
   build-layer-1:
     needs: [guard-main-ref, plan, build-layer-0]
@@ -333,7 +333,7 @@ jobs:
           timeout_minutes: 120
           max_attempts: 2
           retry_wait_seconds: 60
-          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_digest }}" "${{ matrix.image.base_freshly_built }}" "${{ github.sha }}" "${{ matrix.image.context }}"
+          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_freshly_built }}" "${{ github.sha }}" "${{ matrix.image.context }}"
 
   build-layer-2:
     needs: [guard-main-ref, plan, build-layer-1]
@@ -387,7 +387,7 @@ jobs:
           timeout_minutes: 120
           max_attempts: 2
           retry_wait_seconds: 60
-          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_digest }}" "${{ matrix.image.base_freshly_built }}" "${{ github.sha }}" "${{ matrix.image.context }}"
+          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_freshly_built }}" "${{ github.sha }}" "${{ matrix.image.context }}"
 
   build-layer-3:
     needs: [guard-main-ref, plan, build-layer-2]
@@ -441,4 +441,4 @@ jobs:
           timeout_minutes: 120
           max_attempts: 2
           retry_wait_seconds: 60
-          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_digest }}" "${{ matrix.image.base_freshly_built }}" "${{ github.sha }}" "${{ matrix.image.context }}"
+          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_freshly_built }}" "${{ github.sha }}" "${{ matrix.image.context }}"
