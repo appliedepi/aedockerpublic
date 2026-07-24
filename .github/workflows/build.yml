@@ -161,7 +161,7 @@ jobs:
           timeout_minutes: 10
           max_attempts: 3
           retry_wait_seconds: 15
-          command: python3 .github/scripts/changed_images.py --images-yaml images.yaml --images-yaml epirhandbook/2.7/images.yaml --repo "$REPO_NAME" --sha "${{ github.sha }}" > /tmp/changed_images.txt
+          command: python3 .github/scripts/changed_images.py --images-yaml images.yaml --images-yaml epirhandbook/2.8/images.yaml --repo "$REPO_NAME" --sha "${{ github.sha }}" > /tmp/changed_images.txt
 
       - name: Run planner
         id: plan
@@ -174,12 +174,20 @@ jobs:
             [ -n "$name" ] && ARGS+=(--changed-image "$name")
           done < /tmp/changed_images.txt
           # BOTH halves of the catalog: the hand-maintained root and the
-          # generated 2.7 split. Base edges cross them (epirhandbook-common is
-          # FROM rbase), so passing only one makes the base look like a typo
+          # current product line's. Base edges cross them (epirhandbook-common
+          # is FROM rbase), so passing only one makes the base look like a typo
           # and the plan dies. See plan.py's load_catalogs.
+          #
+          # EXACTLY ONE epirhandbook catalog is ever loaded. Product lines are
+          # mutually exclusive by construction, not by accident: 2.7 and 2.8
+          # both name their base image `epirhandbook-common` (the version lives
+          # in `tags:`), and both claim the same 49 .qmd, so loading two at once
+          # is a hard duplicate error. Cutting over means SWAPPING this path,
+          # never appending. 2.5, 2.6 and 2.7 are historical -- 2.6's catalog no
+          # longer even validates against the current schema.
           python3 .github/scripts/plan.py \
             --images-yaml images.yaml \
-            --images-yaml epirhandbook/2.7/images.yaml \
+            --images-yaml epirhandbook/2.8/images.yaml \
             "${ARGS[@]}" > /tmp/plan.json
           echo "--- plan ---"
           cat /tmp/plan.json
