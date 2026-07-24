@@ -1,0 +1,122 @@
+# epirhandbook/2.8/images.yaml -- the v2.8 group-image catalog. Same schema
+# as epirhandbook/2.7/images.yaml (see .github/scripts/plan.py's
+# validate_catalog for the authoritative field rules); loaded ALONGSIDE the
+# root images.yaml (base edges cross the files: epirhandbook-common here is
+# FROM rbase there) -- see plan.py's load_catalogs docstring.
+#
+# v2.7 published 49 per-chapter images; v2.8 collapses them into 6 GROUP
+# images (see groups.yaml), each rendering several chapters via a LIST-form
+# `renders` (plan.py's list-form support, added for this catalog -- see
+# commit 5fe54bd). `renders` order follows groups.yaml's own per-group stem
+# order. `index`'s .qmd is `index.qmd` at the handbook source root, not
+# `chapters/index.qmd` -- the same special case 2.7's own catalog carries
+# for epirhandbook-index.
+#
+# NOT included here yet: epirhandbook-monolith. Its Dockerfile and package
+# list exist (epirhandbook/2.8/groups/monolith/), but a catalog row for it
+# cannot be added without either colliding with the 6 groups' `renders`
+# (every .qmd it would need to list is already claimed by a group -- see
+# plan.py's load_catalogs, "no .qmd may be rendered by more than one
+# image") or omitting `renders` entirely, which plan.py's dir-segment check
+# forbids for any image whose `dir` has a `groups` path segment (which
+# `groups/monolith` necessarily has). See this unit's report for the full
+# writeup -- this is a real design question left open by the brief, not an
+# oversight patched around here.
+images:
+  - name: epirhandbook-common
+    dir: epirhandbook/2.8/common
+    context: epirhandbook/2.8
+    tags: ["2.8"]
+    base: "rbase:4.6.0-2026-07-01"
+    live: true
+  - name: epirhandbook-analysis
+    renders:
+      - chapters/tables_descriptive.qmd
+      - chapters/stat_tests.qmd
+      - chapters/regression.qmd
+      - chapters/missing_data.qmd
+      - chapters/standardization.qmd
+      - chapters/moving_average.qmd
+      - chapters/time_series.qmd
+      - chapters/contact_tracing.qmd
+      - chapters/survey_analysis.qmd
+      - chapters/survival_analysis.qmd
+    dir: epirhandbook/2.8/groups/analysis
+    context: epirhandbook/2.8
+    tags: ["2.8"]
+    base: "epirhandbook-common:2.8"
+    live: true
+  - name: epirhandbook-basics
+    renders:
+      - index.qmd
+      - chapters/editorial_style.qmd
+      - chapters/data_used.qmd
+      - chapters/basics.qmd
+      - chapters/transition_to_r.qmd
+      - chapters/packages_suggested.qmd
+      - chapters/r_projects.qmd
+      - chapters/importing.qmd
+    dir: epirhandbook/2.8/groups/basics
+    context: epirhandbook/2.8
+    tags: ["2.8"]
+    base: "epirhandbook-common:2.8"
+    live: true
+  - name: epirhandbook-data-management
+    renders:
+      - chapters/cleaning.qmd
+      - chapters/dates.qmd
+      - chapters/characters_strings.qmd
+      - chapters/factors.qmd
+      - chapters/pivoting.qmd
+      - chapters/grouping.qmd
+      - chapters/joining_matching.qmd
+      - chapters/deduplication.qmd
+      - chapters/iteration.qmd
+    dir: epirhandbook/2.8/groups/data-management
+    context: epirhandbook/2.8
+    tags: ["2.8"]
+    base: "epirhandbook-common:2.8"
+    live: true
+  - name: epirhandbook-data-viz
+    renders:
+      - chapters/tables_presentation.qmd
+      - chapters/ggplot_basics.qmd
+      - chapters/ggplot_tips.qmd
+      - chapters/epicurves.qmd
+      - chapters/age_pyramid.qmd
+      - chapters/heatmaps.qmd
+      - chapters/diagrams.qmd
+      - chapters/combination_analysis.qmd
+      - chapters/transmission_chains.qmd
+      - chapters/phylogenetic_trees.qmd
+      - chapters/interactive_plots.qmd
+    dir: epirhandbook/2.8/groups/data-viz
+    context: epirhandbook/2.8
+    tags: ["2.8"]
+    base: "epirhandbook-common:2.8"
+    live: true
+  - name: epirhandbook-reports
+    renders:
+      - chapters/rmarkdown.qmd
+      - chapters/reportfactory.qmd
+      - chapters/flexdashboard.qmd
+      - chapters/shiny_basics.qmd
+    dir: epirhandbook/2.8/groups/reports
+    context: epirhandbook/2.8
+    tags: ["2.8"]
+    base: "epirhandbook-common:2.8"
+    live: true
+  - name: epirhandbook-miscellaneous
+    renders:
+      - chapters/writing_functions.qmd
+      - chapters/directories.qmd
+      - chapters/collaboration.qmd
+      - chapters/errors.qmd
+      - chapters/help.qmd
+      - chapters/network_drives.qmd
+      - chapters/data_table.qmd
+    dir: epirhandbook/2.8/groups/miscellaneous
+    context: epirhandbook/2.8
+    tags: ["2.8"]
+    base: "epirhandbook-common:2.8"
+    live: true
