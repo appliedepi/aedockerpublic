@@ -265,6 +265,7 @@ canonical_of <- function(doc_rel, lang) {
 n_main <- 0L
 n_translated <- 0L
 n_touched_chapters <- 0L
+langs_touched <- character(0)
 for (doc in all_docs) {
   doc_rel <- as.character(fs::path_rel(doc, start = site_dir))
   lang <- lang_of(doc_rel)
@@ -294,6 +295,7 @@ for (doc in all_docs) {
     } else {
       n_translated <- n_translated + 1L
     }
+    langs_touched <- union(langs_touched, lang)
   }
   ## Count on the CANONICAL path, not doc_rel. doc_rel has a "/" for any page
   ## in a language directory, including <lang>/index.<lang>.html -- which the
@@ -319,9 +321,10 @@ if (n_touched_chapters == 0L) {
 }
 
 cat(sprintf(
-  "inject_language_links.R: done -- %d main-language page(s), %d translated page(s), %d of them below the site root, across %d language(s)\n",
+  "inject_language_links.R: done -- %d main-language page(s), %d translated page(s), %d of them below the site root, across %d of %d declared language(s)\n",
   n_main,
   n_translated,
   n_touched_chapters,
+  length(langs_touched),
   length(c(main_language, language_codes))
 ))
