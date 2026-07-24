@@ -85,6 +85,38 @@ def is_machinery_file(f):
     return any(plan.matching_dir(f, d) for d in MACHINERY_DIRS)
 
 
+# The files at a shared build context's root that are genuinely build inputs.
+# An ALLOWLIST, not a denylist of documentation, because a denylist has to be
+# right about every file that might ever appear: a suffix rule that excludes
+# ".md" quietly stops rebuilding an image the day someone writes
+# `COPY . /src` or `ADD notes.md`, and the image goes stale with nothing to
+# show for it. Naming the inputs instead fails the other way -- add a real
+# input and forget to list it here, and it simply does not trigger, which
+# test_every_copied_context_file_is_a_declared_input catches by parsing what
+# the Dockerfiles actually COPY.
+#
+# Why this exists: epirhandbook/2.7 is the shared context for common and all
+# 49 chapters, and its root holds these inputs beside a README, the change
+# notes, a patch and five measurement TSVs. Matching "anything in the context
+# outside an image's own dir" swept all of those in, so editing a README
+# rebuilt 50 of 51 images.
+#
+# Paths are relative to the context directory.
+SHARED_CONTEXT_INPUTS = (
+    "images.yaml",
+    "pak_install_subset.R",
+    "packages_github.json",
+)
+
+
+def is_shared_context_input(f, ctx):
+    """True iff `f` is one of the declared build inputs at `ctx`'s root."""
+    prefix = ctx.rstrip("/") + "/"
+    if not f.startswith(prefix):
+        return False
+    return f[len(prefix):] in SHARED_CONTEXT_INPUTS
+
+
 def files_touch_image(img, changed_files, all_dirs):
     """True iff ANY entry of `changed_files` is one of image `img`'s own
     build inputs. Returns (touched, reason) -- reason is a short
@@ -96,11 +128,12 @@ def files_touch_image(img, changed_files, all_dirs):
          under an image's own directory always touches it);
       2. it is a SHARED context input: `img`'s build `context` differs
          from its `dir` (true only for the per-chapter split images), the
-         file is inside that context, AND the file is outside EVERY
-         image's own `dir` in the whole catalog (all_dirs) -- i.e. it is
-         a file like renv.lock sitting at the shared context root, not
-         some OTHER image's own file (which must not fan out here, or
-         per-chapter selectivity would be lost entirely);
+         file is one of the DECLARED inputs at that context's root (see
+         SHARED_CONTEXT_INPUTS), AND it is outside EVERY image's own `dir`
+         in the whole catalog (all_dirs) -- so pak_install_subset.R fans
+         out to every image sharing the context, while some OTHER image's
+         own file does not (which would lose per-chapter selectivity) and
+         neither does a README sitting beside it;
       3. it is CI machinery (.github/scripts/, .github/workflows/).
     """
     dir_ = img["dir"]
@@ -110,7 +143,7 @@ def files_touch_image(img, changed_files, all_dirs):
             return True, f"own dir changed: {f}"
         if (
             ctx != dir_
-            and plan.matching_dir(f, ctx)
+            and is_shared_context_input(f, ctx)
             and not any(plan.matching_dir(f, d) for d in all_dirs)
         ):
             return True, f"shared context input changed: {f}"

@@ -29,6 +29,9 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import changed_images  # noqa: E402
 
+# repo root, for the "no Dockerfile COPYs a doc file" invariant below
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 
 def _git(repo, *args):
     result = subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True)
@@ -133,6 +136,118 @@ class TestFilesTouchImage(unittest.TestCase):
             touched, _ = changed_images.files_touch_image(
                 img, ["epirhandbook/2.7/pak_install_subset.R"], self.ALL_DIRS)
             self.assertTrue(touched, msg=f"{img['name']} should see the shared context input")
+
+    def test_undeclared_context_file_touches_nothing(self):
+        # A README, the change notes, a patch and five TSVs sit beside the
+        # real inputs at the context root. Matching "anything in the context
+        # outside an image's dir" swept them all in, so editing a README
+        # rebuilt 50 of 51 images. Only SHARED_CONTEXT_INPUTS count now.
+        for undeclared in (
+            "epirhandbook/2.7/README.md",
+            "epirhandbook/2.7/CHANGES-2.6-to-2.7.md",
+            "epirhandbook/2.7/BREAKAGE.tsv",
+            "epirhandbook/2.7/forward-port.patch",
+            "epirhandbook/2.7/archive/footprints.tsv",
+        ):
+            for img in (self.COMMON, self.BASICS, self.CLEANING):
+                touched, reason = changed_images.files_touch_image(
+                    img, [undeclared], self.ALL_DIRS)
+                self.assertFalse(
+                    touched,
+                    msg=f"{img['name']} should NOT rebuild for {undeclared} ({reason})")
+
+    def test_declared_context_inputs_still_touch_every_sharing_image(self):
+        # The other half: narrowing to an allowlist must not have weakened
+        # the rule for files that ARE inputs.
+        for declared in (
+            "epirhandbook/2.7/pak_install_subset.R",
+            "epirhandbook/2.7/packages_github.json",
+            "epirhandbook/2.7/images.yaml",
+        ):
+            for img in (self.COMMON, self.BASICS, self.CLEANING):
+                touched, _ = changed_images.files_touch_image(
+                    img, [declared], self.ALL_DIRS)
+                self.assertTrue(
+                    touched, msg=f"{img['name']} must rebuild for {declared}")
+
+    def test_undeclared_file_does_not_mask_a_later_real_input(self):
+        # files_touch_image returns on the first match. An excluded file must
+        # fall through rather than short-circuit to False and hide a real
+        # input later in the same changeset.
+        touched, reason = changed_images.files_touch_image(
+            self.BASICS,
+            ["epirhandbook/2.7/README.md", "epirhandbook/2.7/pak_install_subset.R"],
+            self.ALL_DIRS)
+        self.assertTrue(touched)
+        self.assertIn("pak_install_subset.R", reason)
+
+    def test_documentation_inside_an_image_own_dir_still_touches(self):
+        # The narrowing applies to the SHARED-context rule only. A file in an
+        # image's own dir rebuilds that one image -- cheap, and fail-closed.
+        touched, _ = changed_images.files_touch_image(
+            self.BASICS, ["epirhandbook/2.7/chapters/basics/NOTES.md"], self.ALL_DIRS)
+        self.assertTrue(touched)
+
+    def test_every_copied_context_file_is_a_declared_input(self):
+        # THE INVARIANT that makes an allowlist safe. If a Dockerfile COPYs a
+        # context-root file that SHARED_CONTEXT_INPUTS does not name, edits to
+        # it would not rebuild and the image would go silently stale.
+        #
+        # Parses COPY *and* ADD, shell and JSON form, --flags, and multiple
+        # sources (every argument but the last is a source). A bare-first-arg
+        # regex would miss `COPY pak_install_subset.R README.md /tmp/`.
+        import glob
+        import json as _json
+        import re
+        import yaml as _yaml
+
+        def sources(line):
+            m = re.match(r"\s*(COPY|ADD)\s+(.*)", line, re.I)
+            if not m:
+                return []
+            rest = re.sub(r"--\S+\s*", "", m.group(2)).strip()
+            if rest.startswith("["):
+                try:
+                    parts = _json.loads(rest)
+                except ValueError:
+                    return []
+            else:
+                parts = rest.split()
+            return parts[:-1] if len(parts) > 1 else []
+
+        catalog = []
+        for cat in ("images.yaml", "epirhandbook/2.7/images.yaml"):
+            with open(os.path.join(REPO_ROOT, cat), encoding="utf-8") as fh:
+                catalog += _yaml.safe_load(fh)["images"]
+        all_dirs = [i["dir"] for i in catalog]
+
+        problems = []
+        for img in catalog:
+            ctx = img.get("context", img["dir"])
+            df = os.path.join(REPO_ROOT, img["dir"], "Dockerfile")
+            if not os.path.exists(df):
+                continue
+            with open(df, encoding="utf-8") as fh:
+                lines = fh.readlines()
+            for line in lines:
+                for src in sources(line):
+                    if src in (".", "./"):
+                        problems.append(
+                            f"{img['name']}: broad context copy `{line.strip()}` "
+                            f"-- sweeps in every context file, including ones "
+                            f"SHARED_CONTEXT_INPUTS does not track")
+                        continue
+                    repo_path = os.path.normpath(os.path.join(ctx, src))
+                    inside_an_image_dir = any(
+                        repo_path == d or repo_path.startswith(d + "/") for d in all_dirs)
+                    if inside_an_image_dir:
+                        continue
+                    if not changed_images.is_shared_context_input(repo_path, ctx):
+                        problems.append(
+                            f"{img['name']}: COPYs `{src}` from the shared context, "
+                            f"but it is not in SHARED_CONTEXT_INPUTS -- edits to it "
+                            f"would not rebuild this image")
+        self.assertEqual(problems, [], msg="\n".join(problems))
 
     def test_ci_machinery_change_touches_every_image(self):
         for img in (self.COMMON, self.BASICS, self.CLEANING):
