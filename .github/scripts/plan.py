@@ -243,44 +243,92 @@ def _validate_image(image, path, index):
     # real artifact) WITHOUT becoming a second thing that can silently drift.
     if "renders" in image:
         renders = image["renders"]
-        if not isinstance(renders, str) or not renders.endswith(".qmd"):
-            raise ValueError(
-                f"{path}: image {label!r} field 'renders' must be a non-empty "
-                f"string naming a .qmd file; got {renders!r}."
-            )
-        dir_basename = image["dir"].rstrip("/").rsplit("/", 1)[-1]
-        renders_stem = renders.rsplit("/", 1)[-1][: -len(".qmd")]
-        if renders_stem != dir_basename:
-            raise ValueError(
-                f"{path}: image {label!r} renders {renders!r} (stem "
-                f"{renders_stem!r}) but its dir basename is {dir_basename!r} "
-                f"({image['dir']!r}). The source is the .qmd this image renders; "
-                f"dir is that chapter's build context. They must agree."
-            )
-        # ...and the NAME must correspond to that same chapter. Checking only
-        # source-vs-dir leaves the published artifact name unconstrained: a row
-        # could render basics.qmd from chapters/basics while being published as
-        # `epirhandbook-cleaning`, passing validation and putting a LYING name
-        # on a public registry. The name is the chapter lowercased (Docker
-        # requires lowercase; that transform happens only here).
-        if not image["name"].endswith(f"-{renders_stem.lower()}"):
-            raise ValueError(
-                f"{path}: image {label!r} renders {renders!r} but its name does "
-                f"not end with '-{renders_stem.lower()}'. The published image name "
-                f"must identify the chapter it renders, or the registry artifact "
-                f"misrepresents its own content."
-            )
+        if isinstance(renders, list):
+            if not renders:
+                raise ValueError(
+                    f"{path}: image {label!r} field 'renders' must be a "
+                    f"non-empty list when given as a list; got {renders!r}."
+                )
+            seen_qmd = set()
+            for j, r in enumerate(renders):
+                if not isinstance(r, str) or not r or not r.endswith(".qmd"):
+                    raise ValueError(
+                        f"{path}: image {label!r} field 'renders'[{j}] must "
+                        f"be a non-empty string naming a .qmd file; got "
+                        f"{r!r}."
+                    )
+                if r in seen_qmd:
+                    raise ValueError(
+                        f"{path}: image {label!r} field 'renders' lists "
+                        f"{r!r} more than once. Each .qmd may appear at "
+                        f"most once per image -- listing it twice does not "
+                        f"say which build owns rendering it."
+                    )
+                seen_qmd.add(r)
+            # The NAME must identify the GROUP this record renders (its dir
+            # basename, lowercased) -- the list-form counterpart of the
+            # string-form chapter check below. A row could otherwise render
+            # {regression,stat_tests}.qmd from groups/analysis while being
+            # published as `epirhandbook-wrong-group`, passing validation
+            # and putting a LYING name on a public registry.
+            dir_basename = image["dir"].rstrip("/").rsplit("/", 1)[-1]
+            if not image["name"].endswith(f"-{dir_basename.lower()}"):
+                raise ValueError(
+                    f"{path}: image {label!r} renders a list of .qmd files "
+                    f"under dir {image['dir']!r} but its name does not end "
+                    f"with '-{dir_basename.lower()}'. The published image "
+                    f"name must identify the group it renders, or the "
+                    f"registry artifact misrepresents its own content."
+                )
+        else:
+            if not isinstance(renders, str) or not renders.endswith(".qmd"):
+                raise ValueError(
+                    f"{path}: image {label!r} field 'renders' must be a "
+                    f"non-empty string naming a .qmd file, or a non-empty "
+                    f"list of such strings; got {renders!r}."
+                )
+            dir_basename = image["dir"].rstrip("/").rsplit("/", 1)[-1]
+            renders_stem = renders.rsplit("/", 1)[-1][: -len(".qmd")]
+            if renders_stem != dir_basename:
+                raise ValueError(
+                    f"{path}: image {label!r} renders {renders!r} (stem "
+                    f"{renders_stem!r}) but its dir basename is {dir_basename!r} "
+                    f"({image['dir']!r}). The source is the .qmd this image renders; "
+                    f"dir is that chapter's build context. They must agree."
+                )
+            # ...and the NAME must correspond to that same chapter. Checking only
+            # source-vs-dir leaves the published artifact name unconstrained: a row
+            # could render basics.qmd from chapters/basics while being published as
+            # `epirhandbook-cleaning`, passing validation and putting a LYING name
+            # on a public registry. The name is the chapter lowercased (Docker
+            # requires lowercase; that transform happens only here).
+            if not image["name"].endswith(f"-{renders_stem.lower()}"):
+                raise ValueError(
+                    f"{path}: image {label!r} renders {renders!r} but its name does "
+                    f"not end with '-{renders_stem.lower()}'. The published image name "
+                    f"must identify the chapter it renders, or the registry artifact "
+                    f"misrepresents its own content."
+                )
 
-    # A per-chapter image MUST declare what it renders. `renders` is optional in
-    # general (rbase and the 2.5 monolith render no single file), but a row whose
-    # dir sits under a `chapters/` directory is a per-chapter image by
-    # construction, and omitting `renders` there would skip the stem/name/dir
-    # linkage checks entirely -- the row could then publish under any name.
-    if "renders" not in image and "/chapters/" in image["dir"]:
+    # A per-chapter or per-group image MUST declare what it renders. `renders`
+    # is optional in general (rbase and the 2.5 monolith render no single
+    # file), but a row whose dir has a `chapters` or `groups` path segment is
+    # a per-chapter or per-group image by construction, and omitting
+    # `renders` there would skip the stem/name/dir linkage checks entirely --
+    # the row could then publish under any name. Matched by SEGMENT (split
+    # dir on '/'), not substring: a substring match on '/chapters/' or
+    # '/groups/' would miss a dir that IS exactly "chapters" or "groups", or
+    # one where the segment is the first component (no leading '/').
+    dir_segments = image["dir"].split("/")
+    if "renders" not in image and (
+        "chapters" in dir_segments or "groups" in dir_segments
+    ):
         raise ValueError(
             f"{path}: image {label!r} has dir={image['dir']!r} (a per-chapter "
-            f"image) but no 'renders' field. A chapter image must state the .qmd "
-            f"it renders, or its name and build context go unchecked."
+            f"or per-group image -- its dir has a 'chapters' or 'groups' path "
+            f"segment) but no 'renders' field. Such an image must state the "
+            f".qmd file(s) it renders, or its name and build context go "
+            f"unchecked."
         )
 
     # `context`: same canonical-path rules as `dir`, and `dir` MUST live inside
@@ -344,6 +392,7 @@ def load_catalogs(paths):
     within one file."""
     merged = []
     seen = {}
+    seen_renders = {}
     for path in paths:
         for image in load_images(path):
             name = image["name"]
@@ -353,6 +402,25 @@ def load_catalogs(paths):
                     f"Every image must be defined in exactly one catalog file."
                 )
             seen[name] = path
+            # No .qmd may be rendered by more than one image, across the
+            # WHOLE combined catalog (every --images-yaml file together, not
+            # per file) -- two images racing to publish the same page under
+            # two different names would each look correct on its own.
+            # Compared as raw strings exactly as written in `renders`, the
+            # same convention validate_catalog already uses elsewhere --
+            # `renders` has no canonical-form rule.
+            renders = image.get("renders")
+            if renders is not None:
+                qmds = [renders] if isinstance(renders, str) else renders
+                for qmd in qmds:
+                    if qmd in seen_renders:
+                        raise ValueError(
+                            f"{path}: image {name!r} field 'renders' names "
+                            f"{qmd!r}, which is already rendered by image "
+                            f"{seen_renders[qmd]!r}. Every .qmd may be "
+                            f"rendered by exactly one image."
+                        )
+                    seen_renders[qmd] = name
             merged.append(image)
     return merged
 
@@ -520,6 +588,27 @@ def build_plan(images, changed_images=None):
     }
 
 
+def chapter_image_rows(images):
+    """[(chapter, 'name:tag', renders_qmd), ...] for --chapter-images -- one
+    row per rendered .qmd, for BOTH the single-string and list forms of
+    `renders`. Preserves catalog order, and within a list-form record,
+    list order (never sorted). The chapter id is each .qmd's own stem --
+    for the string form this equals the dir basename (validate_catalog has
+    already proven the two agree), but a list-form record's dir basename
+    is the GROUP name, not any one chapter's, so the stem is the only
+    correct source for the chapter id there."""
+    rows = []
+    for img in images:
+        renders = img.get("renders")
+        if not renders:
+            continue          # the common base renders no single .qmd
+        render_list = [renders] if isinstance(renders, str) else renders
+        for r in render_list:
+            chapter = r.rsplit("/", 1)[-1][: -len(".qmd")]
+            rows.append((chapter, f"{img['name']}:{img['tags'][0]}", r))
+    return rows
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     # Repeatable: the catalog is split across files by ownership (hand-
@@ -548,13 +637,8 @@ def main():
     images = load_catalogs(args.images_yaml_paths)
 
     if args.chapter_images:
-        for img in images:
-            if not img.get("renders"):
-                continue          # the common base renders no single .qmd
-            # The chapter id is the dir basename -- validate_catalog has already
-            # proven it equals the source's stem, so either is authoritative.
-            chapter = img["dir"].rstrip("/").rsplit("/", 1)[-1]
-            print(f"{chapter}\t{img['name']}:{img['tags'][0]}\t{img['renders']}")
+        for chapter, image_tag, r in chapter_image_rows(images):
+            print(f"{chapter}\t{image_tag}\t{r}")
         return
 
     result = build_plan(images, changed_images=args.changed_images)

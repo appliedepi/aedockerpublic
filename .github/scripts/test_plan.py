@@ -456,6 +456,103 @@ class TestValidateCatalog(unittest.TestCase):
         with self.assertRaises(ValueError):
             self._validate(text)
 
+    # --- Unit F: group images -- `renders` as a list of .qmd files ------
+    #
+    # Phase 5b's 49 single-chapter images collapse into 6 group images, each
+    # rendering several chapters. `renders` must therefore accept EITHER a
+    # single .qmd string (unchanged) OR a non-empty list of .qmd strings.
+    # These are synthetic fixtures -- no 2.8 catalog exists yet; see this
+    # unit's brief.
+
+    def test_list_form_renders_record_is_accepted(self):
+        # Stage 1 (acceptance only): a valid list-form record must validate.
+        # Against the UNMODIFIED validator this fails with a type error
+        # ("must be a ... string") -- that IS the intended reason at this
+        # stage, since list-form renders does not exist yet.
+        text = (
+            "images:\n"
+            "  - name: epirhandbook-analysis\n"
+            "    renders:\n"
+            "      - chapters/regression.qmd\n"
+            "      - chapters/stat_tests.qmd\n"
+            "    dir: epirhandbook/2.8/groups/analysis\n"
+            '    tags: ["2.8"]\n'
+            "    base: null\n"
+        )
+        images = self._validate(text)
+        self.assertEqual(
+            images[0]["renders"],
+            ["chapters/regression.qmd", "chapters/stat_tests.qmd"],
+        )
+
+    def test_list_form_renders_rejects_duplicate_qmd_within_one_record(self):
+        # Stage 2: the same .qmd listed twice in one record's `renders` is
+        # nonsensical (which build owns rendering it?) and must be rejected.
+        text = (
+            "images:\n"
+            "  - name: epirhandbook-analysis\n"
+            "    renders:\n"
+            "      - chapters/regression.qmd\n"
+            "      - chapters/regression.qmd\n"
+            "    dir: epirhandbook/2.8/groups/analysis\n"
+            '    tags: ["2.8"]\n'
+            "    base: null\n"
+        )
+        with self.assertRaises(ValueError) as ctx:
+            self._validate(text)
+        self.assertIn("regression.qmd", str(ctx.exception))
+
+    def test_list_form_renders_requires_name_to_identify_the_group(self):
+        # Stage 2: the list form's `name` must identify the GROUP (the dir
+        # basename), the list-form counterpart of the string-form chapter
+        # check above -- it still cannot misrepresent its own content.
+        text = (
+            "images:\n"
+            "  - name: epirhandbook-wrong-group\n"
+            "    renders:\n"
+            "      - chapters/regression.qmd\n"
+            "      - chapters/stat_tests.qmd\n"
+            "    dir: epirhandbook/2.8/groups/analysis\n"
+            '    tags: ["2.8"]\n'
+            "    base: null\n"
+        )
+        with self.assertRaises(ValueError) as ctx:
+            self._validate(text)
+        self.assertIn("name", str(ctx.exception))
+
+    def test_list_form_renders_rejects_non_qmd_element(self):
+        # Stage 2: every element of the list must itself be a non-empty
+        # .qmd string -- a stray non-string or wrong-suffix entry must not
+        # silently slip through just because the list itself is non-empty.
+        text = (
+            "images:\n"
+            "  - name: epirhandbook-analysis\n"
+            "    renders:\n"
+            "      - chapters/regression.qmd\n"
+            "      - chapters/stat_tests.Rmd\n"
+            "    dir: epirhandbook/2.8/groups/analysis\n"
+            '    tags: ["2.8"]\n'
+            "    base: null\n"
+        )
+        with self.assertRaises(ValueError) as ctx:
+            self._validate(text)
+        self.assertIn("renders", str(ctx.exception))
+
+    def test_group_image_without_renders_is_rejected(self):
+        # Requirement 4: a record whose dir has a 'groups' path segment must
+        # declare renders, the same rule that already applies to 'chapters'
+        # -- driven with a string-form record so it has no false-red risk.
+        text = (
+            "images:\n"
+            "  - name: epirhandbook-analysis\n"
+            "    dir: epirhandbook/2.8/groups/analysis\n"
+            '    tags: ["2.8"]\n'
+            "    base: null\n"
+        )
+        with self.assertRaises(ValueError) as ctx:
+            self._validate(text)
+        self.assertIn("renders", str(ctx.exception))
+
     def test_duplicate_image_names_are_rejected(self):
         # Every downstream structure keys by name and would keep only the last
         # duplicate; a change under the first would plan the second's dir/tags.
@@ -520,6 +617,65 @@ class TestMergedCatalogs(unittest.TestCase):
         with self.assertRaises(ValueError) as ctx:
             plan.load_catalogs([a, b])
         self.assertIn("already defined", str(ctx.exception))
+
+    # --- Unit F: no .qmd rendered by more than one image, across the WHOLE
+    # combined set of --images-yaml inputs (not per file) -- driven with
+    # plain string-form records, so it has no false-red risk from the
+    # list-form type check; still shown red first.
+
+    CHAPTER_A = (
+        "images:\n"
+        "  - name: epirhandbook-basics\n"
+        "    renders: chapters/basics.qmd\n"
+        "    dir: epirhandbook/2.8/chapters/basics\n"
+        '    tags: ["2.8"]\n    base: null\n'
+    )
+    # NOTE: dir basename must still be 'basics' here (a DIFFERENT parent
+    # path, same last segment) and name must still end '-basics' -- both
+    # images must independently pass the pre-existing stem/dir/name checks
+    # (rule (i)/(ii)) on their own, so the only remaining failure this
+    # fixture can trigger is the cross-image duplicate-.qmd rule under test.
+    # An earlier version of this fixture gave B a DIFFERENT dir basename
+    # ('basics-again'), which made the test pass for the WRONG reason (the
+    # pre-existing stem-vs-dir-basename check fired first) -- caught by
+    # actually inspecting the raised message before trusting the green.
+    CHAPTER_B_SAME_QMD = (
+        "images:\n"
+        "  - name: epirhandbook-other-basics\n"
+        "    renders: chapters/basics.qmd\n"
+        "    dir: epirhandbook/2.8/other/chapters/basics\n"
+        '    tags: ["2.8"]\n    base: null\n'
+    )
+
+    def test_qmd_rendered_by_two_images_across_catalogs_is_rejected(self):
+        a = self._write(self.CHAPTER_A)
+        b = self._write(self.CHAPTER_B_SAME_QMD)
+        with self.assertRaises(ValueError) as ctx:
+            plan.load_catalogs([a, b])
+        msg = str(ctx.exception)
+        self.assertIn("chapters/basics.qmd", msg)
+        self.assertIn("epirhandbook-basics", msg)
+        self.assertIn("epirhandbook-other-basics", msg)
+
+    def test_qmd_rendered_by_two_images_in_the_same_file_is_rejected(self):
+        # The combined-set rule also catches a duplicate within ONE file --
+        # load_catalogs sees the whole merged set regardless of how many
+        # files it came from.
+        text = (
+            "images:\n"
+            "  - name: epirhandbook-basics\n"
+            "    renders: chapters/basics.qmd\n"
+            "    dir: epirhandbook/2.8/chapters/basics\n"
+            '    tags: ["2.8"]\n    base: null\n'
+            "  - name: epirhandbook-other-basics\n"
+            "    renders: chapters/basics.qmd\n"
+            "    dir: epirhandbook/2.8/other/chapters/basics\n"
+            '    tags: ["2.8"]\n    base: null\n'
+        )
+        a = self._write(text)
+        with self.assertRaises(ValueError) as ctx:
+            plan.load_catalogs([a])
+        self.assertIn("chapters/basics.qmd", str(ctx.exception))
 
 
 class TestAgainstRealCatalog(unittest.TestCase):
@@ -660,6 +816,116 @@ class TestBuildContextAndChapterRenders(unittest.TestCase):
         with self.assertRaises(ValueError) as ctx:
             self._validate(text)
         self.assertIn("renders", str(ctx.exception))
+
+    def test_group_image_under_groups_segment_without_renders_is_rejected(self):
+        # Requirement 4's other half, driven through the same DIR_RE-shaped
+        # fixture style as this class already uses: 'groups' as a path
+        # segment (not a substring of some other word) must trip the same
+        # rule 'chapters' already does.
+        text = (
+            "images:\n"
+            "  - name: epirhandbook-analysis\n"
+            "    dir: epirhandbook/2.8/groups/analysis\n"
+            '    tags: ["2.8"]\n'
+            "    base: null\n"
+        )
+        with self.assertRaises(ValueError) as ctx:
+            self._validate(text)
+        self.assertIn("renders", str(ctx.exception))
+
+    def test_groups_as_a_word_fragment_not_a_segment_does_not_require_renders(self):
+        # Segment matching, not substring: a dir like 'epirhandbook/subgroups'
+        # contains the substring 'groups' but has no 'groups' PATH SEGMENT,
+        # so it must NOT be forced to declare renders. Proves rule 4 is
+        # implemented by splitting on '/', as decided, not by 'in' on the
+        # raw string.
+        text = (
+            "images:\n"
+            "  - name: epirhandbook-subgroups\n"
+            "    dir: epirhandbook/subgroups\n"
+            '    tags: ["2.8"]\n'
+            "    base: null\n"
+        )
+        images = self._validate(text)
+        self.assertEqual(images[0]["dir"], "epirhandbook/subgroups")
+
+
+class TestChapterImageRows(unittest.TestCase):
+    """plan.chapter_image_rows() -- the pure function behind --chapter-images.
+    One row per rendered .qmd for BOTH the string and list forms of
+    `renders`, chapter id from each .qmd's own stem, catalog order and
+    (within a list-form record) list order preserved -- never sorted."""
+
+    def test_string_form_yields_one_row(self):
+        images = [
+            {"name": "epirhandbook-basics", "renders": "chapters/basics.qmd",
+             "dir": "epirhandbook/2.7/chapters/basics", "tags": ["2.7"], "base": None},
+        ]
+        self.assertEqual(
+            plan.chapter_image_rows(images),
+            [("basics", "epirhandbook-basics:2.7", "chapters/basics.qmd")],
+        )
+
+    def test_list_form_yields_one_row_per_qmd_in_list_order(self):
+        images = [
+            {"name": "epirhandbook-analysis",
+             "renders": ["chapters/regression.qmd", "chapters/stat_tests.qmd"],
+             "dir": "epirhandbook/2.8/groups/analysis", "tags": ["2.8"], "base": None},
+        ]
+        self.assertEqual(
+            plan.chapter_image_rows(images),
+            [
+                ("regression", "epirhandbook-analysis:2.8", "chapters/regression.qmd"),
+                ("stat_tests", "epirhandbook-analysis:2.8", "chapters/stat_tests.qmd"),
+            ],
+        )
+
+    def test_chapter_id_comes_from_the_qmd_stem_not_the_group_dir_basename(self):
+        # The discriminating case a naive dir-basename-based implementation
+        # gets wrong: dir basename is the GROUP name ('analysis'), not any
+        # one chapter's -- the chapter id must come from the .qmd itself.
+        images = [
+            {"name": "epirhandbook-analysis", "renders": ["chapters/regression.qmd"],
+             "dir": "epirhandbook/2.8/groups/analysis", "tags": ["2.8"], "base": None},
+        ]
+        rows = plan.chapter_image_rows(images)
+        self.assertEqual(rows[0][0], "regression")
+        self.assertNotEqual(rows[0][0], "analysis")
+
+    def test_catalog_order_is_preserved_not_sorted(self):
+        images = [
+            {"name": "epirhandbook-zeta", "renders": "chapters/zeta.qmd",
+             "dir": "epirhandbook/2.7/chapters/zeta", "tags": ["2.7"], "base": None},
+            {"name": "epirhandbook-alpha", "renders": "chapters/alpha.qmd",
+             "dir": "epirhandbook/2.7/chapters/alpha", "tags": ["2.7"], "base": None},
+        ]
+        chapters = [row[0] for row in plan.chapter_image_rows(images)]
+        self.assertEqual(chapters, ["zeta", "alpha"])
+
+    def test_image_without_renders_yields_no_rows(self):
+        # rbase / epirhandbook-common: renders no single .qmd.
+        images = [
+            {"name": "epirhandbook-common", "dir": "epirhandbook/2.7/common",
+             "tags": ["2.7"], "base": None},
+        ]
+        self.assertEqual(plan.chapter_image_rows(images), [])
+
+    def test_mixed_string_and_list_form_catalog(self):
+        images = [
+            {"name": "epirhandbook-basics", "renders": "chapters/basics.qmd",
+             "dir": "epirhandbook/2.7/chapters/basics", "tags": ["2.7"], "base": None},
+            {"name": "epirhandbook-analysis",
+             "renders": ["chapters/regression.qmd", "chapters/stat_tests.qmd"],
+             "dir": "epirhandbook/2.8/groups/analysis", "tags": ["2.8"], "base": None},
+        ]
+        self.assertEqual(
+            plan.chapter_image_rows(images),
+            [
+                ("basics", "epirhandbook-basics:2.7", "chapters/basics.qmd"),
+                ("regression", "epirhandbook-analysis:2.8", "chapters/regression.qmd"),
+                ("stat_tests", "epirhandbook-analysis:2.8", "chapters/stat_tests.qmd"),
+            ],
+        )
 
 
 if __name__ == "__main__":
