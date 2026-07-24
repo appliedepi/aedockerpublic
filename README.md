@@ -1,7 +1,7 @@
 # aedockerpublic
 
 The image factory for Applied Epi products. It builds and publishes the Docker images that render
-the [epiRhandbook](https://github.com/appliedepi/epiRhandbook_eng), and it owns the scripts that
+the [epiRhandbook](https://github.com/appliedepi/epirhandbook), and it owns the scripts that
 assemble the book from them.
 
 Published to `ghcr.io/appliedepi/aedockerpublic`:
@@ -107,7 +107,7 @@ The name must be `epirhandbook-<stem>` lowercased, and `renders` must be `chapte
 ## How the handbook uses these images
 
 The content lives in a separate repository,
-[`appliedepi/epiRhandbook_eng`](https://github.com/appliedepi/epiRhandbook_eng), which owns the
+[`appliedepi/epirhandbook`](https://github.com/appliedepi/epirhandbook), which owns the
 `.qmd` files in every language and a manifest (`docker-images.yml`) saying which image renders which
 chapter. **This repository owns packages, images and the render scripts; that one owns content and
 the choice of image.** Neither fetches from the other at build time.
