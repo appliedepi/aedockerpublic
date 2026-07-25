@@ -42,24 +42,27 @@ name: Build images
 #     so a required-reviewer rule CAN be configured in repo settings (see
 #     PROJECT.md for how to turn that on -- it is not assumed to be on).
 #
-# REQUIRED REPOSITORY SECRET: `GH_READONLY_PAT` -- a fine-grained GitHub PAT
-# scoped to PUBLIC READ ONLY (no `packages: write`, no repo write of any
-# kind). It is fed into the "Build and push" step's GITHUB_PAT env var,
-# which `docker build` mounts as a BuildKit secret purely to raise pak's
-# GitHub API rate limit while resolving epirhandbook's 8 GitHub-SHA-pinned
-# packages. `secrets.GITHUB_TOKEN` is DELIBERATELY never used for this: this
-# job holds `packages: write` (see below), and feeding THAT token into 473
-# packages' worth of arbitrary, compiled-from-source install code would let
-# any of them push to `ghcr.io/appliedepi/aedockerpublic/` (Phase 4 round 2
-# blocker). `secrets.GITHUB_TOKEN` keeps its own, narrower legitimate job
-# here: docker/login-action and the actual `docker push`, both of which
-# genuinely need push-capable credentials. If `GH_READONLY_PAT` is not
-# configured as a repository secret, the build proceeds with NO token at
-# all (never a silent fallback to `secrets.GITHUB_TOKEN`) -- the only
-# consequence is that those 8 GitHub package lookups fall back to the
-# ANONYMOUS GitHub API rate limit, which is shared across every job running
-# on the same GitHub-hosted runner IP at that moment. See PROJECT.md
-# section 8 for how to create/rotate this secret.
+# NO REPOSITORY SECRETS ARE REQUIRED. This workflow uses only the automatic
+# `secrets.GITHUB_TOKEN`, so nothing here depends on an individual's personal
+# access token. It is used for three things: docker/login-action, the actual
+# `docker push`, and -- since 2026-07-25 -- the GITHUB_PAT env var fed into
+# `docker build` to raise pak's GitHub API rate limit while resolving the
+# SHA-pinned GitHub R packages.
+#
+# THAT THIRD USE CARRIES AN ACCEPTED RISK. The build-layer jobs hold
+# `packages: write` so they can push, and the token is mounted into a build
+# where 473 packages install, several compiled from source with their own
+# post-install scripts. Any of them can therefore push to
+# `ghcr.io/appliedepi/aedockerpublic/`. An earlier review recorded this as a
+# blocker, and the slot previously took a separate `GH_READONLY_PAT` scoped to
+# public read only -- but that secret was never configured, so the build had in
+# fact been running with no token and the anonymous GitHub API rate limit.
+#
+# The change was requested deliberately, to keep every credential in this repo
+# automatic and org-owned rather than personal. If the risk is revisited, the
+# safer options are an ORG-owned fine-grained PAT scoped to public read only,
+# or leaving the slot empty and accepting the anonymous rate limit. See
+# PROJECT.md section 8.
 #
 # This file deliberately duplicates the plan + build-layer-N jobs rather
 # than sharing them via a reusable (workflow_call) workflow. That would
@@ -265,24 +268,28 @@ jobs:
       - name: Build and push ${{ matrix.image.name }}
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         env:
-          # Phase 4 round 2 blocker fix: NEVER secrets.GITHUB_TOKEN here.
+          # Raises pak's GitHub API rate limit while resolving the
+          # SHA-pinned GitHub R packages.
+          #
+          # ACCEPTED RISK, decided deliberately -- read before changing.
           # This job holds packages: write (see the job's own permissions:
-          # block above) so its GITHUB_TOKEN can push to GHCR -- feeding
-          # that into the build would hand arbitrary package-build code
-          # (473 CRAN/Bioconductor/GitHub packages, several compiled from
-          # source with their own post-install scripts) a credential that
-          # can write to ghcr.io/appliedepi/aedockerpublic/. GH_READONLY_PAT
-          # is a SEPARATE repository secret: a fine-grained PAT scoped to
-          # public read only (no packages:write, no repo write) -- see
-          # PROJECT.md section 8 for how to create/rotate it. If it is not
-          # configured, this evaluates to an empty string and the build
-          # proceeds with NO token at all (see build_image.sh's header) --
-          # it never falls back to secrets.GITHUB_TOKEN or any other
-          # write-capable credential. GITHUB_TOKEN remains in use above,
-          # for docker/login-action and the eventual `docker push` -- that
-          # is its legitimate use; the point is only that it must never
-          # enter the build itself.
-          GITHUB_PAT: ${{ secrets.GH_READONLY_PAT }}
+          # block above) so it can push. This token is mounted into
+          # `docker build`, where 473 CRAN/Bioconductor/GitHub packages
+          # install, several compiled from source with their own
+          # post-install scripts. Any of them can therefore push to
+          # ghcr.io/appliedepi/aedockerpublic/.
+          #
+          # An earlier review recorded that as a blocker, and this slot
+          # took GH_READONLY_PAT instead: a fine-grained PAT scoped to
+          # public read only. That secret was never actually configured,
+          # so in practice the build ran with no token and the GitHub
+          # lookups used the anonymous rate limit.
+          #
+          # Safer alternatives if this is revisited: an ORG-owned
+          # fine-grained PAT scoped to public read only, or leaving the
+          # slot empty and accepting the anonymous rate limit -- which is
+          # what was happening anyway.
+          GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
         with:
           timeout_minutes: 120
           max_attempts: 2
@@ -319,24 +326,28 @@ jobs:
       - name: Build and push ${{ matrix.image.name }}
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         env:
-          # Phase 4 round 2 blocker fix: NEVER secrets.GITHUB_TOKEN here.
+          # Raises pak's GitHub API rate limit while resolving the
+          # SHA-pinned GitHub R packages.
+          #
+          # ACCEPTED RISK, decided deliberately -- read before changing.
           # This job holds packages: write (see the job's own permissions:
-          # block above) so its GITHUB_TOKEN can push to GHCR -- feeding
-          # that into the build would hand arbitrary package-build code
-          # (473 CRAN/Bioconductor/GitHub packages, several compiled from
-          # source with their own post-install scripts) a credential that
-          # can write to ghcr.io/appliedepi/aedockerpublic/. GH_READONLY_PAT
-          # is a SEPARATE repository secret: a fine-grained PAT scoped to
-          # public read only (no packages:write, no repo write) -- see
-          # PROJECT.md section 8 for how to create/rotate it. If it is not
-          # configured, this evaluates to an empty string and the build
-          # proceeds with NO token at all (see build_image.sh's header) --
-          # it never falls back to secrets.GITHUB_TOKEN or any other
-          # write-capable credential. GITHUB_TOKEN remains in use above,
-          # for docker/login-action and the eventual `docker push` -- that
-          # is its legitimate use; the point is only that it must never
-          # enter the build itself.
-          GITHUB_PAT: ${{ secrets.GH_READONLY_PAT }}
+          # block above) so it can push. This token is mounted into
+          # `docker build`, where 473 CRAN/Bioconductor/GitHub packages
+          # install, several compiled from source with their own
+          # post-install scripts. Any of them can therefore push to
+          # ghcr.io/appliedepi/aedockerpublic/.
+          #
+          # An earlier review recorded that as a blocker, and this slot
+          # took GH_READONLY_PAT instead: a fine-grained PAT scoped to
+          # public read only. That secret was never actually configured,
+          # so in practice the build ran with no token and the GitHub
+          # lookups used the anonymous rate limit.
+          #
+          # Safer alternatives if this is revisited: an ORG-owned
+          # fine-grained PAT scoped to public read only, or leaving the
+          # slot empty and accepting the anonymous rate limit -- which is
+          # what was happening anyway.
+          GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
         with:
           timeout_minutes: 120
           max_attempts: 2
@@ -373,24 +384,28 @@ jobs:
       - name: Build and push ${{ matrix.image.name }}
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         env:
-          # Phase 4 round 2 blocker fix: NEVER secrets.GITHUB_TOKEN here.
+          # Raises pak's GitHub API rate limit while resolving the
+          # SHA-pinned GitHub R packages.
+          #
+          # ACCEPTED RISK, decided deliberately -- read before changing.
           # This job holds packages: write (see the job's own permissions:
-          # block above) so its GITHUB_TOKEN can push to GHCR -- feeding
-          # that into the build would hand arbitrary package-build code
-          # (473 CRAN/Bioconductor/GitHub packages, several compiled from
-          # source with their own post-install scripts) a credential that
-          # can write to ghcr.io/appliedepi/aedockerpublic/. GH_READONLY_PAT
-          # is a SEPARATE repository secret: a fine-grained PAT scoped to
-          # public read only (no packages:write, no repo write) -- see
-          # PROJECT.md section 8 for how to create/rotate it. If it is not
-          # configured, this evaluates to an empty string and the build
-          # proceeds with NO token at all (see build_image.sh's header) --
-          # it never falls back to secrets.GITHUB_TOKEN or any other
-          # write-capable credential. GITHUB_TOKEN remains in use above,
-          # for docker/login-action and the eventual `docker push` -- that
-          # is its legitimate use; the point is only that it must never
-          # enter the build itself.
-          GITHUB_PAT: ${{ secrets.GH_READONLY_PAT }}
+          # block above) so it can push. This token is mounted into
+          # `docker build`, where 473 CRAN/Bioconductor/GitHub packages
+          # install, several compiled from source with their own
+          # post-install scripts. Any of them can therefore push to
+          # ghcr.io/appliedepi/aedockerpublic/.
+          #
+          # An earlier review recorded that as a blocker, and this slot
+          # took GH_READONLY_PAT instead: a fine-grained PAT scoped to
+          # public read only. That secret was never actually configured,
+          # so in practice the build ran with no token and the GitHub
+          # lookups used the anonymous rate limit.
+          #
+          # Safer alternatives if this is revisited: an ORG-owned
+          # fine-grained PAT scoped to public read only, or leaving the
+          # slot empty and accepting the anonymous rate limit -- which is
+          # what was happening anyway.
+          GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
         with:
           timeout_minutes: 120
           max_attempts: 2
@@ -427,24 +442,28 @@ jobs:
       - name: Build and push ${{ matrix.image.name }}
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         env:
-          # Phase 4 round 2 blocker fix: NEVER secrets.GITHUB_TOKEN here.
+          # Raises pak's GitHub API rate limit while resolving the
+          # SHA-pinned GitHub R packages.
+          #
+          # ACCEPTED RISK, decided deliberately -- read before changing.
           # This job holds packages: write (see the job's own permissions:
-          # block above) so its GITHUB_TOKEN can push to GHCR -- feeding
-          # that into the build would hand arbitrary package-build code
-          # (473 CRAN/Bioconductor/GitHub packages, several compiled from
-          # source with their own post-install scripts) a credential that
-          # can write to ghcr.io/appliedepi/aedockerpublic/. GH_READONLY_PAT
-          # is a SEPARATE repository secret: a fine-grained PAT scoped to
-          # public read only (no packages:write, no repo write) -- see
-          # PROJECT.md section 8 for how to create/rotate it. If it is not
-          # configured, this evaluates to an empty string and the build
-          # proceeds with NO token at all (see build_image.sh's header) --
-          # it never falls back to secrets.GITHUB_TOKEN or any other
-          # write-capable credential. GITHUB_TOKEN remains in use above,
-          # for docker/login-action and the eventual `docker push` -- that
-          # is its legitimate use; the point is only that it must never
-          # enter the build itself.
-          GITHUB_PAT: ${{ secrets.GH_READONLY_PAT }}
+          # block above) so it can push. This token is mounted into
+          # `docker build`, where 473 CRAN/Bioconductor/GitHub packages
+          # install, several compiled from source with their own
+          # post-install scripts. Any of them can therefore push to
+          # ghcr.io/appliedepi/aedockerpublic/.
+          #
+          # An earlier review recorded that as a blocker, and this slot
+          # took GH_READONLY_PAT instead: a fine-grained PAT scoped to
+          # public read only. That secret was never actually configured,
+          # so in practice the build ran with no token and the GitHub
+          # lookups used the anonymous rate limit.
+          #
+          # Safer alternatives if this is revisited: an ORG-owned
+          # fine-grained PAT scoped to public read only, or leaving the
+          # slot empty and accepting the anonymous rate limit -- which is
+          # what was happening anyway.
+          GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
         with:
           timeout_minutes: 120
           max_attempts: 2
