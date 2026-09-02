@@ -124,12 +124,15 @@ chapter's group image and the monolith rebuild.
    comments, no blank lines. Save it as `epirhandbook/2.8/chapters/<stem>/packages_cran.txt`.
 2. Add `<stem>` to a group in `epirhandbook/2.8/groups.yaml`.
 3. Add `chapters/<stem>.qmd` to that group's `renders` list in `epirhandbook/2.8/images.yaml`.
+   That file is a shared build input: editing it rebuilds every 2.8 image, common included.
+   Read the last item under Known limitations before you do.
 4. Run `python3 epirhandbook/2.8/generate_groups.py` and commit everything. Push, and watch the
    group image and the monolith publish.
 5. In the handbook repository, add the chapter's row to `docker-images.yml`, naming the group
    image. `build_all_chapters.sh` fails a book whose `_quarto.yml` declares a chapter with no row.
 
-`gis`, restored on 2026-09-02, is the worked example of every step.
+`gis`, restored on 2026-09-02, is the worked example of every step except step 3, which waits
+for the babelquarto pin bump described under Known limitations.
 
 **Update the R version or the CRAN snapshot.** Change the date in rbase's tag in `images.yaml`
 (`rbase:4.6.0-<YYYY-MM-DD>`). **Never write a date anywhere else.** The tag is the single source of
@@ -222,6 +225,17 @@ uses them since 2.8.
 - **apt packages are not individually version-pinned.** The `ubuntu` base is digest-pinned; packages
   installed on top of it are not. Accepted.
 - **Rendered figures are not byte-reproducible.** Several chapters use unseeded RNG.
+- **`common` cannot rebuild until its babelquarto pin moves.** `packages_github.json` pins
+  babeldown at `c6ed926` and babelquarto at `ba9a2a0`. babeldown's DESCRIPTION declares
+  `Remotes: ropensci-review-tools/babelquarto`, which pak resolves to that repository's HEAD.
+  On 2026-09-01 that HEAD moved to `8329821`, so pak now reports a conflict between the two
+  babelquarto refs and the common build fails at the pak step. It failed exactly that way in
+  run 33626696019 on 2026-09-02, when an edit to `epirhandbook/2.8/images.yaml` forced a
+  rebuild. The published `epirhandbook-common:2.8` (revision `7b82737`) is unaffected. The fix
+  is to bump the babelquarto pin to the current HEAD; both SHAs carry version 0.1.0.9000, and
+  the render scripts vendor babelquarto's logic rather than call it. Until then, do not edit
+  `images.yaml`, `epirhandbook/2.8/images.yaml`, `pak_install_subset.R`, `packages_github.json`,
+  `epirhandbook/2.8/common/` or anything under `.github/`.
 - **A base tag moved out of band is not detected.** The build resolves a non-rebuilt base's digest
   live from whatever its published tag currently points at. That is correct only while the registry
   tag is written by this workflow alone; a manual retag or force-push would be followed silently. An

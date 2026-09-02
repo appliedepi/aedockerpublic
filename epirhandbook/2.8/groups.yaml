@@ -28,7 +28,11 @@
 # other 49; footprint.txt beside it is the same list). generate_groups.py
 # reads epirhandbook/2.8/chapters/<stem>/ for a stem with no 2.7 directory.
 # gis renders with the analysis group image, because it sits in the book's
-# Analysis part.
+# Analysis part. It is NOT yet listed under the analysis image's `renders` in
+# epirhandbook/2.8/images.yaml: that file is a shared build input, so any
+# edit to it rebuilds every 2.8 image including common, and common cannot
+# rebuild until its babelquarto pin moves (see README, Known limitations).
+# Add `chapters/gis.qmd` to that list in the same commit as the pin bump.
 # generate_groups.py enforces this (fails loudly on a chapter claimed by no
 # group, a chapter claimed twice, or a chapter stem that doesn't exist under
 # epirhandbook/2.7/chapters/) -- it is not just a convention, it is checked.
