@@ -19,10 +19,13 @@
 #   groups.yaml                                 -- hand-maintained group
 #                                                   membership (this dir)
 #   ../2.7/chapters/<stem>/packages_cran.txt    -- each chapter's own FULL
-#                                                   package list (49 files --
+#                                                   package list (48 files --
 #                                                   see the BARE_CHAPTERS note
 #                                                   below for the one stem
 #                                                   that has no such file)
+#   chapters/<stem>/packages_cran.txt (this dir) -- the same, for a chapter
+#                                                   added in 2.8 with no 2.7
+#                                                   image (today: gis)
 #
 # OUTPUTS (all generated; do not hand-edit, rerun this script instead):
 #   groups/<group>/packages_cran.txt    (6 files, one per groups.yaml key)
@@ -31,7 +34,7 @@
 # The monolith sits BESIDE groups/, not inside it. It is not a group: it
 # renders no chapter and exists for the .devcontainer.json, so a `groups`
 # path segment would make plan.py demand a `renders` list it cannot have
-# (the 6 groups already claim all 49 chapters, and no .qmd may be claimed
+# (the 6 groups already claim all 50 chapters, and no .qmd may be claimed
 # twice).
 #
 # METHOD: do NOT subtract the shared `common` base (epirhandbook/2.7/common/
@@ -91,6 +94,12 @@ import yaml
 HERE = os.path.dirname(os.path.abspath(__file__))
 GROUPS_YAML = os.path.join(HERE, "groups.yaml")
 CHAPTERS_2_7 = os.path.normpath(os.path.join(HERE, "..", "2.7", "chapters"))
+# Chapters added in 2.8 that never had a 2.7 image keep their package list
+# HERE, under epirhandbook/2.8/chapters/<stem>/packages_cran.txt, captured
+# the same way (loadedNamespaces() of one executing render, minus base R).
+# Today: gis, restored to the handbook on 2026-09-02. A stem may live in one
+# of the two directories, never both.
+CHAPTERS_2_8 = os.path.join(HERE, "chapters")
 GROUPS_OUT_DIR = os.path.join(HERE, "groups")
 
 # The one 2.7 chapter directory with no packages_cran.txt at all (see the
@@ -140,7 +149,7 @@ def read_chapter_packages(stem):
     moved/been renamed under epirhandbook/2.7/chapters/, must not be allowed
     to silently contribute zero packages to a group -- it must stop the run.
     """
-    path = os.path.join(CHAPTERS_2_7, stem, "packages_cran.txt")
+    path = os.path.join(chapter_dir(stem), stem, "packages_cran.txt")
     if not os.path.isfile(path):
         if stem in BARE_CHAPTERS:
             return []
@@ -148,7 +157,8 @@ def read_chapter_packages(stem):
             f"chapter stem {stem!r} (from groups.yaml) has no packages_cran.txt "
             f"-- looked for it at {path} and it does not exist. This is either "
             f"a typo'd stem in groups.yaml, or a chapter that has moved/been "
-            f"renamed under {CHAPTERS_2_7} since groups.yaml was last updated. "
+            f"renamed under {CHAPTERS_2_7} or {CHAPTERS_2_8} since groups.yaml "
+            f"was last updated. "
             f"(If this really is a new bare, no-delta chapter like 'errors', "
             f"add it to BARE_CHAPTERS in generate_groups.py explicitly -- "
             f"after confirming its Dockerfile installs nothing beyond "
@@ -156,6 +166,14 @@ def read_chapter_packages(stem):
         )
     with open(path) as f:
         return [line.strip() for line in f if line.strip()]
+
+
+def chapter_dir(stem):
+    """The directory a stem's package list lives under: epirhandbook/2.8/
+    chapters/ for a chapter that never had a 2.7 image, else the 2.7 tree."""
+    if os.path.isdir(os.path.join(CHAPTERS_2_8, stem)):
+        return CHAPTERS_2_8
+    return CHAPTERS_2_7
 
 
 def check_coverage(groups):
@@ -178,16 +196,25 @@ def check_coverage(groups):
                 )
             claimed[s] = key
 
-    on_disk = {
-        name
-        for name in os.listdir(CHAPTERS_2_7)
-        if os.path.isdir(os.path.join(CHAPTERS_2_7, name))
-    }
+    on_disk = set()
+    for root in (CHAPTERS_2_7, CHAPTERS_2_8):
+        if not os.path.isdir(root):
+            continue
+        for name in os.listdir(root):
+            if not os.path.isdir(os.path.join(root, name)):
+                continue
+            if name in on_disk:
+                raise ValueError(
+                    f"chapter stem {name!r} has a directory under both "
+                    f"{CHAPTERS_2_7} and {CHAPTERS_2_8}; a stem lives in one "
+                    f"of the two, never both."
+                )
+            on_disk.add(name)
 
     unclaimed = sorted(on_disk - set(claimed))
     if unclaimed:
         raise ValueError(
-            f"{len(unclaimed)} chapter dir(s) under {CHAPTERS_2_7} are not "
+            f"{len(unclaimed)} chapter dir(s) under {CHAPTERS_2_7} or {CHAPTERS_2_8} are not "
             f"claimed by any group in groups.yaml: {unclaimed}. A v2.7 "
             f"chapter silently dropping out of the v2.8 product is exactly "
             f"the failure this check exists to catch -- add it to a group "
@@ -198,7 +225,7 @@ def check_coverage(groups):
     if phantom:
         raise ValueError(
             f"groups.yaml claims {len(phantom)} chapter stem(s) that do not "
-            f"exist as a directory under {CHAPTERS_2_7}: {phantom}. Typo, or "
+            f"exist as a directory under {CHAPTERS_2_7} or {CHAPTERS_2_8}: {phantom}. Typo, or "
             f"a chapter renamed/removed upstream without groups.yaml being "
             f"updated to match."
         )

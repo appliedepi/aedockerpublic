@@ -2,7 +2,7 @@
 # membership. This file is the ONLY place chapter-to-group assignment is
 # decided; generate_groups.py reads it and WRITES the group package lists
 # (epirhandbook/2.8/groups/<group>/packages_cran.txt) and the monolith list
-# (epirhandbook/2.8/groups/monolith/packages_cran.txt) FROM it -- never the
+# (epirhandbook/2.8/monolith/packages_cran.txt) FROM it -- never the
 # other way round. Do not hand-edit any packages_cran.txt under
 # epirhandbook/2.8/groups/; edit this file and rerun generate_groups.py.
 #
@@ -20,6 +20,15 @@
 # spellings are load-bearing exactly as written here.
 #
 # Every one of the 49 v2.7 chapters must appear in EXACTLY one group below.
+#
+# gis is the 50th stem, added 2026-09-02 when the handbook restored the GIS
+# chapter. It never had a 2.7 image, so its list lives in THIS release:
+# epirhandbook/2.8/chapters/gis/packages_cran.txt (loadedNamespaces() of one
+# executing render, minus the base R packages, captured the same way as the
+# other 49; footprint.txt beside it is the same list). generate_groups.py
+# reads epirhandbook/2.8/chapters/<stem>/ for a stem with no 2.7 directory.
+# gis renders with the analysis group image, because it sits in the book's
+# Analysis part.
 # generate_groups.py enforces this (fails loudly on a chapter claimed by no
 # group, a chapter claimed twice, or a chapter stem that doesn't exist under
 # epirhandbook/2.7/chapters/) -- it is not just a convention, it is checked.
@@ -54,6 +63,7 @@ groups:
     - contact_tracing
     - survey_analysis
     - survival_analysis
+    - gis
   data-viz:
     - tables_presentation
     - ggplot_basics

@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# epirhandbook-monolith:2.8 -- v2.8 monolith image: all 49 chapters, 298
+# epirhandbook-monolith:2.8 -- v2.8 monolith image: all 50 chapters, 320
 # CRAN/Bioc package names -- the plain union of the 6 group lists (see
 # epirhandbook/2.8/generate_groups.py). Structurally identical to a group
 # Dockerfile; its list simply happens to be the union of all six.

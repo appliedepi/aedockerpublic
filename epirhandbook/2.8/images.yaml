@@ -4,7 +4,8 @@
 # root images.yaml (base edges cross the files: epirhandbook-common here is
 # FROM rbase there) -- see plan.py's load_catalogs docstring.
 #
-# v2.7 published 49 per-chapter images; v2.8 collapses them into 6 GROUP
+# v2.7 published 49 per-chapter images; v2.8 collapses them, plus the gis
+# chapter restored on 2026-09-02 (see groups.yaml), into 6 GROUP
 # images (see groups.yaml), each rendering several chapters via a LIST-form
 # `renders` (plan.py's list-form support, added for this catalog -- see
 # commit 5fe54bd). `renders` order follows groups.yaml's own per-group stem
@@ -41,6 +42,7 @@ images:
       - chapters/contact_tracing.qmd
       - chapters/survey_analysis.qmd
       - chapters/survival_analysis.qmd
+      - chapters/gis.qmd
     dir: epirhandbook/2.8/groups/analysis
     context: epirhandbook/2.8
     tags: ["2.8"]
@@ -128,7 +130,7 @@ images:
   # Hence no `renders` key, and hence it sits beside groups/ rather than in it:
   # plan.py requires a `renders` list from anything under a `groups` path
   # segment, and there is no list it could legally declare -- the six groups
-  # already claim all 49 chapters between them, and no .qmd may be claimed
+  # already claim all 50 chapters between them, and no .qmd may be claimed
   # twice. `epirhandbook-common` omits `renders` for the same reason.
   - name: epirhandbook-monolith
     dir: epirhandbook/2.8/monolith

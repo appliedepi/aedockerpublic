@@ -8,6 +8,7 @@ Formula
 KernSmooth
 MASS
 Matrix
+OpenStreetMap
 PHEindicatormethods
 PerformanceAnalytics
 R.methodsS3
@@ -61,6 +62,7 @@ cmprsk
 coda
 codetools
 colorspace
+cols4all
 commonmark
 correlation
 corrr
@@ -150,6 +152,7 @@ isoband
 iterators
 janitor
 jomo
+jpeg
 jquerylib
 jsonlite
 kableExtra
@@ -160,20 +163,29 @@ later
 lattice
 lava
 lazyeval
+leafem
+leafgl
+leaflegend
+leaflet
+leaflet.providers
+leafsync
 lifecycle
 listenv
 litedown
 lme4
 lmtest
+logger
 lpSolve
 lubridate
 lwgeom
 magrittr
+maptiles
 markdown
 matchmaker
 memoise
 mgcv
 mice
+microbenchmark
 mime
 miniUI
 minqa
@@ -212,8 +224,10 @@ proxy
 purrr
 quadprog
 quantmod
+rJava
 ragg
 rappdirs
+raster
 rbibutils
 readr
 readxl
@@ -228,6 +242,7 @@ rpart
 rprojroot
 rstatix
 rstudioapi
+s2
 sass
 scales
 see
@@ -239,10 +254,13 @@ skimr
 slider
 snakecase
 sp
+spData
+spacesXYZ
 spatstat.data
 spatstat.geom
 spatstat.univar
 spatstat.utils
+spdep
 splines
 srvyr
 stars
@@ -257,6 +275,7 @@ survival
 survminer
 svglite
 systemfonts
+terra
 textshaping
 tibble
 tidyquant
@@ -266,6 +285,7 @@ tidytree
 tidyverse
 timeDate
 timechange
+tmap
 tmaptools
 treeio
 trending
@@ -285,6 +305,7 @@ vistime
 warp
 webshot
 withr
+wk
 writexl
 xfun
 xml2
@@ -294,5 +315,6 @@ yaml
 yardstick
 ympes
 yulab.utils
+yyjsonr
 zip
 zoo

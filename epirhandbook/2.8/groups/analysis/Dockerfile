@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# epirhandbook-analysis:2.8 -- v2.8 group image (10 chapters, 227
+# epirhandbook-analysis:2.8 -- v2.8 group image (11 chapters, 253
 # CRAN/Bioc package names -- see epirhandbook/2.8/groups.yaml for the exact
 # chapter membership and epirhandbook/2.8/generate_groups.py for how
 # packages_cran.txt below was derived).
