@@ -4,9 +4,11 @@
 # (Phase 5b's per-chapter common image); hand-edit this file directly, the
 # way 2.7's own common/Dockerfile is hand-edited (not generated).
 #
-# The common set: common/packages_cran.txt (56 names) is copied unchanged
+# The common set: common/packages_cran.txt (59 names) is the 56 copied unchanged
 # from epirhandbook/2.7/common/packages_cran.txt -- see that file's own
-# header for how the 56 were chosen. NO closure: pak resolves the hard
+# header for how the 56 were chosen, plus brio, fs and xml2, which the vendored
+# render scripts (rewrite_lang_config.R, inject_language_links.R) load directly
+# and which nothing else in this image guarantees. NO closure: pak resolves the hard
 # dependencies itself (dependencies = NA -- not Suggests) against the
 # immutable dated snapshot below.
 #
@@ -36,12 +38,12 @@ COPY packages_github.json packages_github.json
 COPY pak_install_subset.R pak_install_subset.R
 COPY common/packages_cran.txt packages_cran.txt
 
-# --- Install the common set's 56 CRAN/Bioc names + all 7 GitHub pins,
+# --- Install the common set's 59 CRAN/Bioc names + all 6 GitHub pins,
 # --- then let pak resolve hard dependencies (dependencies = NA -- Depends/Imports/LinkingTo, not Suggests) against the
 # --- immutable dated snapshot -- NO pre-computed closure --------------------
 # GITHUB_PAT is a BuildKit SECRET (never ARG+ENV -- an ENV bakes the token
 # into the image's Config.Env, where `docker inspect` leaks it). common is the
-# ONE image that installs all 7 GitHub pins (via packages_github.json): every
+# ONE image that installs all 6 GitHub pins (via packages_github.json): every
 # group image is FROM common, so every group inherits them, and a
 # transitive pull anywhere downstream resolves to the pinned commit rather
 # than re-resolving the package from CRAN.

@@ -5,6 +5,7 @@ R.utils
 R6
 RColorBrewer
 S7
+brio
 bslib
 cachem
 cli
@@ -16,6 +17,7 @@ evaluate
 farver
 fastmap
 forcats
+fs
 generics
 ggplot2
 glue
@@ -53,4 +55,5 @@ tzdb
 vctrs
 withr
 xfun
+xml2
 yaml

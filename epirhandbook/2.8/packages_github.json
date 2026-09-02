@@ -35,12 +35,6 @@
       "RemoteRepo": "sitrep",
       "RemoteRef": "HEAD",
       "RemoteSha": "72c205f0d532d560044d3db8d58fcd90bcefe4b2"
-    },
-    "tinkr": {
-      "RemoteUsername": "ropensci",
-      "RemoteRepo": "tinkr",
-      "RemoteRef": "HEAD",
-      "RemoteSha": "5da21423bdac92d90d86198e987350222dafc9f9"
     }
   }
 }

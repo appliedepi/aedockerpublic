@@ -9,7 +9,7 @@ The current product line is **2.8**. Published to `ghcr.io/appliedepi/aedockerpu
 | Image | What it is |
 |---|---|
 | `rbase:4.6.0-2026-07-01` | R 4.6.0 on a digest-pinned Ubuntu, with a dated CRAN snapshot. No R packages. Carries the system libraries the packages need, including GDAL, GEOS, PROJ and a JDK for **rJava**. |
-| `epirhandbook-common:2.8` | `FROM rbase`. The 56 CRAN/Bioc packages most chapters share, all 7 GitHub-pinned packages, and the render scripts. |
+| `epirhandbook-common:2.8` | `FROM rbase`. The 59 CRAN/Bioc packages most chapters share or the render scripts import, all 6 GitHub-pinned packages, and the render scripts. |
 | `epirhandbook-<group>:2.8` | `FROM common`. One image per part of the book's navbar: `basics` (8 chapters), `data-management` (9), `analysis` (11, `gis` among them), `data-viz` (11), `reports` (4), `miscellaneous` (7). Each installs the union of its chapters' package lists. |
 | `epirhandbook-monolith:2.8` | `FROM common`. Every package of all six groups. It renders nothing in CI. It is the dev-container image for contributors, named in the handbook's `.devcontainer.json`. |
 
@@ -26,7 +26,7 @@ Edited by hand, and sources of truth:
 
 - `images.yaml` and `epirhandbook/2.8/images.yaml`, the catalog.
 - `epirhandbook/2.8/groups.yaml`, which chapter belongs to which group image.
-- `epirhandbook/2.8/packages_github.json`, the 7 GitHub-pinned packages.
+- `epirhandbook/2.8/packages_github.json`, the 6 GitHub-pinned packages.
 - Each chapter's `packages_cran.txt`. The 49 chapters that had a 2.7 image keep theirs under
   `epirhandbook/2.7/chapters/<stem>/`. A chapter added since lives under
   `epirhandbook/2.8/chapters/<stem>/`. Today that is `gis` alone. A stem lives in one of the
@@ -98,7 +98,7 @@ One source of truth per axis, and **no package version is asserted anywhere**.
   (a group's `2.8`) does not match and no build-arg is passed.
 - **Bioconductor**: the release paired with R, from `BiocManager::version()`. Derived, never stored.
 - **GitHub**: the one thing a dated CRAN snapshot cannot pin. `epirhandbook/2.8/packages_github.json`
-  holds 7 packages with a commit SHA each. `common` installs all 7, so every group inherits them
+  holds 6 packages with a commit SHA each. `common` installs all 6, so every group inherits them
   and a transitively-pulled GitHub package resolves to its pinned commit instead of coming from CRAN.
 - **Resolution**: `pak_install_subset.R` runs `pak::pkg_install(refs, dependencies = NA)`: hard
   dependencies only (Depends/Imports/LinkingTo), **Suggests deliberately excluded**. There is no
@@ -228,8 +228,10 @@ uses them since 2.8.
   resolves that to the repository HEAD, so once babelquarto's HEAD moved past the pinned
   babelquarto SHA the two refs conflicted and `common` could not build (run 33626696019). Neither
   package was used at render time (the render scripts vendor babelquarto's logic; babeldown serves
-  only the handbook's by-hand `_translation.R`), so both pins were removed. Before you add a pin,
-  read the package's `Remotes:` field.
+  only the handbook's by-hand `_translation.R`), so both pins were removed, with `tinkr`, which only
+  babeldown needed. `brio`, `fs` and `xml2`, which the render scripts import and which those pins had
+  supplied by accident, are now explicit in `common/packages_cran.txt`. Before you add a pin, read the
+  package's `Remotes:` field; before you remove one, check what the render scripts import.
 - **A base tag moved out of band is not detected.** The build resolves a non-rebuilt base's digest
   live from whatever its published tag currently points at. That is correct only while the registry
   tag is written by this workflow alone; a manual retag or force-push would be followed silently. An

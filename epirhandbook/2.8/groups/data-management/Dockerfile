@@ -4,7 +4,7 @@
 # chapter membership and epirhandbook/2.8/generate_groups.py for how
 # packages_cran.txt below was derived).
 #
-# FROM the shared common image (BiocManager, pak, and all 9 GitHub pins
+# FROM the shared common image (BiocManager, pak, and all GitHub pins
 # already present there -- no re-bootstrap here). Installs THIS GROUP's own
 # FULL package list (groups/data-management/packages_cran.txt, the plain union of
 # its member chapters' own full v2.7 lists -- see generate_groups.py) on top
