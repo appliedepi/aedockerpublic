@@ -36,17 +36,17 @@ COPY packages_github.json packages_github.json
 COPY pak_install_subset.R pak_install_subset.R
 COPY common/packages_cran.txt packages_cran.txt
 
-# --- Install the common set's 56 CRAN/Bioc names + all 9 GitHub pins,
+# --- Install the common set's 56 CRAN/Bioc names + all 7 GitHub pins,
 # --- then let pak resolve hard dependencies (dependencies = NA -- Depends/Imports/LinkingTo, not Suggests) against the
 # --- immutable dated snapshot -- NO pre-computed closure --------------------
 # GITHUB_PAT is a BuildKit SECRET (never ARG+ENV -- an ENV bakes the token
 # into the image's Config.Env, where `docker inspect` leaks it). common is the
-# ONE image that installs all 9 GitHub pins (via packages_github.json): every
+# ONE image that installs all 7 GitHub pins (via packages_github.json): every
 # group image is FROM common, so every group inherits them, and a
 # transitive pull anywhere downstream resolves to the pinned commit rather
 # than re-resolving the package from CRAN.
 #
-# appliedepidata (appliedepi/appliedepidata) is the 9th pin, added for 2.8: a
+# appliedepidata (appliedepi/appliedepidata) is the GitHub-only pin added for 2.8: a
 # GitHub-only package with no CRAN release, so it belongs here rather than in
 # any group's packages_cran.txt. Its own dependencies (cli, clipr, dplyr,
 # reactable, rio, rstudioapi, shiny, tidyr) are not listed anywhere by name --
@@ -80,7 +80,7 @@ RUN chmod +x /usr/local/bin/rewrite_lang_config.R \
              /usr/local/bin/build_all_chapters.sh
 
 # --- Build-time invariant: every package in packages_cran.txt LOADS, AND
-# --- appliedepidata (the GitHub-only 9th pin, not in packages_cran.txt
+# --- appliedepidata (the GitHub-only pin, not in packages_cran.txt
 # --- because it has no CRAN release) LOADS too -- extending the existing
 # --- check rather than adding a second one, so there is still exactly one
 # --- place a missing/broken package fails the build. ------------------------

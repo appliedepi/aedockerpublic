@@ -3,20 +3,8 @@
     "appliedepidata": {
       "RemoteUsername": "appliedepi",
       "RemoteRepo": "appliedepidata",
-      "RemoteRef": "HEAD",
-      "RemoteSha": "87417354e4bba154bd89aba176d09fc8e3bfd2ef"
-    },
-    "babeldown": {
-      "RemoteUsername": "ropensci-review-tools",
-      "RemoteRepo": "babeldown",
-      "RemoteRef": "HEAD",
-      "RemoteSha": "c6ed926981e29cf47cbef3b00462f791a0b827d2"
-    },
-    "babelquarto": {
-      "RemoteUsername": "ropensci-review-tools",
-      "RemoteRepo": "babelquarto",
-      "RemoteRef": "HEAD",
-      "RemoteSha": "ba9a2a020dbda6f73305e46413341b69fc13cf22"
+      "RemoteRef": "add-sle-hf",
+      "RemoteSha": "dfb4fe8c8ef6b631b8f49a2d26f0707706d05872"
     },
     "epicontacts": {
       "RemoteUsername": "reconhub",

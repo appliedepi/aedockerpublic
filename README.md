@@ -9,7 +9,7 @@ The current product line is **2.8**. Published to `ghcr.io/appliedepi/aedockerpu
 | Image | What it is |
 |---|---|
 | `rbase:4.6.0-2026-07-01` | R 4.6.0 on a digest-pinned Ubuntu, with a dated CRAN snapshot. No R packages. Carries the system libraries the packages need, including GDAL, GEOS, PROJ and a JDK for **rJava**. |
-| `epirhandbook-common:2.8` | `FROM rbase`. The 56 CRAN/Bioc packages most chapters share, all 9 GitHub-pinned packages, and the render scripts. |
+| `epirhandbook-common:2.8` | `FROM rbase`. The 56 CRAN/Bioc packages most chapters share, all 7 GitHub-pinned packages, and the render scripts. |
 | `epirhandbook-<group>:2.8` | `FROM common`. One image per part of the book's navbar: `basics` (8 chapters), `data-management` (9), `analysis` (11, `gis` among them), `data-viz` (11), `reports` (4), `miscellaneous` (7). Each installs the union of its chapters' package lists. |
 | `epirhandbook-monolith:2.8` | `FROM common`. Every package of all six groups. It renders nothing in CI. It is the dev-container image for contributors, named in the handbook's `.devcontainer.json`. |
 
@@ -26,7 +26,7 @@ Edited by hand, and sources of truth:
 
 - `images.yaml` and `epirhandbook/2.8/images.yaml`, the catalog.
 - `epirhandbook/2.8/groups.yaml`, which chapter belongs to which group image.
-- `epirhandbook/2.8/packages_github.json`, the 9 GitHub-pinned packages.
+- `epirhandbook/2.8/packages_github.json`, the 7 GitHub-pinned packages.
 - Each chapter's `packages_cran.txt`. The 49 chapters that had a 2.7 image keep theirs under
   `epirhandbook/2.7/chapters/<stem>/`. A chapter added since lives under
   `epirhandbook/2.8/chapters/<stem>/`. Today that is `gis` alone. A stem lives in one of the
@@ -98,7 +98,7 @@ One source of truth per axis, and **no package version is asserted anywhere**.
   (a group's `2.8`) does not match and no build-arg is passed.
 - **Bioconductor**: the release paired with R, from `BiocManager::version()`. Derived, never stored.
 - **GitHub**: the one thing a dated CRAN snapshot cannot pin. `epirhandbook/2.8/packages_github.json`
-  holds 9 packages with a commit SHA each. `common` installs all 9, so every group inherits them
+  holds 7 packages with a commit SHA each. `common` installs all 7, so every group inherits them
   and a transitively-pulled GitHub package resolves to its pinned commit instead of coming from CRAN.
 - **Resolution**: `pak_install_subset.R` runs `pak::pkg_install(refs, dependencies = NA)`: hard
   dependencies only (Depends/Imports/LinkingTo), **Suggests deliberately excluded**. There is no
@@ -125,14 +125,12 @@ chapter's group image and the monolith rebuild.
 2. Add `<stem>` to a group in `epirhandbook/2.8/groups.yaml`.
 3. Add `chapters/<stem>.qmd` to that group's `renders` list in `epirhandbook/2.8/images.yaml`.
    That file is a shared build input: editing it rebuilds every 2.8 image, common included.
-   Read the last item under Known limitations before you do.
 4. Run `python3 epirhandbook/2.8/generate_groups.py` and commit everything. Push, and watch the
    group image and the monolith publish.
 5. In the handbook repository, add the chapter's row to `docker-images.yml`, naming the group
    image. `build_all_chapters.sh` fails a book whose `_quarto.yml` declares a chapter with no row.
 
-`gis`, restored on 2026-09-02, is the worked example of every step except step 3, which waits
-for the babelquarto pin bump described under Known limitations.
+`gis`, restored on 2026-09-02, is the worked example of every step.
 
 **Update the R version or the CRAN snapshot.** Change the date in rbase's tag in `images.yaml`
 (`rbase:4.6.0-<YYYY-MM-DD>`). **Never write a date anywhere else.** The tag is the single source of
@@ -225,17 +223,13 @@ uses them since 2.8.
 - **apt packages are not individually version-pinned.** The `ubuntu` base is digest-pinned; packages
   installed on top of it are not. Accepted.
 - **Rendered figures are not byte-reproducible.** Several chapters use unseeded RNG.
-- **`common` cannot rebuild until its babelquarto pin moves.** `packages_github.json` pins
-  babeldown at `c6ed926` and babelquarto at `ba9a2a0`. babeldown's DESCRIPTION declares
-  `Remotes: ropensci-review-tools/babelquarto`, which pak resolves to that repository's HEAD.
-  On 2026-09-01 that HEAD moved to `8329821`, so pak now reports a conflict between the two
-  babelquarto refs and the common build fails at the pak step. It failed exactly that way in
-  run 33626696019 on 2026-09-02, when an edit to `epirhandbook/2.8/images.yaml` forced a
-  rebuild. The published `epirhandbook-common:2.8` (revision `7b82737`) is unaffected. The fix
-  is to bump the babelquarto pin to the current HEAD; both SHAs carry version 0.1.0.9000, and
-  the render scripts vendor babelquarto's logic rather than call it. Until then, do not edit
-  `images.yaml`, `epirhandbook/2.8/images.yaml`, `pak_install_subset.R`, `packages_github.json`,
-  `epirhandbook/2.8/common/` or anything under `.github/`.
+- **A pin whose package declares `Remotes:` can drift into a conflict.** Until 2026-09-02 `common`
+  pinned babeldown, whose DESCRIPTION declares `Remotes: ropensci-review-tools/babelquarto`. pak
+  resolves that to the repository HEAD, so once babelquarto's HEAD moved past the pinned
+  babelquarto SHA the two refs conflicted and `common` could not build (run 33626696019). Neither
+  package was used at render time (the render scripts vendor babelquarto's logic; babeldown serves
+  only the handbook's by-hand `_translation.R`), so both pins were removed. Before you add a pin,
+  read the package's `Remotes:` field.
 - **A base tag moved out of band is not detected.** The build resolves a non-rebuilt base's digest
   live from whatever its published tag currently points at. That is correct only while the registry
   tag is written by this workflow alone; a manual retag or force-push would be followed silently. An

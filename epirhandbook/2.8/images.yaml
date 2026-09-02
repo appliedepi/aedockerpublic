@@ -41,6 +41,7 @@ images:
       - chapters/contact_tracing.qmd
       - chapters/survey_analysis.qmd
       - chapters/survival_analysis.qmd
+      - chapters/gis.qmd
     dir: epirhandbook/2.8/groups/analysis
     context: epirhandbook/2.8
     tags: ["2.8"]
