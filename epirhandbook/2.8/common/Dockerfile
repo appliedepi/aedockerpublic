@@ -4,9 +4,9 @@
 # (Phase 5b's per-chapter common image); hand-edit this file directly, the
 # way 2.7's own common/Dockerfile is hand-edited (not generated).
 #
-# The common set: common/packages_cran.txt (59 names) is the 56 copied unchanged
-# from epirhandbook/2.7/common/packages_cran.txt -- see that file's own
-# header for how the 56 were chosen, plus brio, fs and xml2, which the vendored
+# The common set: common/packages_cran.txt (59 names) is the 56 packages most
+# chapters share (chosen in 2.7 from the per-chapter footprints: the names
+# present in most of them), plus brio, fs and xml2, which the vendored
 # render scripts (rewrite_lang_config.R, inject_language_links.R) load directly
 # and which nothing else in this image guarantees. NO closure: pak resolves the hard
 # dependencies itself (dependencies = NA -- not Suggests) against the

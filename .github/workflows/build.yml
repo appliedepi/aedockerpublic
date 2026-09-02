@@ -151,6 +151,14 @@ jobs:
       - name: Run change-detection unit tests (fail loud before planning a real build)
         run: python3 .github/scripts/test_changed_images.py -v
 
+      # The seven generated package lists (six groups + monolith) MUST equal
+      # what generate_groups.py derives from groups.yaml and the per-chapter
+      # lists. A stale list would ship an image missing a chapter's packages
+      # while every other check stayed green. This regenerates in memory and
+      # fails on any byte of difference. Nothing is written.
+      - name: Check the generated group and monolith package lists are current
+        run: python3 epirhandbook/2.8/generate_groups.py --check
+
       - name: Set lowercase repository name
         run: echo "REPO_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
 

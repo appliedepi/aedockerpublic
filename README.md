@@ -27,10 +27,8 @@ Edited by hand, and sources of truth:
 - `images.yaml` and `epirhandbook/2.8/images.yaml`, the catalog.
 - `epirhandbook/2.8/groups.yaml`, which chapter belongs to which group image.
 - `epirhandbook/2.8/packages_github.json`, the 6 GitHub-pinned packages.
-- Each chapter's `packages_cran.txt`. The 49 chapters that had a 2.7 image keep theirs under
-  `epirhandbook/2.7/chapters/<stem>/`. A chapter added since lives under
-  `epirhandbook/2.8/chapters/<stem>/`. Today that is `gis` alone. A stem lives in one of the
-  two directories, never both.
+- Each chapter's `packages_cran.txt`, under `epirhandbook/2.8/chapters/<stem>/`. 50 files;
+  `errors` has an empty one because the chapter runs no R.
 
 Generated, and never edited by hand:
 
@@ -39,13 +37,13 @@ Generated, and never edited by hand:
 
 `python3 epirhandbook/2.8/generate_groups.py` writes all seven from `groups.yaml` and the chapter
 lists. Run it after any change to those inputs and commit its output. `--check` regenerates in
-memory and fails on any difference. **CI does not run the generator.** A stale group list ships
-as it is committed.
+memory and fails on any difference. CI runs `--check` twice: in `checks.yml` on every pull request
+and push, and in `build.yml`'s plan job before any image builds. A stale list fails both.
 
 The per-chapter lists were derived once, from an instrumented render that recorded
-`loadedNamespaces()` per chapter. That derivation is finished, and its generator is archived at
-`epirhandbook/2.7/archive/` as a record of method. **Do not run it.** It would overwrite hand-made
-edits.
+`loadedNamespaces()` per chapter (48 of them in 2.7, copied into 2.8 unchanged on 2026-09-02; `gis`
+in 2.8 the same way). That derivation is finished, and its generator is archived at
+`epirhandbook/2.7/archive/` as a record of method. **Do not run it.**
 
 ## The catalog
 

@@ -11,8 +11,7 @@
 # skips them (dependencies = NA only resolves what's missing), so installing
 # the full list here is what makes the final image a strict superset of the
 # whole book's footprint BY CONSTRUCTION, with no hand-computed closure
-# anywhere in this build -- same pattern as
-# epirhandbook/2.7/chapters/*/Dockerfile.
+# anywhere in this build.
 ARG BASE_IMAGE=epirhandbook-common:2.8
 FROM ${BASE_IMAGE}
 
