@@ -4,16 +4,15 @@
 # chapter membership and epirhandbook/2.8/generate_groups.py for how
 # packages_cran.txt below was derived).
 #
-# FROM the shared common image (BiocManager, pak, and all 9 GitHub pins
+# FROM the shared common image (BiocManager, pak, and all GitHub pins
 # already present there -- no re-bootstrap here). Installs THIS GROUP's own
 # FULL package list (groups/data-management/packages_cran.txt, the plain union of
-# its member chapters' own full v2.7 lists -- see generate_groups.py) on top
+# its member chapters' own full lists under chapters/ -- see generate_groups.py) on top
 # of common, not a pre-subtracted delta: pak sees common's packages already
 # present and skips them (dependencies = NA only resolves what's missing),
 # so installing the full list here is what makes the final image a strict
 # superset of the group's footprint BY CONSTRUCTION, with no hand-computed
-# closure anywhere in this build -- same pattern as
-# epirhandbook/2.7/chapters/*/Dockerfile.
+# closure anywhere in this build.
 ARG BASE_IMAGE=epirhandbook-common:2.8
 FROM ${BASE_IMAGE}
 

@@ -4,15 +4,14 @@
 # epirhandbook/2.8/generate_groups.py). Structurally identical to a group
 # Dockerfile; its list simply happens to be the union of all six.
 #
-# FROM the shared common image (BiocManager, pak, and all 9 GitHub pins
+# FROM the shared common image (BiocManager, pak, and all GitHub pins
 # already present there -- no re-bootstrap here). Installs the monolith's own
 # FULL package list (monolith/packages_cran.txt) on top of common, not
 # a pre-subtracted delta: pak sees common's packages already present and
 # skips them (dependencies = NA only resolves what's missing), so installing
 # the full list here is what makes the final image a strict superset of the
 # whole book's footprint BY CONSTRUCTION, with no hand-computed closure
-# anywhere in this build -- same pattern as
-# epirhandbook/2.7/chapters/*/Dockerfile.
+# anywhere in this build.
 ARG BASE_IMAGE=epirhandbook-common:2.8
 FROM ${BASE_IMAGE}
 

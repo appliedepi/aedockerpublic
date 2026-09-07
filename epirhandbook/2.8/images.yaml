@@ -12,16 +12,8 @@
 # `chapters/index.qmd` -- the same special case 2.7's own catalog carries
 # for epirhandbook-index.
 #
-# NOT included here yet: epirhandbook-monolith. Its Dockerfile and package
-# list exist (epirhandbook/2.8/groups/monolith/), but a catalog row for it
-# cannot be added without either colliding with the 6 groups' `renders`
-# (every .qmd it would need to list is already claimed by a group -- see
-# plan.py's load_catalogs, "no .qmd may be rendered by more than one
-# image") or omitting `renders` entirely, which plan.py's dir-segment check
-# forbids for any image whose `dir` has a `groups` path segment (which
-# `groups/monolith` necessarily has). See this unit's report for the full
-# writeup -- this is a real design question left open by the brief, not an
-# oversight patched around here.
+# epirhandbook-monolith is the last record below; see the comment there for
+# why it carries no `renders`.
 images:
   - name: epirhandbook-common
     dir: epirhandbook/2.8/common
@@ -41,6 +33,7 @@ images:
       - chapters/contact_tracing.qmd
       - chapters/survey_analysis.qmd
       - chapters/survival_analysis.qmd
+      - chapters/gis.qmd
     dir: epirhandbook/2.8/groups/analysis
     context: epirhandbook/2.8
     tags: ["2.8"]

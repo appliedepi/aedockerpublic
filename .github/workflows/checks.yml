@@ -1,0 +1,43 @@
+name: Checks
+
+# Cheap, publish-nothing checks that run on every pull request and every
+# push, so a stale generated list or a broken planner is caught before a
+# merge to main starts a real image build (build.yml runs on main only).
+# Keep this file in step with the plan job of build.yml: the same tests and
+# the same generator check, minus anything that touches the registry.
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.x'
+
+      - name: Install pinned Python dependencies for the planner
+        run: python3 -m pip install --require-hashes --force-reinstall -r .github/scripts/requirements.txt
+
+      - name: Run planner unit tests
+        run: python3 .github/scripts/test_plan.py -v
+
+      - name: Run change-detection unit tests
+        run: python3 .github/scripts/test_changed_images.py -v
+
+      - name: Check the generated group and monolith package lists are current
+        run: python3 epirhandbook/2.8/generate_groups.py --check
+
+      # Load and validate both halves of the catalog exactly as the planner
+      # does, with no changed images: a schema error in either file fails
+      # here instead of in the first real build.
+      - name: Validate the image catalogs
+        run: python3 .github/scripts/plan.py --images-yaml images.yaml --images-yaml epirhandbook/2.8/images.yaml > /dev/null
