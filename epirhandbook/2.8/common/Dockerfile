@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # epirhandbook-common:2.8 -- shared base for the group-image split, on the
-# 2026 package stack. Same shape as epirhandbook/2.7/common/Dockerfile
+# 2026 package stack. Same shape as archive/epirhandbook/2.7/common/Dockerfile
 # (Phase 5b's per-chapter common image); hand-edit this file directly, the
 # way 2.7's own common/Dockerfile is hand-edited (not generated).
 #

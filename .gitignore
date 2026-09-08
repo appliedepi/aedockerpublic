@@ -3,3 +3,8 @@
 # accident otherwise).
 __pycache__/
 *.pyc
+
+# Local Claude Code settings (.claude/settings.local.json). A global ignore
+# already covers it on Richard's machines; this line keeps it ignored for
+# anyone without that global file.
+.claude/

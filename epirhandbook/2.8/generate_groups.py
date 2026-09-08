@@ -44,7 +44,7 @@
 # already-installed-package skip (dependencies=FALSE, exact-version match) to
 # make that a true no-op for whatever common already covers -- which is what
 # makes each v2.7 chapter image a strict superset of its footprint BY
-# CONSTRUCTION (see epirhandbook/2.6/generate.py's chapter_dockerfile
+# CONSTRUCTION (see archive/epirhandbook/2.6/generate.py's chapter_dockerfile
 # docstring for the original statement of this property; v2.7 inherited it
 # unchanged). A group list built by plain UNION of its members' full lists
 # preserves that same superset property for free -- unioning supersets is

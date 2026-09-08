@@ -1,5 +1,5 @@
 # epirhandbook/2.8/images.yaml -- the v2.8 group-image catalog. Same schema
-# as epirhandbook/2.7/images.yaml (see .github/scripts/plan.py's
+# as archive/epirhandbook/2.7/images.yaml (see .github/scripts/plan.py's
 # validate_catalog for the authoritative field rules); loaded ALONGSIDE the
 # root images.yaml (base edges cross the files: epirhandbook-common here is
 # FROM rbase there) -- see plan.py's load_catalogs docstring.

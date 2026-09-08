@@ -47,14 +47,14 @@ image names, fed to it via --changed-image.
 Determining the "shared build inputs" for a given image uses the exact
 same rule plan.py's build_plan() used to compute inline (before this
 split): a file living inside an image's build `context` but outside EVERY
-image's own `dir` is a shared input (e.g. epirhandbook/2.7/renv.lock,
+image's own `dir` is a shared input (e.g. archive/epirhandbook/2.6/renv.lock,
 COPYed by common AND every chapter Dockerfile, but not itself inside any
 chapter's own dir). See files_touch_image below -- kept in exactly one
 place so the two modules can never silently drift apart on this rule.
 
 CLI:
     python3 changed_images.py --images-yaml images.yaml \\
-        --images-yaml epirhandbook/2.7/images.yaml \\
+        --images-yaml epirhandbook/2.8/images.yaml \\
         --repo appliedepi/aedockerpublic --sha $GITHUB_SHA
 Prints one CHANGED image NAME per line to stdout (plan.py's
 --changed-image consumes this directly, one flag per line). Per-image

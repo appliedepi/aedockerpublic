@@ -680,23 +680,24 @@ class TestMergedCatalogs(unittest.TestCase):
 
 class TestAgainstRealCatalog(unittest.TestCase):
     """Canary: the real catalogs still have the shape the tests above assume.
-    The public deliverable is now the 2.7 catalog only (2.5/2.6 removed from
-    the published set -- their directories stay on disk as provenance, but
-    the CI planner no longer loads their catalog entries): the root
-    images.yaml holds just the 2.7 base image (rbase:4.6.0-2026-07-01), and
-    per-chapter split lives in epirhandbook/2.7/images.yaml, FROM this rbase
-    across the file boundary."""
+    The public deliverable is the 2.8 catalog only. 2.5, 2.6 and 2.7 are
+    frozen under archive/epirhandbook/ and the CI planner never loads them:
+    the root images.yaml holds just the base image (rbase:4.6.0-2026-07-01),
+    and epirhandbook-common, the six group images and the monolith live in
+    epirhandbook/2.8/images.yaml, FROM this rbase across the file boundary.
+
+    A missing catalog file FAILS every test here. These tests read the two
+    files build.yml itself passes, so a catalog that moved or was deleted is
+    a defect, not a reason to skip."""
 
     def _real_catalog_paths(self):
         repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
         root_yaml = os.path.join(repo_root, "images.yaml")
-        split_yaml = os.path.join(repo_root, "epirhandbook", "2.7", "images.yaml")
+        split_yaml = os.path.join(repo_root, "epirhandbook", "2.8", "images.yaml")
         return root_yaml, split_yaml
 
     def test_real_images_yaml_matches_assumed_shape(self):
         root_yaml, _ = self._real_catalog_paths()
-        if not os.path.exists(root_yaml):
-            self.skipTest(f"images.yaml not found at {root_yaml}")
         images = plan.load_images(root_yaml)
         by_name = {img["name"]: img for img in images}
         self.assertEqual(set(by_name), {"rbase"})
@@ -705,53 +706,51 @@ class TestAgainstRealCatalog(unittest.TestCase):
         self.assertEqual(by_name["rbase"]["tags"], ["4.6.0-2026-07-01"])
         self.assertTrue(by_name["rbase"]["live"])
 
-    def test_real_catalogs_merge_and_plan_2_7_only(self):
+    def test_real_catalogs_merge_and_plan_2_8_only(self):
         # Exercises the actual production planner invocation (build.yml
         # passes exactly these two real files): confirms the cross-file base
-        # edge (epirhandbook-common:2.7 FROM rbase:4.6.0-2026-07-01) resolves
-        # without error, and that no 2.5/2.6/4.3.2 artifact survives in the
-        # merged plan. `changed_images` lists every real name directly (no
+        # edge (epirhandbook-common:2.8 FROM rbase:4.6.0-2026-07-01) resolves
+        # without error, and that no 2.5/2.6/2.7/4.3.2 artifact survives in
+        # the merged plan. `changed_images` lists every real name directly (no
         # nightly/"select everything" mode exists any more) to force full
         # selection for this shape check.
         root_yaml, split_yaml = self._real_catalog_paths()
-        if not os.path.exists(root_yaml) or not os.path.exists(split_yaml):
-            self.skipTest("real catalog files not found")
         images = plan.load_catalogs([root_yaml, split_yaml])
         r = plan.build_plan(images, changed_images=[img["name"] for img in images])
         image_names = names(r)
         self.assertIn("rbase", image_names)
         self.assertIn("epirhandbook-common", image_names)
-        self.assertEqual(len(image_names), 51)  # rbase + common + 49 chapters
+        # rbase + common + the six groups + the monolith
+        self.assertEqual(len(image_names), 9)
         self.assertNotIn("epirhandbook", image_names)  # the old 2.5 monolith name
         by_name = {img["name"]: img for layer in r["layers"] for img in layer}
         self.assertEqual(by_name["rbase"]["tags"], ["4.6.0-2026-07-01"])
         for name, img in by_name.items():
             self.assertNotIn("2.5", img["tags"])
             self.assertNotIn("2.6", img["tags"])
+            self.assertNotIn("2.7", img["tags"])
             self.assertNotIn("4.3.2", img["tags"])
         self.assertEqual(r["layers"][0][0]["name"], "rbase")  # base-most first
 
-    def test_common_change_cascades_to_every_chapter_but_not_rbase(self):
-        # Discriminator (a): a change to common's dir must plan common +
-        # all 49 chapters (the cascade), but NOT rbase -- the cascade only
-        # flows base -> dependent, never upstream.
+    def test_common_change_cascades_to_every_group_but_not_rbase(self):
+        # Discriminator (a): a change to common's dir must plan common, the
+        # six group images and the monolith (the cascade), but NOT rbase --
+        # the cascade only flows base -> dependent, never upstream.
         root_yaml, split_yaml = self._real_catalog_paths()
-        if not os.path.exists(root_yaml) or not os.path.exists(split_yaml):
-            self.skipTest("real catalog files not found")
         images = plan.load_catalogs([root_yaml, split_yaml])
         r = plan.build_plan(images, changed_images=["epirhandbook-common"])
         image_names = names(r)
-        self.assertEqual(len(image_names), 50)  # common + 49 chapters
+        # common + the six groups + the monolith
+        self.assertEqual(len(image_names), 8)
         self.assertIn("epirhandbook-common", image_names)
+        self.assertIn("epirhandbook-monolith", image_names)
         self.assertNotIn("rbase", image_names)
 
-    def test_single_chapter_change_selects_only_that_chapter(self):
-        # Discriminator (b): a change to one chapter selects ONLY that
-        # chapter -- no cascade (nothing in this catalog is FROM a chapter),
-        # and no fan-out to common or rbase.
+    def test_single_group_change_selects_only_that_group(self):
+        # Discriminator (b): a change to one group image selects ONLY that
+        # image -- no cascade (nothing in this catalog is FROM a group), and
+        # no fan-out to common or rbase.
         root_yaml, split_yaml = self._real_catalog_paths()
-        if not os.path.exists(root_yaml) or not os.path.exists(split_yaml):
-            self.skipTest("real catalog files not found")
         images = plan.load_catalogs([root_yaml, split_yaml])
         r = plan.build_plan(images, changed_images=["epirhandbook-basics"])
         self.assertEqual(names(r), {"epirhandbook-basics"})
@@ -761,8 +760,6 @@ class TestAgainstRealCatalog(unittest.TestCase):
         # (every image unchanged since its published revision, as
         # changed_images.py would report) plans nothing at all.
         root_yaml, split_yaml = self._real_catalog_paths()
-        if not os.path.exists(root_yaml) or not os.path.exists(split_yaml):
-            self.skipTest("real catalog files not found")
         images = plan.load_catalogs([root_yaml, split_yaml])
         r = plan.build_plan(images, changed_images=[])
         self.assertEqual(names(r), set())

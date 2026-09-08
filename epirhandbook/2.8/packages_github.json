@@ -3,8 +3,8 @@
     "appliedepidata": {
       "RemoteUsername": "appliedepi",
       "RemoteRepo": "appliedepidata",
-      "RemoteRef": "add-sle-hf",
-      "RemoteSha": "dfb4fe8c8ef6b631b8f49a2d26f0707706d05872"
+      "RemoteRef": "main",
+      "RemoteSha": "77036b1d0aa0adf19837be3f4258ebd9c408eb0c"
     },
     "epicontacts": {
       "RemoteUsername": "reconhub",
