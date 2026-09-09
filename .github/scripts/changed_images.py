@@ -47,10 +47,11 @@ image names, fed to it via --changed-image.
 Determining the "shared build inputs" for a given image uses the exact
 same rule plan.py's build_plan() used to compute inline (before this
 split): a file living inside an image's build `context` but outside EVERY
-image's own `dir` is a shared input (e.g. archive/epirhandbook/2.6/renv.lock,
-COPYed by common AND every chapter Dockerfile, but not itself inside any
-chapter's own dir). See files_touch_image below -- kept in exactly one
-place so the two modules can never silently drift apart on this rule.
+image's own `dir` is a shared input. One example is
+epirhandbook/2.8/pak_install_subset.R, COPYed by all eight Dockerfiles under
+epirhandbook/2.8/, but not itself inside any image's own dir. See
+files_touch_image below -- kept in exactly one place so the two modules can
+never silently drift apart on this rule.
 
 CLI:
     python3 changed_images.py --images-yaml images.yaml \\
@@ -132,12 +133,13 @@ def files_touch_image(img, changed_files, all_dirs):
       1. it is under the image's own `dir` (unconditional -- a change
          under an image's own directory always touches it);
       2. it is a SHARED context input: `img`'s build `context` differs
-         from its `dir` (true only for the per-chapter split images), the
+         from its `dir` (true for all eight images in
+         epirhandbook/2.8/images.yaml, and for no other), the
          file is one of the DECLARED inputs at that context's root (see
          SHARED_CONTEXT_INPUTS), AND it is outside EVERY image's own `dir`
          in the whole catalog (all_dirs) -- so pak_install_subset.R fans
          out to every image sharing the context, while some OTHER image's
-         own file does not (which would lose per-chapter selectivity) and
+         own file does not (which would lose per-image selectivity) and
          neither does a README sitting beside it;
       3. it is CI machinery (.github/scripts/, .github/workflows/).
     """

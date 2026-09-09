@@ -192,10 +192,12 @@ jobs:
           # EXACTLY ONE epirhandbook catalog is ever loaded. Product lines are
           # mutually exclusive by construction, not by accident: 2.7 and 2.8
           # both name their base image `epirhandbook-common` (the version lives
-          # in `tags:`), and both claim the same 49 .qmd, so loading two at once
-          # is a hard duplicate error. Cutting over means SWAPPING this path,
-          # never appending. 2.5, 2.6 and 2.7 are historical -- 2.6's catalog no
-          # longer even validates against the current schema.
+          # in `tags:`). 2.7 claims 49 .qmd and 2.8 claims 50: the 2.8 list is
+          # 2.7's plus chapters/gis.qmd. Those 49 shared entries collide, so
+          # loading two at once is a hard duplicate error. Cutting over means
+          # SWAPPING this path, never appending. 2.5, 2.6 and 2.7 are
+          # historical -- 2.6's catalog no longer even validates against the
+          # current schema.
           python3 .github/scripts/plan.py \
             --images-yaml images.yaml \
             --images-yaml epirhandbook/2.8/images.yaml \
@@ -221,10 +223,9 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   # --- Layered build, base-most first ----------------------------------------
-  # Static ceiling of 4 layers (0-3): comfortably more than today's catalog
-  # (rbase -> epirhandbook is 2 layers) and more than the depth Phase 5a's
-  # roadmap implies (rbase -> epirhandbook-common -> ~50 per-chapter images
-  # would be 3). plan.py itself now HARD-FAILS (raises, before any build
+  # Static ceiling of 4 layers (0-3): one more than today's catalog. Today's
+  # catalog is 3 layers: rbase -> epirhandbook-common -> the six group images
+  # and the monolith. plan.py itself now HARD-FAILS (raises, before any build
   # starts) if a catalog needs a 5th layer -- see plan.py's
   # MAX_SUPPORTED_LAYERS -- so exceeding this ceiling is a loud planning
   # error, never a silent partial publish. If the catalog ever needs a 5th

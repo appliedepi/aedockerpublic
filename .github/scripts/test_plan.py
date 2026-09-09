@@ -15,10 +15,10 @@ import yaml
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import plan  # noqa: E402
 
-# Mirrors the real images.yaml's `images:` list (2 images, 1 edge). Kept as
+# A 2-image, 1-edge fixture in the shape of the original catalog. Kept as
 # a literal here (not loaded from the file) so these tests exercise
 # plan.py's logic in isolation -- see TestAgainstRealCatalog below for the
-# check that the real file still matches this shape.
+# canary on the real 9-image catalog.
 CATALOG = [
     {"name": "rbase", "dir": "rbase/4.3.2", "tags": ["4.3.2"], "base": None,
      "live": True},
@@ -27,7 +27,7 @@ CATALOG = [
 ]
 
 # A synthetic 3-image chain with a not-live (live: false) leaf, used for the
-# cascade-exclusion tests the 2-image real catalog can't exercise on its own.
+# cascade-exclusion tests the 2-image fixture can't exercise on its own.
 CHAIN = [
     {"name": "rbase", "dir": "rbase/4.3.2", "tags": ["4.3.2"], "base": None,
      "live": True},
@@ -139,11 +139,11 @@ class ChangedImageAndCascadeCases(unittest.TestCase):
     def test_catalog_deeper_than_max_layers_is_a_hard_error(self):
         # build.yml only wires up build-layer-0..3 (4 layers). A catalog
         # needing a 5th layer must fail loudly, not silently publish only
-        # its first 4 layers (finding 7) -- invisible today with 2 images,
-        # but Phase 5a adds ~50 chapter images. This check fires inside
-        # topological_order(), which build_plan() calls unconditionally
-        # before it ever looks at changed_images -- so no selection is
-        # needed to trigger it.
+        # its first 4 layers (finding 7). The catalog holds 9 images today
+        # in 3 layers, so the 4-layer ceiling leaves one spare. This check
+        # fires inside topological_order(), which build_plan() calls
+        # unconditionally before it ever looks at changed_images -- so no
+        # selection is needed to trigger it.
         deep_chain = []
         prev = None
         for i in range(plan.MAX_SUPPORTED_LAYERS + 1):  # 5 layers when the ceiling is 4
@@ -374,10 +374,12 @@ class TestValidateCatalog(unittest.TestCase):
         self.assertEqual(images[0]["base"], "rbase:4.3.2")
 
     def test_renders_qmd_is_accepted_and_stem_must_match_dir_basename(self):
-        # The per-chapter split images STATE the .qmd they render. The stem is
-        # validated against the dir basename so the stated source cannot drift
-        # from the build context it belongs to. Note the image name is
-        # lowercased (Docker) while the source keeps its real case.
+        # The string form of `renders` STATES the one .qmd an image renders.
+        # The stem is validated against the dir basename so the stated source
+        # cannot drift from the build context it belongs to. No live 2.8 image
+        # uses this form; the fixture below is a synthetic per-chapter record.
+        # Note the image name is lowercased (Docker) while the source keeps
+        # its real case.
         text = (
             "images:\n"
             "  - name: epirhandbook-transition_to_r\n"
@@ -465,10 +467,10 @@ class TestValidateCatalog(unittest.TestCase):
     # the live 2.8 catalog.
 
     def test_list_form_renders_record_is_accepted(self):
-        # Stage 1 (acceptance only): a valid list-form record must validate.
-        # Against the UNMODIFIED validator this fails with a type error
-        # ("must be a ... string") -- that IS the intended reason at this
-        # stage, since list-form renders does not exist yet.
+        # Pins acceptance of the list form: validate_catalog returns the
+        # `renders` list unchanged, in the order the catalog gives it.
+        # The six group images in epirhandbook/2.8/images.yaml all use
+        # this form.
         text = (
             "images:\n"
             "  - name: epirhandbook-analysis\n"
@@ -567,12 +569,13 @@ class TestValidateCatalog(unittest.TestCase):
 
 
 class TestMergedCatalogs(unittest.TestCase):
-    """The catalog is split across files by OWNERSHIP (hand-maintained root vs
-    generated per-phase), but base edges cross the files -- epirhandbook-common
-    is FROM rbase. The planner must see them merged, or `rbase` looks like a
-    typo and the whole plan dies. This is the failure an earlier schema-only
-    check missed: validate_catalog passed on the 2.6 file alone while the real
-    planner (build_plan) raised."""
+    """The catalog is split across two hand-maintained files. The root
+    images.yaml holds rbase; epirhandbook/2.8/images.yaml holds the 2.8 line.
+    Base edges cross that split: epirhandbook-common is FROM rbase. The
+    planner must see the two files merged, or `rbase` looks like a typo and
+    the whole plan dies. This is the failure an earlier schema-only check
+    missed: validate_catalog passes on the SPLIT fixture alone, while the
+    real planner (build_plan) raises."""
 
     def _write(self, text):
         f = tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False)
@@ -604,7 +607,7 @@ class TestMergedCatalogs(unittest.TestCase):
         self.assertEqual(r["layers"][0][0]["name"], "rbase")
 
     def test_split_catalog_alone_is_rejected_by_the_planner(self):
-        # Loading only the generated half leaves the base dangling. This
+        # Loading only the SPLIT fixture leaves the base dangling. This
         # fires inside topological_order(), before build_plan() ever looks
         # at changed_images, so no selection argument is needed to trigger it.
         split = self._write(self.SPLIT)
@@ -794,7 +797,8 @@ class TestBuildContextAndChapterRenders(unittest.TestCase):
         self.assertEqual(r["layers"][0][0]["context"], "epirhandbook/2.6")
 
     def test_context_defaults_to_dir_when_absent(self):
-        # rbase / the 2.5 monolith: the Dockerfile sits in its own context.
+        # rbase, the one live image that omits `context`: its Dockerfile
+        # sits in its own context.
         text = (
             "images:\n  - name: rbase\n    dir: rbase/4.3.2\n"
             '    tags: ["4.3.2"]\n    base: null\n'

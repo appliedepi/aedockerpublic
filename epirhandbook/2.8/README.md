@@ -115,7 +115,7 @@ English assembles to the site root, and every other language to `<lang>/`.
 
 `build_all_chapters.sh` validates its own output rather than trusting exit codes: every expected
 page exists, and the search index references each one. It also **reports** dead same-page
-fragments without failing on them. The whole-book reference render of the 49-chapter book contains
+fragments without failing on them. The 2.7 whole-book reference render of 49 chapters contains
 106 of its own. They are pre-existing content bugs, so a gate there would fail every build
 forever.
 

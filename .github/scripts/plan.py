@@ -38,11 +38,11 @@ import yaml
 
 # Static ceiling matching build.yml's wired-up jobs
 # (build-layer-0 .. build-layer-3, i.e. 4 layers). This is NOT a soft limit:
-# a catalog that needs a 5th layer must not be silently truncated -- with
-# only 2 images today that would go unnoticed, but Phase 5a adds ~50
-# chapter images and a silently-dropped layer there is a silent PARTIAL
-# PUBLISH (some images never built, no error). See build_plan()'s check
-# below and test_plan.py's test for a catalog deeper than this.
+# a catalog that needs a 5th layer must not be silently truncated. The
+# catalog holds 9 images today in 3 layers, so the 4-layer ceiling leaves
+# one spare. A silently-dropped layer is a silent PARTIAL PUBLISH (some
+# images never built, no error). See build_plan()'s check below and
+# test_plan.py's test for a catalog deeper than this.
 MAX_SUPPORTED_LAYERS = 4
 
 
@@ -73,11 +73,13 @@ REQUIRED_IMAGE_KEYS = {"name", "dir", "tags", "base"}
 #             its Dockerfile lives.
 #   context = the directory `docker build` is given, i.e. the root that COPY
 #             paths resolve against.
-# For rbase and the 2.5 monolith they coincide, so `context` is omitted. For a
-# 2.6 chapter they cannot: the Dockerfile lives in chapters/<ch>/ but COPYs
-# renv.lock and pak_install_subset.R from archive/epirhandbook/2.6/, so the
-# context must be 2.6/ while change detection must stay per-chapter. Building
-# with the chapter dir as context fails -- the COPY sources are outside it.
+# For rbase they coincide, so `context` is omitted. Every image in
+# epirhandbook/2.8/images.yaml sets it to epirhandbook/2.8, because the two
+# cannot coincide there. Each Dockerfile sits in the image's own `dir`. It
+# COPYs pak_install_subset.R from the 2.8 root, and reaches its own
+# packages_cran.txt by a path relative to that root. Change detection stays
+# per-image, on `dir`. A build given the image's own dir as context fails,
+# because the COPY sources sit outside it.
 OPTIONAL_IMAGE_KEYS = {"live", "renders", "context"}
 ALLOWED_IMAGE_KEYS = REQUIRED_IMAGE_KEYS | OPTIONAL_IMAGE_KEYS
 
@@ -97,8 +99,9 @@ TAG_RE = re.compile(r"^[a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}$")
 BASE_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*:[a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}$")
 # A repo-relative build-context dir, in CANONICAL form: one or more path
 # segments of a shell-safe charset, joined by single '/', no leading or
-# trailing slash, no empty segment. `dir` is BOTH the Docker build context AND
-# the selective-change matcher (matching_dir compares it raw against changed
+# trailing slash, no empty segment. `dir` is the Docker build context when
+# `context` is omitted (rbase), and it is ALWAYS the selective-change matcher
+# (matching_dir compares it raw against changed
 # file paths), so a non-canonical spelling that validates but doesn't match --
 # e.g. `./rbase/4.3.2`, which passes an "is it relative?" check but never
 # matches the changed file `rbase/4.3.2/Dockerfile` -- is a SILENT skipped
@@ -238,11 +241,14 @@ def _validate_image(image, path, index):
             f"base tag."
         )
 
-    # `source`: the .qmd this image renders. Its STEM must equal the last
-    # segment of `dir` -- that directory is this chapter's build context, so if
-    # the two disagree the row describes two different chapters and one is
-    # wrong. Checking it here is what lets the field be explicit (it names the
-    # real artifact) WITHOUT becoming a second thing that can silently drift.
+    # `renders`: the .qmd file, or the list of .qmd files, this image renders.
+    # The STRING form must have a stem equal to the last segment of `dir`.
+    # That directory is the image's own dir, so a disagreement means the
+    # record names two different chapters and one is wrong. The LIST form
+    # cannot use that rule, because a group's dir basename is the group name,
+    # not any one chapter's. It checks the image NAME against that basename
+    # instead. Either check ties the field to the image's own dir, so the
+    # two cannot drift apart.
     if "renders" in image:
         renders = image["renders"]
         if isinstance(renders, list):
@@ -313,14 +319,15 @@ def _validate_image(image, path, index):
                 )
 
     # A per-chapter or per-group image MUST declare what it renders. `renders`
-    # is optional in general (rbase and the 2.5 monolith render no single
-    # file), but a row whose dir has a `chapters` or `groups` path segment is
-    # a per-chapter or per-group image by construction, and omitting
-    # `renders` there would skip the stem/name/dir linkage checks entirely --
-    # the row could then publish under any name. Matched by SEGMENT (split
-    # dir on '/'), not substring: a substring match on '/chapters/' or
-    # '/groups/' would miss a dir that IS exactly "chapters" or "groups", or
-    # one where the segment is the first component (no leading '/').
+    # is optional in general: rbase, epirhandbook-common and
+    # epirhandbook-monolith render nothing. But a row whose dir has a
+    # `chapters` or `groups` path segment is a per-chapter or per-group image
+    # by construction, and omitting `renders` there would skip the
+    # stem/name/dir linkage checks entirely -- the row could then publish
+    # under any name. Matched by SEGMENT (split dir on '/'), not substring:
+    # a substring match on '/chapters/' or '/groups/' would miss a dir that
+    # IS exactly "chapters" or "groups", or one where the segment is the
+    # first component (no leading '/').
     dir_segments = image["dir"].split("/")
     if "renders" not in image and (
         "chapters" in dir_segments or "groups" in dir_segments
@@ -569,11 +576,11 @@ def build_plan(images, changed_images=None):
             rec["base_tag"] = base_tag
             rec["base_freshly_built"] = bool(base_name) and base_name in selected
             # Normalized so the build step never has to decide: the docker
-            # build context, defaulting to `dir` when the catalog omits it
-            # (rbase, the 2.5 monolith). The per-chapter split images set it,
-            # because their Dockerfile's COPY paths resolve against the
-            # shared context root, not against the chapter directory the
-            # Dockerfile sits in.
+            # build context, defaulting to `dir` when the catalog omits it.
+            # Only rbase omits it. The eight images in
+            # epirhandbook/2.8/images.yaml all set it. Their Dockerfile's
+            # COPY paths resolve against the shared epirhandbook/2.8 root,
+            # not against the directory the Dockerfile sits in.
             rec["context"] = img.get("context", img["dir"])
             layer_out.append(rec)
         if layer_out:
@@ -612,9 +619,8 @@ def chapter_image_rows(images):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    # Repeatable: the catalog is split across files by ownership (hand-
-    # maintained root vs generated per-phase), but base edges cross them, so
-    # the planner must be given every file that makes up the one logical
+    # Repeatable: the catalog is split across two hand-maintained files. Base
+    # edges cross them, so the planner needs every file of the one logical
     # catalog. See load_catalogs.
     ap.add_argument("--images-yaml", required=True, action="append",
                     dest="images_yaml_paths",

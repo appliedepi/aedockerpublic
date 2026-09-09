@@ -119,7 +119,7 @@ def load_groups(path):
 
 def read_chapter_packages(stem):
     """<stem>'s own full package list: bare package names, one per line,
-    no comments, no blank lines (true of all 49 files -- verified).
+    no comments, no blank lines (true of all 50 files -- verified).
 
     A missing file is a HARD ERROR naming the stem and the exact path looked
     for. A typo'd stem in groups.yaml, or a chapter that has moved/been

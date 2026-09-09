@@ -13,9 +13,9 @@
 #
 # WHAT THIS REPLACES: the whole book used to be rendered by one call
 # (quarto_runfile.R, a vendored copy of babelquarto's render() logic). This
-# script instead renders one .qmd at a time, each in its own pinned
-# per-chapter image, so a chapter can be pinned back to an older image
-# (epirhandbook-basics:2.6, say) independently of the rest of the book.
+# script instead renders one .qmd at a time, each in its own pinned image.
+# A chapter can therefore be pinned back to an older image
+# (a previous epirhandbook-basics tag, say) independently of the rest of the book.
 #
 # INPUTS: the handbook checkout (containing `_quarto.yml` and the
 # chapter->image manifest, `docker-images.yml`, at its root) and the
@@ -31,9 +31,9 @@
 #   registry: ghcr.io/appliedepi/aedockerpublic
 #   chapters:
 #     - stem: time_series
-#       image: epirhandbook-time_series:2.8
+#       image: epirhandbook-analysis:2.8
 #     - stem: basics
-#       image: epirhandbook-basics:2.6      # deliberately pinned back
+#       image: epirhandbook-basics:2.8-old   # deliberately pinned back (illustrative tag)
 # A book chapter with no manifest row is a MISSING ENTRY, not something to
 # render with a guessed default -- see check_manifest_covers_book() below.
 #
@@ -83,12 +83,13 @@ usage() {
   echo "  <output_dir>        where the assembled site is written (default: ./html_outputs)" >&2
 }
 
-# --- book-level tooling always runs against THIS common image, never a
-# --- chapter's (possibly pinned-back) one: the config rewrite and the
-# --- language-link injection are per-BOOK steps, not per-chapter ones, so
-# --- which chapter image happens to also carry rewrite_lang_config.R /
-# --- inject_language_links.R is irrelevant. This script itself lives in
-# --- epirhandbook/2.8, so "2.8" is the correct common tag for it to use.
+# --- book-level tooling always runs against THIS common image. It never
+# --- runs against the (possibly pinned-back) image a chapter renders in.
+# --- The config rewrite and the language-link injection are per-BOOK
+# --- steps, not per-chapter ones. Whether the image a chapter renders in
+# --- also carries rewrite_lang_config.R / inject_language_links.R is
+# --- irrelevant. This script itself lives in epirhandbook/2.8, so "2.8"
+# --- is the correct common tag for it to use.
 COMMON_TAG="2.8"
 
 # --- arg parsing -------------------------------------------------------------
@@ -371,12 +372,12 @@ validate_language() {
   # Dead same-page fragments are REPORTED, never fatal. It is tempting to fail
   # the build on them -- that is the exact symptom of the cross-reference bug
   # the second render pass exists to fix. It does not work as a gate, and this
-  # was measured, not assumed: the whole-book reference render of the real
-  # 49-chapter book (the one that reproduces the live site) contains 106 dead
-  # fragments of its own after percent-decoding, and 4552 before it. They are
-  # pre-existing content bugs -- `#gis` 15 times, `#contact_us` 7 -- not render
-  # faults. A gate here would fail every build forever, and a numeric threshold
-  # would be arbitrary.
+  # was measured, not assumed. The measurement is the whole-book reference
+  # render of the real 49-chapter book, which is the 2.7 book. It was the live
+  # site at the time. That render contains 106 dead fragments of its own after
+  # percent-decoding, and 4552 before it. They are pre-existing content bugs
+  # -- `#gis` 15 times, `#contact_us` 7 -- not render faults. A gate here would
+  # fail every build forever, and a numeric threshold would be arbitrary.
   #
   # So: count them, print the worst, move on. What actually guards the
   # cross-reference bug is the second render pass itself, plus the two checks

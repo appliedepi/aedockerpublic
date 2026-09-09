@@ -121,7 +121,7 @@ images:
   # Hence no `renders` key, and hence it sits beside groups/ rather than in it:
   # plan.py requires a `renders` list from anything under a `groups` path
   # segment, and there is no list it could legally declare -- the six groups
-  # already claim all 49 chapters between them, and no .qmd may be claimed
+  # already claim all 50 chapters between them, and no .qmd may be claimed
   # twice. `epirhandbook-common` omits `renders` for the same reason.
   - name: epirhandbook-monolith
     dir: epirhandbook/2.8/monolith

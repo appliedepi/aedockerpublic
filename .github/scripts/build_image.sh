@@ -87,13 +87,13 @@ if [ -z "$GIT_COMMIT" ]; then
   echo "::error::build_image.sh: no git commit given (arg 8) -- every build must stamp org.opencontainers.image.revision, or changed_images.py can never resolve this image's last-published commit and will treat it as changed on every future run." >&2
   exit 1
 fi
-# The docker build CONTEXT. Defaults to DIR (rbase, the 2.5 monolith: the
-# Dockerfile sits in the same directory its COPY paths resolve against). The
-# 2.6/2.7 split images pass a different one: their Dockerfile lives in
-# chapters/<ch>/ but COPYs renv.lock / pak_install_subset.R from
-# epirhandbook/2.6 or 2.7, so the context must be that shared root while DIR
-# stays per-chapter (change-detection scope). Building a chapter with its
-# own dir as context fails -- the COPY sources are outside it.
+# The docker build CONTEXT. Defaults to DIR, which today means rbase alone:
+# its Dockerfile sits in the same directory its COPY paths resolve against.
+# The eight images in epirhandbook/2.8/images.yaml each pass a different one.
+# Their Dockerfile lives in the image's own dir but COPYs pak_install_subset.R
+# from epirhandbook/2.8. So the context must be that shared root, while DIR
+# stays per-image (the change-detection scope). A build that uses the image's
+# own dir as context fails: the COPY sources are outside it.
 CONTEXT="${9:-$DIR}"
 
 IFS=',' read -r -a TAGS <<< "$TAGS_CSV"
@@ -104,9 +104,9 @@ BUILD_ARGS=()
 # literal YYYY-MM-DD (rbase's "4.6.0-2026-07-01"), that date IS the single
 # source of truth for the pinned CRAN snapshot: extract it and pass it so the
 # Dockerfile derives the snapshot URL from it (rbase/4.6.0/Dockerfile). The
-# rule is generic, not rbase-specific: a tag with no date suffix (a chapter's
-# "2.7") simply does not match, so no arg is passed and no Dockerfile consumes
-# one. One date, defined once, in the tag.
+# rule is generic, not rbase-specific. A tag with no date suffix (a group
+# image's "2.8") simply does not match, so no arg is passed and no Dockerfile
+# consumes one. One date, defined once, in the tag.
 if [[ "${TAGS[0]}" =~ -([0-9]{4}-[0-9]{2}-[0-9]{2})$ ]]; then
   BUILD_ARGS+=(--build-arg "CRAN_SNAPSHOT_DATE=${BASH_REMATCH[1]}")
   echo "$NAME: tag '${TAGS[0]}' carries snapshot date ${BASH_REMATCH[1]} -> passing as --build-arg CRAN_SNAPSHOT_DATE"

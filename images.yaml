@@ -7,7 +7,9 @@
 # Fields:
 #   name        Image name. Published as ghcr.io/<owner>/<repo>/<name>:<tag>
 #               (repo lowercased from GITHUB_REPOSITORY).
-#   dir         Build context, relative to repo root, and THIS image's own
+#   dir         The image's own directory, relative to repo root, where its
+#               Dockerfile lives. It is the build context unless `context`
+#               is set, and it is THIS image's own
 #               change-detection scope: changed_images.py rebuilds this
 #               image iff a file under `dir` (or a shared build-context
 #               input, or the .github/ build machinery -- see that

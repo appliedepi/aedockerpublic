@@ -1,8 +1,8 @@
 #!/bin/bash
 # build_one_chapter.sh -- render ONE handbook chapter to HTML from inside a
-# per-chapter image. Installed in epirhandbook-common:2.8 and inherited by
-# every chapter image (they are FROM common), so the render command is the
-# same for all of them.
+# group image or the monolith. Installed in epirhandbook-common:2.8 and
+# inherited by the six group images and the monolith, which are all FROM
+# common. The render command is the same for every one of them.
 #
 # The chapter's .qmd is PASSED IN as an argument, not baked into the image:
 # the image is a package environment, content-agnostic. The book's
@@ -33,7 +33,7 @@
 #
 # Usage (with the book content mounted at the working directory):
 #   docker run --rm -v <book>:/book -w /book \
-#     epirhandbook-<chapter>:2.8 build_one_chapter.sh chapters/<chapter>.qmd
+#     epirhandbook-<group>:2.8 build_one_chapter.sh chapters/<chapter>.qmd
 set -euo pipefail
 
 if [ "$#" -ne 1 ]; then
