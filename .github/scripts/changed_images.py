@@ -95,11 +95,16 @@ def is_machinery_file(f):
 # test_every_copied_context_file_is_a_declared_input catches by parsing what
 # the Dockerfiles actually COPY.
 #
-# Why this exists: epirhandbook/2.7 is the shared context for common and all
-# 49 chapters, and its root holds these inputs beside a README, the change
-# notes, a patch and five measurement TSVs. Matching "anything in the context
-# outside an image's own dir" swept all of those in, so editing a README
-# rebuilt 50 of 51 images.
+# Why this exists: epirhandbook/2.7 was the shared context for common and all
+# 49 chapters. Its root held these inputs beside a README, the change notes,
+# a patch and five measurement TSVs. Matching "anything in the context
+# outside an image's own dir" swept all of those in, so a README edit rebuilt
+# 50 of 51 images.
+#
+# 2.8 keeps that shape. epirhandbook/2.8 is the shared context for
+# epirhandbook-common, the six group images and the monolith. Its root holds
+# a README beside these inputs. The same broad rule would rebuild eight of
+# the merged catalog's nine images on one README edit.
 #
 # Paths are relative to the context directory.
 SHARED_CONTEXT_INPUTS = (

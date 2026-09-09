@@ -461,8 +461,8 @@ class TestValidateCatalog(unittest.TestCase):
     # Phase 5b's 49 single-chapter images collapse into 6 group images, each
     # rendering several chapters. `renders` must therefore accept EITHER a
     # single .qmd string (unchanged) OR a non-empty list of .qmd strings.
-    # These are synthetic fixtures -- no 2.8 catalog exists yet; see this
-    # unit's brief.
+    # These fixtures are synthetic by design. TestAgainstRealCatalog covers
+    # the live 2.8 catalog.
 
     def test_list_form_renders_record_is_accepted(self):
         # Stage 1 (acceptance only): a valid list-form record must validate.
