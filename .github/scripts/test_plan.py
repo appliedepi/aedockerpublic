@@ -376,7 +376,7 @@ class TestValidateCatalog(unittest.TestCase):
     def test_renders_qmd_is_accepted_and_stem_must_match_dir_basename(self):
         # The string form of `renders` STATES the one .qmd an image renders.
         # The stem is validated against the dir basename so the stated source
-        # cannot drift from the build context it belongs to. No live 2.8 image
+        # cannot drift from the build context it belongs to. No live 2.9 image
         # uses this form; the fixture below is a synthetic per-chapter record.
         # Note the image name is lowercased (Docker) while the source keeps
         # its real case.
@@ -464,12 +464,12 @@ class TestValidateCatalog(unittest.TestCase):
     # rendering several chapters. `renders` must therefore accept EITHER a
     # single .qmd string (unchanged) OR a non-empty list of .qmd strings.
     # These fixtures are synthetic by design. TestAgainstRealCatalog covers
-    # the live 2.8 catalog.
+    # the live 2.9 catalog.
 
     def test_list_form_renders_record_is_accepted(self):
         # Pins acceptance of the list form: validate_catalog returns the
         # `renders` list unchanged, in the order the catalog gives it.
-        # The six group images in epirhandbook/2.8/images.yaml all use
+        # The six group images in epirhandbook/2.9/images.yaml all use
         # this form.
         text = (
             "images:\n"
@@ -570,7 +570,7 @@ class TestValidateCatalog(unittest.TestCase):
 
 class TestMergedCatalogs(unittest.TestCase):
     """The catalog is split across two hand-maintained files. The root
-    images.yaml holds rbase; epirhandbook/2.8/images.yaml holds the 2.8 line.
+    images.yaml holds rbase; epirhandbook/2.9/images.yaml holds the 2.9 line.
     Base edges cross that split: epirhandbook-common is FROM rbase. The
     planner must see the two files merged, or `rbase` looks like a typo and
     the whole plan dies. This is the failure an earlier schema-only check
@@ -683,11 +683,11 @@ class TestMergedCatalogs(unittest.TestCase):
 
 class TestAgainstRealCatalog(unittest.TestCase):
     """Canary: the real catalogs still have the shape the tests above assume.
-    The public deliverable is the 2.8 catalog only. 2.5, 2.6 and 2.7 are
-    frozen under archive/epirhandbook/ and the CI planner never loads them:
+    The public deliverable is the 2.9 catalog only. 2.5 to 2.8 are frozen
+    under archive/epirhandbook/ and the CI planner never loads them:
     the root images.yaml holds just the base image (rbase:4.6.0-2026-07-01),
     and epirhandbook-common, the six group images and the monolith live in
-    epirhandbook/2.8/images.yaml, FROM this rbase across the file boundary.
+    epirhandbook/2.9/images.yaml, FROM this rbase across the file boundary.
 
     A missing catalog file FAILS every test here. These tests read the two
     files build.yml itself passes, so a catalog that moved or was deleted is
@@ -696,7 +696,7 @@ class TestAgainstRealCatalog(unittest.TestCase):
     def _real_catalog_paths(self):
         repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
         root_yaml = os.path.join(repo_root, "images.yaml")
-        split_yaml = os.path.join(repo_root, "epirhandbook", "2.8", "images.yaml")
+        split_yaml = os.path.join(repo_root, "epirhandbook", "2.9", "images.yaml")
         return root_yaml, split_yaml
 
     def test_real_images_yaml_matches_assumed_shape(self):
@@ -709,11 +709,11 @@ class TestAgainstRealCatalog(unittest.TestCase):
         self.assertEqual(by_name["rbase"]["tags"], ["4.6.0-2026-07-01"])
         self.assertTrue(by_name["rbase"]["live"])
 
-    def test_real_catalogs_merge_and_plan_2_8_only(self):
+    def test_real_catalogs_merge_and_plan_2_9_only(self):
         # Exercises the actual production planner invocation (build.yml
         # passes exactly these two real files): confirms the cross-file base
-        # edge (epirhandbook-common:2.8 FROM rbase:4.6.0-2026-07-01) resolves
-        # without error, and that no 2.5/2.6/2.7/4.3.2 artifact survives in
+        # edge (epirhandbook-common:2.9 FROM rbase:4.6.0-2026-07-01) resolves
+        # without error, and that no 2.5/2.6/2.7/2.8/4.3.2 artifact survives in
         # the merged plan. `changed_images` lists every real name directly (no
         # nightly/"select everything" mode exists any more) to force full
         # selection for this shape check.
@@ -732,6 +732,7 @@ class TestAgainstRealCatalog(unittest.TestCase):
             self.assertNotIn("2.5", img["tags"])
             self.assertNotIn("2.6", img["tags"])
             self.assertNotIn("2.7", img["tags"])
+            self.assertNotIn("2.8", img["tags"])
             self.assertNotIn("4.3.2", img["tags"])
         self.assertEqual(r["layers"][0][0]["name"], "rbase")  # base-most first
 

@@ -8,7 +8,7 @@ assemble the book from them.
 
 ### Purpose
 
-The live product line is **2.8**: nine images, published to `ghcr.io/appliedepi/aedockerpublic`.
+The live product line is **2.9**: nine images, published to `ghcr.io/appliedepi/aedockerpublic`.
 Each image is a package environment. Chapter content is never baked into one: the `.qmd` is
 mounted at render time.
 
@@ -18,16 +18,16 @@ in every language, and a manifest (`docker-images.yml`) that says which image re
 chapter. This repository owns packages, images and the render scripts. Neither repository fetches
 from the other at build time.
 
-Everything the 2.8 line builds from sits in `epirhandbook/2.8/`. Its own
-[README](epirhandbook/2.8/README.md) covers how packages install, how one chapter renders, and how
+Everything the 2.9 line builds from sits in `epirhandbook/2.9/`. Its own
+[README](epirhandbook/2.9/README.md) covers how packages install, how one chapter renders, and how
 the book is assembled. [`PROJECT.md`](PROJECT.md) is the design record.
 
-2.5, 2.6 and 2.7 are frozen under [`archive/`](archive/README.md). CI never builds them.
+2.5, 2.6, 2.7 and 2.8 are frozen under [`archive/`](archive/README.md). CI never builds them.
 
 ### The catalogue
 
 Two files, read together as one catalogue: `images.yaml` at the repository root holds `rbase`, and
-`epirhandbook/2.8/images.yaml` holds the other eight images. Base edges cross the two files:
+`epirhandbook/2.9/images.yaml` holds the other eight images. Base edges cross the two files:
 `epirhandbook-common` is FROM `rbase`. Both files are hand-maintained, and `images.yaml`'s own
 header comment carries the authoritative field rules.
 
@@ -38,7 +38,7 @@ more than their name:
 | Field | Meaning |
 |---|---|
 | `dir` | This image's own files: where its Dockerfile lives, and its change-detection scope. |
-| `context` | The `docker build` context, when it differs from `dir`. A group's Dockerfile sits in `groups/<group>/` but COPYs shared files from `epirhandbook/2.8/`, so the context is the shared root while change detection stays per group. |
+| `context` | The `docker build` context, when it differs from `dir`. A group's Dockerfile sits in `groups/<group>/` but COPYs shared files from `epirhandbook/2.9/`, so the context is the shared root while change detection stays per group. |
 | `renders` | The `.qmd` files this image renders, relative to the handbook source root. A list, for a group image. Required for any image whose `dir` has a `groups` path segment. |
 | `live` | `true` means a rebuild of `base` cascades to this image. `false` opts out of that automatic cascade only. A direct edit to the image's own `dir` still builds it. |
 
@@ -74,24 +74,24 @@ One source of truth per axis, and **no package version is asserted anywhere**.
 - **CRAN**: a dated [Posit Package Manager](https://packagemanager.posit.co) snapshot. The date
   lives in exactly one place, the `rbase` image **tag**. `build_image.sh` matches a trailing
   `-YYYY-MM-DD` on the first tag and passes it as `--build-arg CRAN_SNAPSHOT_DATE`. The rule is
-  generic: a tag without a date suffix, such as a group's `2.8`, does not match, and no build
+  generic: a tag without a date suffix, such as a group's `2.9`, does not match, and no build
   argument is passed.
 - **Bioconductor**: the release paired with R, from `BiocManager::version()`. Derived, never
   stored.
 - **GitHub**: the one thing a dated CRAN snapshot cannot pin.
-  `epirhandbook/2.8/packages_github.json` holds 6 packages with a commit SHA each.
+  `epirhandbook/2.9/packages_github.json` holds 6 packages with a commit SHA each.
 - **Resolution**: `pak_install_subset.R` runs `pak::pkg_install(refs, dependencies = NA)`. That is
   hard dependencies only (Depends, Imports, LinkingTo), with **Suggests deliberately excluded**.
   There is no hand-computed dependency closure. pak resolves the tree against a snapshot that
   never moves, so the result is deterministic.
 
-`epirhandbook/2.8/README.md` covers what each image installs and why every group image is a
+`epirhandbook/2.9/README.md` covers what each image installs and why every group image is a
 superset of its chapters' package footprints.
 
 ### Routine changes
 
 **Add a package to a chapter.** Add the bare name, one per line, to that chapter's
-`packages_cran.txt`. Run `python3 epirhandbook/2.8/generate_groups.py`. Commit both files and
+`packages_cran.txt`. Run `python3 epirhandbook/2.9/generate_groups.py`. Commit both files and
 push. The chapter's group image and the monolith rebuild.
 
 **Add a chapter.**
@@ -100,16 +100,18 @@ push. The chapter's group image and the monolith rebuild.
    `sort(loadedNamespaces())`. Drop the base R packages: `base`, `compiler`, `datasets`,
    `grDevices`, `graphics`, `grid`, `methods`, `stats`, `tools`, `utils`. Use one name per line,
    with no comments and no blank lines. Save it as
-   `epirhandbook/2.8/chapters/<stem>/packages_cran.txt`.
-2. Add `<stem>` to a group in `epirhandbook/2.8/groups.yaml`.
-3. Add `chapters/<stem>.qmd` to that group's `renders` list in `epirhandbook/2.8/images.yaml`.
-   That file is a shared build input, so an edit to it rebuilds all eight 2.8 images.
-4. Run `python3 epirhandbook/2.8/generate_groups.py` and commit everything. Push, then watch all
+   `epirhandbook/2.9/chapters/<stem>/packages_cran.txt`.
+2. Add `<stem>` to a group in `epirhandbook/2.9/groups.yaml`.
+3. Add `content/en/<stem>.qmd` to that group's `renders` list in `epirhandbook/2.9/images.yaml`.
+   That file is a shared build input, so an edit to it rebuilds all eight 2.9 images.
+4. Run `python3 epirhandbook/2.9/generate_groups.py` and commit everything. Push, then watch all
    eight publish: `epirhandbook-common`, the six group images and the monolith.
-5. In the handbook repository, add the chapter's row to `docker-images.yml`, naming the group
-   image. `build_all_chapters.sh` fails a book whose `_quarto.yml` declares a chapter with no row.
+5. In the handbook repository, add the chapter to every language's `content/<lang>/_quarto.yaml`,
+   and add its row to `docker-images.yml`, naming the group image. `build_all_chapters.sh` fails
+   a book whose chapter has no manifest row, and a language whose chapter list differs from the
+   main language's.
 
-`gis`, restored on 2026-09-02, is the worked example of every step.
+`gis`, restored on 2026-09-02, is the worked example of steps 1 to 4.
 
 **Update the R version or the CRAN snapshot.** Change the date in rbase's tag in `images.yaml`
 (`rbase:4.6.0-<YYYY-MM-DD>`). **Never write a date anywhere else.** The tag is the single source of
@@ -117,7 +119,7 @@ truth, and the build derives the snapshot URL from it. This rebuilds `rbase` and
 everything.
 
 **Pin a GitHub package to a new commit.** Edit its `RemoteSha` in
-`epirhandbook/2.8/packages_github.json`. This rebuilds `epirhandbook-common`, the six group
+`epirhandbook/2.9/packages_github.json`. This rebuilds `epirhandbook-common`, the six group
 images and the monolith.
 
 ### Visibility
@@ -136,8 +138,9 @@ So a **new image name** starts private the first time CI publishes it, and stays
 admin does the step above. Adding a chapter to an existing group creates no new image, so it needs
 no visibility change. Adding a new group does.
 
-The names of those nine packages are exactly the nine names of the 2.8 catalogue. Every published
-tag is `2.8`, apart from `4.6.0-2026-07-01` on `rbase` and one survivor:
+The names of those nine packages are exactly the nine names of the catalogue, which 2.9 keeps
+unchanged from 2.8. Every tag published up to 2026-09-08 is `2.8`, apart from
+`4.6.0-2026-07-01` on `rbase` and one survivor:
 `epirhandbook-common:2.7`, a distinct digest inside the `epirhandbook-common` package, dated
 2026-07-24. Nothing builds or consumes that tag. [`archive/README.md`](archive/README.md) has the
 detail.
@@ -164,7 +167,7 @@ detail.
 ## The images
 
 One section per catalogue image. Every tag, base and chapter stem below comes from the two
-catalogue files. A stem is a `renders` entry without the `chapters/` prefix and the `.qmd`
+catalogue files. A stem is a `renders` entry without the `content/en/` prefix and the `.qmd`
 suffix. The six group images follow the parts of the book's navbar.
 
 ### rbase
@@ -178,47 +181,47 @@ renders nothing.
 
 The shared package environment. It holds 59 CRAN and Bioconductor names, all 6 GitHub pins, and
 the render scripts on `PATH`. The 59 are the names most chapters share, plus the ones the render
-scripts import. Tag `2.8`. Base `rbase`. It renders no chapter, so it declares no `renders` list.
+scripts import. Tag `2.9`. Base `rbase`. It renders no chapter, so it declares no `renders` list.
 
 ### epirhandbook-basics
 
-The `basics` group, 8 chapters. Tag `2.8`. Base `epirhandbook-common`. Renders `index`
-(`index.qmd` at the source root, not under `chapters/`), `editorial_style`, `data_used`, `basics`,
-`transition_to_r`, `packages_suggested`, `r_projects` and `importing`.
+The `basics` group, 8 chapters. Tag `2.9`. Base `epirhandbook-common`. Renders `index`,
+`editorial_style`, `data_used`, `basics`, `transition_to_r`, `packages_suggested`, `r_projects`
+and `importing`.
 
 ### epirhandbook-data-management
 
-The `data-management` group, 9 chapters. Tag `2.8`. Base `epirhandbook-common`. Renders `cleaning`,
+The `data-management` group, 9 chapters. Tag `2.9`. Base `epirhandbook-common`. Renders `cleaning`,
 `dates`, `characters_strings`, `factors`, `pivoting`, `grouping`, `joining_matching`,
 `deduplication` and `iteration`.
 
 ### epirhandbook-analysis
 
-The `analysis` group, 11 chapters. Tag `2.8`. Base `epirhandbook-common`. Renders
+The `analysis` group, 11 chapters. Tag `2.9`. Base `epirhandbook-common`. Renders
 `tables_descriptive`, `stat_tests`, `regression`, `missing_data`, `standardization`,
 `moving_average`, `time_series`, `contact_tracing`, `survey_analysis`, `survival_analysis` and
 `gis`.
 
 ### epirhandbook-data-viz
 
-The `data-viz` group, 11 chapters. Tag `2.8`. Base `epirhandbook-common`. Renders
+The `data-viz` group, 11 chapters. Tag `2.9`. Base `epirhandbook-common`. Renders
 `tables_presentation`, `ggplot_basics`, `ggplot_tips`, `epicurves`, `age_pyramid`, `heatmaps`,
 `diagrams`, `combination_analysis`, `transmission_chains`, `phylogenetic_trees` and
 `interactive_plots`.
 
 ### epirhandbook-reports
 
-The `reports` group, 4 chapters. Tag `2.8`. Base `epirhandbook-common`. Renders `rmarkdown`,
+The `reports` group, 4 chapters. Tag `2.9`. Base `epirhandbook-common`. Renders `rmarkdown`,
 `reportfactory`, `flexdashboard` and `shiny_basics`.
 
 ### epirhandbook-miscellaneous
 
-The `miscellaneous` group, 7 chapters. Tag `2.8`. Base `epirhandbook-common`. Renders
+The `miscellaneous` group, 7 chapters. Tag `2.9`. Base `epirhandbook-common`. Renders
 `writing_functions`, `directories`, `collaboration`, `errors`, `help`, `network_drives` and
 `data_table`.
 
 ### epirhandbook-monolith
 
-Every package of all six groups in one image. Tag `2.8`. Base `epirhandbook-common`. It renders
+Every package of all six groups in one image. Tag `2.9`. Base `epirhandbook-common`. It renders
 nothing in CI. It is the dev-container image for contributors, named in the handbook's
 `.devcontainer.json`, and it can render any chapter.

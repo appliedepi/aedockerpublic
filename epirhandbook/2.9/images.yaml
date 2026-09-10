@@ -1,0 +1,139 @@
+# epirhandbook/2.9/images.yaml -- the v2.9 group-image catalog. It uses the
+# same schema as the archived catalogs under archive/epirhandbook. See
+# .github/scripts/plan.py's validate_catalog for the authoritative field
+# rules. It is loaded ALONGSIDE the root images.yaml, because base edges
+# cross the two files: epirhandbook-common here is FROM rbase there. See
+# plan.py's load_catalogs docstring.
+#
+# v2.9 is v2.8's nine images on the handbook's per-language layout. The
+# images, the groups and the package lists do not change. Every language is
+# now its own Quarto book project, so chapter S of language L is the source
+# file content/L/S.qmd.
+#
+# A `renders` entry names the MAIN-language file, content/en/<stem>.qmd. The
+# group image that owns a stem renders that stem in EVERY language. The
+# entry states which image owns the chapter, not which files it will be
+# given. plan.py reads the stem from the last path segment.
+#
+# The six GROUP images (see groups.yaml) each render several chapters via a
+# LIST-form `renders`. `renders` order follows groups.yaml's own per-group
+# stem order. `index` needs no special case now. It is content/en/index.qmd,
+# beside every other chapter of that language.
+#
+# epirhandbook-monolith is the last record below; see the comment there for
+# why it carries no `renders`.
+images:
+  - name: epirhandbook-common
+    dir: epirhandbook/2.9/common
+    context: epirhandbook/2.9
+    tags: ["2.9"]
+    base: "rbase:4.6.0-2026-07-01"
+    live: true
+  - name: epirhandbook-analysis
+    renders:
+      - content/en/tables_descriptive.qmd
+      - content/en/stat_tests.qmd
+      - content/en/regression.qmd
+      - content/en/missing_data.qmd
+      - content/en/standardization.qmd
+      - content/en/moving_average.qmd
+      - content/en/time_series.qmd
+      - content/en/contact_tracing.qmd
+      - content/en/survey_analysis.qmd
+      - content/en/survival_analysis.qmd
+      - content/en/gis.qmd
+    dir: epirhandbook/2.9/groups/analysis
+    context: epirhandbook/2.9
+    tags: ["2.9"]
+    base: "epirhandbook-common:2.9"
+    live: true
+  - name: epirhandbook-basics
+    renders:
+      - content/en/index.qmd
+      - content/en/editorial_style.qmd
+      - content/en/data_used.qmd
+      - content/en/basics.qmd
+      - content/en/transition_to_r.qmd
+      - content/en/packages_suggested.qmd
+      - content/en/r_projects.qmd
+      - content/en/importing.qmd
+    dir: epirhandbook/2.9/groups/basics
+    context: epirhandbook/2.9
+    tags: ["2.9"]
+    base: "epirhandbook-common:2.9"
+    live: true
+  - name: epirhandbook-data-management
+    renders:
+      - content/en/cleaning.qmd
+      - content/en/dates.qmd
+      - content/en/characters_strings.qmd
+      - content/en/factors.qmd
+      - content/en/pivoting.qmd
+      - content/en/grouping.qmd
+      - content/en/joining_matching.qmd
+      - content/en/deduplication.qmd
+      - content/en/iteration.qmd
+    dir: epirhandbook/2.9/groups/data-management
+    context: epirhandbook/2.9
+    tags: ["2.9"]
+    base: "epirhandbook-common:2.9"
+    live: true
+  - name: epirhandbook-data-viz
+    renders:
+      - content/en/tables_presentation.qmd
+      - content/en/ggplot_basics.qmd
+      - content/en/ggplot_tips.qmd
+      - content/en/epicurves.qmd
+      - content/en/age_pyramid.qmd
+      - content/en/heatmaps.qmd
+      - content/en/diagrams.qmd
+      - content/en/combination_analysis.qmd
+      - content/en/transmission_chains.qmd
+      - content/en/phylogenetic_trees.qmd
+      - content/en/interactive_plots.qmd
+    dir: epirhandbook/2.9/groups/data-viz
+    context: epirhandbook/2.9
+    tags: ["2.9"]
+    base: "epirhandbook-common:2.9"
+    live: true
+  - name: epirhandbook-reports
+    renders:
+      - content/en/rmarkdown.qmd
+      - content/en/reportfactory.qmd
+      - content/en/flexdashboard.qmd
+      - content/en/shiny_basics.qmd
+    dir: epirhandbook/2.9/groups/reports
+    context: epirhandbook/2.9
+    tags: ["2.9"]
+    base: "epirhandbook-common:2.9"
+    live: true
+  - name: epirhandbook-miscellaneous
+    renders:
+      - content/en/writing_functions.qmd
+      - content/en/directories.qmd
+      - content/en/collaboration.qmd
+      - content/en/errors.qmd
+      - content/en/help.qmd
+      - content/en/network_drives.qmd
+      - content/en/data_table.qmd
+    dir: epirhandbook/2.9/groups/miscellaneous
+    context: epirhandbook/2.9
+    tags: ["2.9"]
+    base: "epirhandbook-common:2.9"
+    live: true
+  # The monolith: every package from all six groups in one image. It renders
+  # NOTHING -- it exists for contributors, as the image .devcontainer.json in
+  # the handbook repo points at, so that opening the book in a dev container
+  # gives you an environment that can render any chapter.
+  #
+  # Hence no `renders` key, and hence it sits beside groups/ rather than in it:
+  # plan.py requires a `renders` list from anything under a `groups` path
+  # segment, and there is no list it could legally declare -- the six groups
+  # already claim all 50 chapters between them, and no .qmd may be claimed
+  # twice. `epirhandbook-common` omits `renders` for the same reason.
+  - name: epirhandbook-monolith
+    dir: epirhandbook/2.9/monolith
+    context: epirhandbook/2.9
+    tags: ["2.9"]
+    base: "epirhandbook-common:2.9"
+    live: true

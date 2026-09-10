@@ -216,7 +216,7 @@ class TestFilesTouchImage(unittest.TestCase):
             return parts[:-1] if len(parts) > 1 else []
 
         catalog = []
-        for cat in ("images.yaml", "epirhandbook/2.8/images.yaml"):
+        for cat in ("images.yaml", "epirhandbook/2.9/images.yaml"):
             with open(os.path.join(REPO_ROOT, cat), encoding="utf-8") as fh:
                 catalog += _yaml.safe_load(fh)["images"]
         all_dirs = [i["dir"] for i in catalog]

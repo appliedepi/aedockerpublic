@@ -34,10 +34,10 @@ jobs:
         run: python3 .github/scripts/test_changed_images.py -v
 
       - name: Check the generated group and monolith package lists are current
-        run: python3 epirhandbook/2.8/generate_groups.py --check
+        run: python3 epirhandbook/2.9/generate_groups.py --check
 
       # Load and validate both halves of the catalog exactly as the planner
       # does, with no changed images: a schema error in either file fails
       # here instead of in the first real build.
       - name: Validate the image catalogs
-        run: python3 .github/scripts/plan.py --images-yaml images.yaml --images-yaml epirhandbook/2.8/images.yaml > /dev/null
+        run: python3 .github/scripts/plan.py --images-yaml images.yaml --images-yaml epirhandbook/2.9/images.yaml > /dev/null

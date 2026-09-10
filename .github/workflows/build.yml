@@ -157,7 +157,7 @@ jobs:
       # while every other check stayed green. This regenerates in memory and
       # fails on any byte of difference. Nothing is written.
       - name: Check the generated group and monolith package lists are current
-        run: python3 epirhandbook/2.8/generate_groups.py --check
+        run: python3 epirhandbook/2.9/generate_groups.py --check
 
       - name: Set lowercase repository name
         run: echo "REPO_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
@@ -172,7 +172,7 @@ jobs:
           timeout_minutes: 10
           max_attempts: 3
           retry_wait_seconds: 15
-          command: python3 .github/scripts/changed_images.py --images-yaml images.yaml --images-yaml epirhandbook/2.8/images.yaml --repo "$REPO_NAME" --sha "${{ github.sha }}" > /tmp/changed_images.txt
+          command: python3 .github/scripts/changed_images.py --images-yaml images.yaml --images-yaml epirhandbook/2.9/images.yaml --repo "$REPO_NAME" --sha "${{ github.sha }}" > /tmp/changed_images.txt
 
       - name: Run planner
         id: plan
@@ -190,17 +190,16 @@ jobs:
           # and the plan dies. See plan.py's load_catalogs.
           #
           # EXACTLY ONE epirhandbook catalog is ever loaded. Product lines are
-          # mutually exclusive by construction, not by accident: 2.7 and 2.8
-          # both name their base image `epirhandbook-common` (the version lives
-          # in `tags:`). 2.7 claims 49 .qmd and 2.8 claims 50: the 2.8 list is
-          # 2.7's plus chapters/gis.qmd. Those 49 shared entries collide, so
-          # loading two at once is a hard duplicate error. Cutting over means
-          # SWAPPING this path, never appending. 2.5, 2.6 and 2.7 are
-          # historical -- 2.6's catalog no longer even validates against the
+          # mutually exclusive by construction, not by accident: every line
+          # names its images `epirhandbook-common`, `epirhandbook-analysis`
+          # and so on, with the version in `tags:`, and load_catalogs refuses
+          # a name defined in two catalog files. Cutting over means SWAPPING
+          # this path, never appending. 2.5 to 2.8 are historical, under
+          # archive/ -- 2.6's catalog no longer even validates against the
           # current schema.
           python3 .github/scripts/plan.py \
             --images-yaml images.yaml \
-            --images-yaml epirhandbook/2.8/images.yaml \
+            --images-yaml epirhandbook/2.9/images.yaml \
             "${ARGS[@]}" > /tmp/plan.json
           echo "--- plan ---"
           cat /tmp/plan.json
