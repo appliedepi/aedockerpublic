@@ -53,6 +53,20 @@
 # build_image.sh detects.
 
 images:
+  # THE rbase DATE TAG IS MUTABLE ON PURPOSE. DO NOT "FIX" IT.
+  #
+  # 4.6.0-2026-07-01 names the R version and the CRAN snapshot date, and it is
+  # overwritten in the registry every time rbase rebuilds. It has been rewritten
+  # at least eight times, across nine package versions. That is the design:
+  # the date is the CRAN snapshot the image was built against, not a claim that
+  # the bytes never change, and the tag is the single source of truth the build
+  # derives the snapshot URL from.
+  #
+  # A reviewer who reads "date-pinned tag" as "immutable" will file this as a
+  # supply-chain defect. It has been filed once already, as box F27 of
+  # appliedepi/epirhandbook#455, and declined there for this reason.
+  # If you want byte-immutability for a particular build, pin the DIGEST at the
+  # point of use; do not make this tag immutable.
   - name: rbase
     dir: rbase/4.6.0
     tags: ["4.6.0-2026-07-01"]

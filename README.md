@@ -118,6 +118,13 @@ push. The chapter's group image and the monolith rebuild.
 truth, and the build derives the snapshot URL from it. This rebuilds `rbase` and cascades to
 everything.
 
+**That tag is mutable, deliberately.** It is overwritten in the registry on every rbase rebuild,
+and has been rewritten at least eight times. The date names the CRAN snapshot the image was built
+against. It is not a promise that the bytes are frozen. Reviewers read "date-pinned" as
+"immutable" and file it as a supply-chain defect; it was filed once already, as box F27 of
+appliedepi/epirhandbook#455, and declined. For byte-immutability in a particular build, pin the
+digest at the point of use.
+
 **Pin a GitHub package to a new commit.** Edit its `RemoteSha` in
 `epirhandbook/2.9/packages_github.json`. This rebuilds `epirhandbook-common`, the six group
 images and the monolith.
