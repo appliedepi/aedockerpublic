@@ -152,10 +152,11 @@ jobs:
         run: python3 .github/scripts/test_changed_images.py -v
 
       # The seven generated package lists (six groups + monolith) MUST equal
-      # what generate_groups.py derives from groups.yaml and the per-chapter
-      # lists. A stale list would ship an image missing a chapter's packages
-      # while every other check stayed green. This regenerates in memory and
-      # fails on any byte of difference. Nothing is written.
+      # what generate_groups.py derives from the per-chapter lists in each
+      # group image's own directory. A stale list would ship an image missing
+      # a chapter's packages while every other check stayed green. This
+      # regenerates in memory and fails on any byte of difference. Nothing is
+      # written.
       - name: Check the generated group and monolith package lists are current
         run: python3 epirhandbook/2.9/generate_groups.py --check
 
@@ -298,11 +299,16 @@ jobs:
           # slot empty and accepting the anonymous rate limit -- which is
           # what was happening anyway.
           GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+          # This image's description, from its catalog record. The command
+          # below reads it as "$IMAGE_DESCRIPTION", never as a direct
+          # expression interpolation. A description is prose, and a quote or a
+          # $(...) inside a command string changes the command the runner runs.
+          IMAGE_DESCRIPTION: ${{ matrix.image.description }}
         with:
           timeout_minutes: 120
           max_attempts: 2
           retry_wait_seconds: 60
-          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_freshly_built }}" "${{ github.sha }}" "${{ matrix.image.context }}"
+          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_freshly_built }}" "${{ github.sha }}" "${{ matrix.image.context }}" "$IMAGE_DESCRIPTION"
 
   build-layer-1:
     needs: [guard-main-ref, plan, build-layer-0]
@@ -356,11 +362,16 @@ jobs:
           # slot empty and accepting the anonymous rate limit -- which is
           # what was happening anyway.
           GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+          # This image's description, from its catalog record. The command
+          # below reads it as "$IMAGE_DESCRIPTION", never as a direct
+          # expression interpolation. A description is prose, and a quote or a
+          # $(...) inside a command string changes the command the runner runs.
+          IMAGE_DESCRIPTION: ${{ matrix.image.description }}
         with:
           timeout_minutes: 120
           max_attempts: 2
           retry_wait_seconds: 60
-          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_freshly_built }}" "${{ github.sha }}" "${{ matrix.image.context }}"
+          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_freshly_built }}" "${{ github.sha }}" "${{ matrix.image.context }}" "$IMAGE_DESCRIPTION"
 
   build-layer-2:
     needs: [guard-main-ref, plan, build-layer-1]
@@ -414,11 +425,16 @@ jobs:
           # slot empty and accepting the anonymous rate limit -- which is
           # what was happening anyway.
           GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+          # This image's description, from its catalog record. The command
+          # below reads it as "$IMAGE_DESCRIPTION", never as a direct
+          # expression interpolation. A description is prose, and a quote or a
+          # $(...) inside a command string changes the command the runner runs.
+          IMAGE_DESCRIPTION: ${{ matrix.image.description }}
         with:
           timeout_minutes: 120
           max_attempts: 2
           retry_wait_seconds: 60
-          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_freshly_built }}" "${{ github.sha }}" "${{ matrix.image.context }}"
+          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_freshly_built }}" "${{ github.sha }}" "${{ matrix.image.context }}" "$IMAGE_DESCRIPTION"
 
   build-layer-3:
     needs: [guard-main-ref, plan, build-layer-2]
@@ -472,8 +488,13 @@ jobs:
           # slot empty and accepting the anonymous rate limit -- which is
           # what was happening anyway.
           GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+          # This image's description, from its catalog record. The command
+          # below reads it as "$IMAGE_DESCRIPTION", never as a direct
+          # expression interpolation. A description is prose, and a quote or a
+          # $(...) inside a command string changes the command the runner runs.
+          IMAGE_DESCRIPTION: ${{ matrix.image.description }}
         with:
           timeout_minutes: 120
           max_attempts: 2
           retry_wait_seconds: 60
-          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_freshly_built }}" "${{ github.sha }}" "${{ matrix.image.context }}"
+          command: bash .github/scripts/build_image.sh publish "$REPO_NAME" "${{ matrix.image.name }}" "${{ matrix.image.dir }}" "${{ join(matrix.image.tags, ',') }}" "${{ matrix.image.base_name }}" "${{ matrix.image.base_tag }}" "${{ matrix.image.base_freshly_built }}" "${{ github.sha }}" "${{ matrix.image.context }}" "$IMAGE_DESCRIPTION"

@@ -9,6 +9,41 @@ as current documentation.
 
 ---
 
+## 2.9 addendum (2026-09-17): the layout becomes the group membership
+
+- [ ] **What changed here.** All 50 per-chapter package lists moved out of
+      `epirhandbook/2.9/chapters/<stem>/packages_cran.txt`. Each one now sits in the directory of
+      the group image that renders its chapter, as
+      `epirhandbook/2.9/groups/<group>/packages_cran_<stem>.txt`. `epirhandbook/2.9/chapters/` is
+      gone. No byte of any list changed, and all seven generated lists are unchanged.
+- [ ] **`groups.yaml` is deleted.** `generate_groups.py` discovers group membership from that
+      layout instead of reading it from a file. The design rationale that file carried moved into
+      the generator's header comment.
+- [ ] **Why.** Two files stated one fact. `groups.yaml` assigned each chapter to a group, and
+      `images.yaml` lists the chapters each group image renders. Two statements of one fact can
+      disagree, and a reader cannot tell which one is true. The location of a package list now
+      carries the assignment, and `images.yaml` is the one thing left to check it against.
+- [ ] **The new check.** `generate_groups.py` compares the layout against each group image's
+      `renders` list, group by group and in both directions. It runs in write mode and in
+      `--check` mode, before any union is built. A global stem-set comparison would pass a chapter
+      filed under the wrong group, so the comparison is per group.
+- [ ] **Why that check cannot rely on the generated lists.** The `errors` chapter runs no R, so
+      its package list is empty. Delete that list, or file it under the wrong group, and all six
+      group lists and the monolith stay byte-identical. Only the membership check sees it.
+- [ ] **Six Dockerfile comments.** Each group Dockerfile's header pointed at `groups.yaml` for its
+      chapter membership. It now points at the `packages_cran_<stem>.txt` files beside it. No
+      instruction changed.
+- [ ] **Still stale after this change.** The header comment of `epirhandbook/2.9/images.yaml` and
+      one comment in `.github/workflows/build.yml` still name `groups.yaml`. The next step of the
+      same plan owns both.
+- [ ] **What CI will do on push.** Each of the six group directories holds a changed Dockerfile
+      and its chapters' package lists. `changed_images.py` reports all six images as changed.
+      `rbase`, `epirhandbook-common` and `epirhandbook-monolith` are untouched.
+      `generate_groups.py`, the two `README.md` files and the deleted `groups.yaml` all sit at the
+      shared context root. None of them is a declared build input.
+
+---
+
 ## 2.9 addendum (2026-09-10): the per-language layout
 
 - [ ] **What changed here.** The 2.8 line was copied to `archive/epirhandbook/2.8/` and renamed to

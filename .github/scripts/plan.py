@@ -57,7 +57,12 @@ def parse_base(base):
     return name, tag
 
 
-REQUIRED_IMAGE_KEYS = {"name", "dir", "tags", "base"}
+REQUIRED_IMAGE_KEYS = {"name", "dir", "tags", "base", "description"}
+# `description`: one line about the image. build_image.sh stamps it as the
+# org.opencontainers.image.description LABEL. It is REQUIRED, not optional.
+# An optional key would let a record that omits it publish with the
+# description it inherits from its base. For rbase that is Canonical's text
+# for ubuntu, and nothing would fail.
 # `renders`: the .qmd file, or the list of .qmd files, that this image renders,
 # repo-relative to the handbook source root. 2.9 uses the list form on its six
 # group images. The field is optional: rbase, epirhandbook-common and the
@@ -239,6 +244,17 @@ def _validate_image(image, path, index):
             f"reference matching {BASE_RE.pattern!r} (both halves non-empty); got "
             f"{base!r}. A bare 'name:' with no tag reaches the build with an empty "
             f"base tag."
+        )
+
+    # `description` reaches a public registry verbatim, as this image's
+    # org.opencontainers.image.description OCI label. Require a real string
+    # with real content: a whitespace-only value is an empty label.
+    description = image["description"]
+    if not isinstance(description, str) or not description.strip():
+        raise ValueError(
+            f"{path}: image {label!r} field 'description' must be a non-empty "
+            f"string; got {description!r}. It is published as this image's "
+            f"org.opencontainers.image.description OCI label."
         )
 
     # `renders`: the .qmd file, or the list of .qmd files, this image renders.

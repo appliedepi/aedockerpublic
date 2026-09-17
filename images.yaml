@@ -7,6 +7,10 @@
 # Fields:
 #   name        Image name. Published as ghcr.io/<owner>/<repo>/<name>:<tag>
 #               (repo lowercased from GITHUB_REPOSITORY).
+#   description One line about the image, published as its
+#               org.opencontainers.image.description OCI label. REQUIRED.
+#               Without it the image keeps the description of its own
+#               base, which for rbase is Canonical's text for ubuntu.
 #   dir         The image's own directory, relative to repo root, where its
 #               Dockerfile lives. It is the build context unless `context`
 #               is set, and it is THIS image's own
@@ -68,6 +72,7 @@ images:
   # If you want byte-immutability for a particular build, pin the DIGEST at the
   # point of use; do not make this tag immutable.
   - name: rbase
+    description: "Base R 4.6.0 image built from a dated CRAN snapshot, used by the Epi R Handbook images"
     dir: rbase/4.6.0
     tags: ["4.6.0-2026-07-01"]
     base: null

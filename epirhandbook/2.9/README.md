@@ -14,22 +14,30 @@ for.
 
 ## How packages install
 
-Every chapter owns a package list, `chapters/<stem>/packages_cran.txt`: one bare CRAN or
-Bioconductor name per line. There are 50 of them, one per chapter. `chapters/errors/` holds an
-empty file, because that chapter runs no R.
+Every chapter owns a package list, `groups/<group>/packages_cran_<stem>.txt`: one bare CRAN or
+Bioconductor name per line. There are 50 of them, one per chapter.
+`groups/miscellaneous/packages_cran_errors.txt` is empty, because that chapter runs no R.
 
-[`groups.yaml`](groups.yaml) assigns each chapter to exactly one group. It is hand-maintained,
-because the assignment is an editorial decision.
+The list sits in the directory of the group image that renders the chapter. That location assigns
+the chapter to the group, so no separate assignment file exists. The assignment itself stays an
+editorial decision: `gis` joined `analysis` because it sits in the book's Analysis part.
 
-[`generate_groups.py`](generate_groups.py) derives seven lists from those two inputs: one
+[`generate_groups.py`](generate_groups.py) derives seven lists from those 50: one
 `groups/<group>/packages_cran.txt` per group, and `monolith/packages_cran.txt`. A group's list is
 the plain union of its member chapters' full lists. The monolith's list is the union of the six.
+A group's generated list is the file with no `_<stem>` in its name.
 **Never hand-edit a generated list.** Edit the input and rerun the generator:
 
 ```bash
 python3 epirhandbook/2.9/generate_groups.py           # write the seven lists
 python3 epirhandbook/2.9/generate_groups.py --check   # regenerate in memory, fail on a difference
 ```
+
+Both modes check the layout against [`images.yaml`](images.yaml) first, group by group. Every
+chapter a group image lists under `renders` must own a package list in that image's own directory.
+Every package list in that directory must belong to a chapter that image renders. A chapter filed
+under the wrong group therefore fails the check, even when its list is empty and no generated list
+moves.
 
 CI runs `--check` twice: in `checks.yml` on every pull request and push, and in `build.yml`'s plan
 job before any image builds. A stale list fails both.

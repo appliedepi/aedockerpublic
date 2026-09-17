@@ -91,8 +91,9 @@ superset of its chapters' package footprints.
 ### Routine changes
 
 **Add a package to a chapter.** Add the bare name, one per line, to that chapter's
-`packages_cran.txt`. Run `python3 epirhandbook/2.9/generate_groups.py`. Commit both files and
-push. The chapter's group image and the monolith rebuild.
+`packages_cran_<stem>.txt`. Run `python3 epirhandbook/2.9/generate_groups.py`. The generator
+rewrites that group's `packages_cran.txt` and `monolith/packages_cran.txt`. Commit all three
+changed files and push. The chapter's group image and the monolith rebuild.
 
 **Add a chapter.**
 
@@ -100,18 +101,18 @@ push. The chapter's group image and the monolith rebuild.
    `sort(loadedNamespaces())`. Drop the base R packages: `base`, `compiler`, `datasets`,
    `grDevices`, `graphics`, `grid`, `methods`, `stats`, `tools`, `utils`. Use one name per line,
    with no comments and no blank lines. Save it as
-   `epirhandbook/2.9/chapters/<stem>/packages_cran.txt`.
-2. Add `<stem>` to a group in `epirhandbook/2.9/groups.yaml`.
-3. Add `content/en/<stem>.qmd` to that group's `renders` list in `epirhandbook/2.9/images.yaml`.
+   `epirhandbook/2.9/groups/<group>/packages_cran_<stem>.txt`. That location is what assigns the
+   chapter to the group.
+2. Add `content/en/<stem>.qmd` to that group's `renders` list in `epirhandbook/2.9/images.yaml`.
    That file is a shared build input, so an edit to it rebuilds all eight 2.9 images.
-4. Run `python3 epirhandbook/2.9/generate_groups.py` and commit everything. Push, then watch all
+3. Run `python3 epirhandbook/2.9/generate_groups.py` and commit everything. Push, then watch all
    eight publish: `epirhandbook-common`, the six group images and the monolith.
-5. In the handbook repository, add the chapter to every language's `content/<lang>/_quarto.yaml`,
+4. In the handbook repository, add the chapter to every language's `content/<lang>/_quarto.yaml`,
    and add its row to `docker-images.yml`, naming the group image. `build_all_chapters.sh` fails
    a book whose chapter has no manifest row, and a language whose chapter list differs from the
    main language's.
 
-`gis`, restored on 2026-09-02, is the worked example of steps 1 to 4.
+`gis`, restored on 2026-09-02, is the worked example of steps 1 to 3.
 
 **Update the R version or the CRAN snapshot.** Change the date in rbase's tag in `images.yaml`
 (`rbase:4.6.0-<YYYY-MM-DD>`). **Never write a date anywhere else.** The tag is the single source of

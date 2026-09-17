@@ -198,6 +198,7 @@ class TestValidateCatalog(unittest.TestCase):
     VALID = (
         "images:\n"
         "  - name: x\n"
+        "    description: a test image\n"
         "    dir: x\n"
         '    tags: ["1"]\n'
         "    base: null\n"
@@ -243,6 +244,7 @@ class TestValidateCatalog(unittest.TestCase):
         text = (
             "images:\n"
             "  - name: x\n"
+            "    description: a test image\n"
             '    tags: ["1"]\n'
             "    base: null\n"
             "    live: true\n"
@@ -250,6 +252,60 @@ class TestValidateCatalog(unittest.TestCase):
         with self.assertRaises(ValueError) as ctx:
             self._validate(text)
         self.assertIn("dir", str(ctx.exception))
+
+    # --- description: REQUIRED, and a non-empty string --------------------
+    #
+    # build_image.sh stamps this field as the image's
+    # org.opencontainers.image.description OCI label. Before it existed every
+    # published image carried the label it inherited from ubuntu, so
+    # `docker inspect` showed Canonical's text for this project's images.
+    # The key is REQUIRED for that reason: an optional one would let a record
+    # that forgot it publish the inherited description with nothing failing.
+
+    def test_description_is_accepted_and_returned_unchanged(self):
+        text = self.VALID.replace(
+            "description: a test image",
+            "description: R environment for the Basics chapters",
+        )
+        images = self._validate(text)
+        self.assertEqual(
+            images[0]["description"], "R environment for the Basics chapters"
+        )
+
+    def test_missing_description_is_rejected(self):
+        # The case that makes the key REQUIRED rather than optional. A record
+        # with no description must not validate.
+        text = self.VALID.replace("    description: a test image\n", "")
+        with self.assertRaises(ValueError) as ctx:
+            self._validate(text)
+        self.assertIn("description", str(ctx.exception))
+
+    def test_empty_description_is_rejected(self):
+        text = self.VALID.replace("description: a test image", 'description: ""')
+        with self.assertRaises(ValueError) as ctx:
+            self._validate(text)
+        self.assertIn("description", str(ctx.exception))
+
+    def test_whitespace_only_description_is_rejected(self):
+        # A label of three spaces is an empty label with extra steps.
+        text = self.VALID.replace("description: a test image", 'description: "   "')
+        with self.assertRaises(ValueError) as ctx:
+            self._validate(text)
+        self.assertIn("description", str(ctx.exception))
+
+    def test_non_string_description_is_rejected(self):
+        # PyYAML resolves a bare 2.9 to a float, not a string. The tags tests
+        # below cover the same implicit-scalar trap.
+        text = self.VALID.replace("description: a test image", "description: 2.9")
+        with self.assertRaises(ValueError) as ctx:
+            self._validate(text)
+        self.assertIn("description", str(ctx.exception))
+
+    def test_description_is_required_not_optional(self):
+        # Pins the classification itself.
+        # test_missing_description_is_rejected depends on it.
+        self.assertIn("description", plan.REQUIRED_IMAGE_KEYS)
+        self.assertNotIn("description", plan.OPTIONAL_IMAGE_KEYS)
 
     # --- live: must be a REAL bool, not a string that looks like one -----
 
@@ -383,6 +439,7 @@ class TestValidateCatalog(unittest.TestCase):
         text = (
             "images:\n"
             "  - name: epirhandbook-transition_to_r\n"
+            "    description: a test image\n"
             "    renders: new_pages/transition_to_R.qmd\n"
             "    dir: epirhandbook/2.6/chapters/transition_to_R\n"
             '    tags: ["2.6"]\n'
@@ -397,6 +454,7 @@ class TestValidateCatalog(unittest.TestCase):
         text = (
             "images:\n"
             "  - name: epirhandbook-index\n"
+            "    description: a test image\n"
             "    renders: index.qmd\n"
             "    dir: epirhandbook/2.6/chapters/index\n"
             '    tags: ["2.6"]\n'
@@ -409,6 +467,7 @@ class TestValidateCatalog(unittest.TestCase):
         text = (
             "images:\n"
             "  - name: epirhandbook-transition_to_r\n"
+            "    description: a test image\n"
             "    renders: new_pages/basics.qmd\n"
             "    dir: epirhandbook/2.6/chapters/transition_to_R\n"
             '    tags: ["2.6"]\n'
@@ -425,6 +484,7 @@ class TestValidateCatalog(unittest.TestCase):
         text = (
             "images:\n"
             "  - name: epirhandbook-cleaning\n"
+            "    description: a test image\n"
             "    renders: new_pages/basics.qmd\n"
             "    dir: epirhandbook/2.6/chapters/basics\n"
             '    tags: ["2.6"]\n'
@@ -439,6 +499,7 @@ class TestValidateCatalog(unittest.TestCase):
         text = (
             "images:\n"
             "  - name: epirhandbook-transition_to_r\n"
+            "    description: a test image\n"
             "    renders: new_pages/transition_to_R.qmd\n"
             "    dir: epirhandbook/2.6/chapters/transition_to_R\n"
             '    tags: ["2.6"]\n'
@@ -450,6 +511,7 @@ class TestValidateCatalog(unittest.TestCase):
         text = (
             "images:\n"
             "  - name: epirhandbook-basics\n"
+            "    description: a test image\n"
             "    renders: new_pages/basics.Rmd\n"
             "    dir: epirhandbook/2.6/chapters/basics\n"
             '    tags: ["2.6"]\n'
@@ -474,6 +536,7 @@ class TestValidateCatalog(unittest.TestCase):
         text = (
             "images:\n"
             "  - name: epirhandbook-analysis\n"
+            "    description: a test image\n"
             "    renders:\n"
             "      - chapters/regression.qmd\n"
             "      - chapters/stat_tests.qmd\n"
@@ -493,6 +556,7 @@ class TestValidateCatalog(unittest.TestCase):
         text = (
             "images:\n"
             "  - name: epirhandbook-analysis\n"
+            "    description: a test image\n"
             "    renders:\n"
             "      - chapters/regression.qmd\n"
             "      - chapters/regression.qmd\n"
@@ -511,6 +575,7 @@ class TestValidateCatalog(unittest.TestCase):
         text = (
             "images:\n"
             "  - name: epirhandbook-wrong-group\n"
+            "    description: a test image\n"
             "    renders:\n"
             "      - chapters/regression.qmd\n"
             "      - chapters/stat_tests.qmd\n"
@@ -529,6 +594,7 @@ class TestValidateCatalog(unittest.TestCase):
         text = (
             "images:\n"
             "  - name: epirhandbook-analysis\n"
+            "    description: a test image\n"
             "    renders:\n"
             "      - chapters/regression.qmd\n"
             "      - chapters/stat_tests.Rmd\n"
@@ -547,6 +613,7 @@ class TestValidateCatalog(unittest.TestCase):
         text = (
             "images:\n"
             "  - name: epirhandbook-analysis\n"
+            "    description: a test image\n"
             "    dir: epirhandbook/2.8/groups/analysis\n"
             '    tags: ["2.8"]\n'
             "    base: null\n"
@@ -560,8 +627,8 @@ class TestValidateCatalog(unittest.TestCase):
         # duplicate; a change under the first would plan the second's dir/tags.
         text = (
             "images:\n"
-            '  - name: dup\n    dir: a\n    tags: ["1"]\n    base: null\n'
-            '  - name: dup\n    dir: b\n    tags: ["2"]\n    base: null\n'
+            '  - name: dup\n    description: a test image\n    dir: a\n    tags: ["1"]\n    base: null\n'
+            '  - name: dup\n    description: a test image\n    dir: b\n    tags: ["2"]\n    base: null\n'
         )
         with self.assertRaises(ValueError) as ctx:
             self._validate(text)
@@ -586,12 +653,12 @@ class TestMergedCatalogs(unittest.TestCase):
 
     ROOT = (
         "images:\n"
-        "  - name: rbase\n    dir: rbase/4.3.2\n"
+        "  - name: rbase\n    description: a test image\n    dir: rbase/4.3.2\n"
         '    tags: ["4.3.2"]\n    base: null\n'
     )
     SPLIT = (
         "images:\n"
-        "  - name: epirhandbook-common\n    dir: epirhandbook/2.6/common\n"
+        "  - name: epirhandbook-common\n    description: a test image\n    dir: epirhandbook/2.6/common\n"
         '    tags: ["2.6"]\n    base: "rbase:4.3.2"\n'
     )
 
@@ -629,6 +696,7 @@ class TestMergedCatalogs(unittest.TestCase):
     CHAPTER_A = (
         "images:\n"
         "  - name: epirhandbook-basics\n"
+        "    description: a test image\n"
         "    renders: chapters/basics.qmd\n"
         "    dir: epirhandbook/2.8/chapters/basics\n"
         '    tags: ["2.8"]\n    base: null\n'
@@ -645,6 +713,7 @@ class TestMergedCatalogs(unittest.TestCase):
     CHAPTER_B_SAME_QMD = (
         "images:\n"
         "  - name: epirhandbook-other-basics\n"
+        "    description: a test image\n"
         "    renders: chapters/basics.qmd\n"
         "    dir: epirhandbook/2.8/other/chapters/basics\n"
         '    tags: ["2.8"]\n    base: null\n'
@@ -667,10 +736,12 @@ class TestMergedCatalogs(unittest.TestCase):
         text = (
             "images:\n"
             "  - name: epirhandbook-basics\n"
+            "    description: a test image\n"
             "    renders: chapters/basics.qmd\n"
             "    dir: epirhandbook/2.8/chapters/basics\n"
             '    tags: ["2.8"]\n    base: null\n'
             "  - name: epirhandbook-other-basics\n"
+            "    description: a test image\n"
             "    renders: chapters/basics.qmd\n"
             "    dir: epirhandbook/2.8/other/chapters/basics\n"
             '    tags: ["2.8"]\n    base: null\n'
@@ -736,6 +807,17 @@ class TestAgainstRealCatalog(unittest.TestCase):
             self.assertNotIn("4.3.2", img["tags"])
         self.assertEqual(r["layers"][0][0]["name"], "rbase")  # base-most first
 
+    def test_every_real_image_carries_a_description(self):
+        # The nine published images each stamp their own
+        # org.opencontainers.image.description label. A record that lost its
+        # description would publish the label it inherits from its base.
+        root_yaml, split_yaml = self._real_catalog_paths()
+        images = plan.load_catalogs([root_yaml, split_yaml])
+        self.assertEqual(len(images), 9)
+        for img in images:
+            self.assertIsInstance(img["description"], str)
+            self.assertTrue(img["description"].strip(), img["name"])
+
     def test_common_change_cascades_to_every_group_but_not_rbase(self):
         # Discriminator (a): a change to common's dir must plan common, the
         # six group images and the monolith (the cascade), but NOT rbase --
@@ -784,6 +866,7 @@ class TestBuildContextAndChapterRenders(unittest.TestCase):
     ROW = (
         "images:\n"
         "  - name: epirhandbook-basics\n"
+        "    description: a test image\n"
         "    renders: new_pages/basics.qmd\n"
         "    dir: epirhandbook/2.6/chapters/basics\n"
         "    context: epirhandbook/2.6\n"
@@ -801,7 +884,7 @@ class TestBuildContextAndChapterRenders(unittest.TestCase):
         # rbase, the one live image that omits `context`: its Dockerfile
         # sits in its own context.
         text = (
-            "images:\n  - name: rbase\n    dir: rbase/4.3.2\n"
+            "images:\n  - name: rbase\n    description: a test image\n    dir: rbase/4.3.2\n"
             '    tags: ["4.3.2"]\n    base: null\n'
         )
         r = plan.build_plan(self._validate(text), changed_images=["rbase"])
@@ -827,6 +910,7 @@ class TestBuildContextAndChapterRenders(unittest.TestCase):
         text = (
             "images:\n"
             "  - name: epirhandbook-analysis\n"
+            "    description: a test image\n"
             "    dir: epirhandbook/2.8/groups/analysis\n"
             '    tags: ["2.8"]\n'
             "    base: null\n"
@@ -844,6 +928,7 @@ class TestBuildContextAndChapterRenders(unittest.TestCase):
         text = (
             "images:\n"
             "  - name: epirhandbook-subgroups\n"
+            "    description: a test image\n"
             "    dir: epirhandbook/subgroups\n"
             '    tags: ["2.8"]\n'
             "    base: null\n"

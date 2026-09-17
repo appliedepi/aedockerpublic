@@ -7,10 +7,12 @@
 # Usage:
 #   build_image.sh <mode> <repo_lowercased> <name> <dir> <tags_csv> \
 #                   <base_name> <base_tag> <base_freshly_built> \
-#                   <git_commit> <context>
+#                   <git_commit> <context> <description>
 # (base_name/base_tag are empty strings, and base_freshly_built
 # is "false", for an image with no base, e.g. rbase itself. <context>
-# defaults to <dir> when omitted -- see CONTEXT below.)
+# defaults to <dir> when omitted -- see CONTEXT below. <description> is
+# the catalog's own one-line description of the image and is REQUIRED:
+# see DESCRIPTION below.)
 #
 # <mode> is "publish" or "verify":
 #   publish -- build.yml / the real publish path. Tags as
@@ -96,6 +98,22 @@ fi
 # own dir as context fails: the COPY sources are outside it.
 CONTEXT="${9:-$DIR}"
 
+# The image's own one-line description, from its catalog record. It becomes
+# the org.opencontainers.image.description LABEL below. Brace-written on
+# purpose: $10 is $1 followed by a literal 0, which would stamp the repo name
+# with a trailing zero onto every image.
+#
+# An empty description is a hard error, for the same reason an empty
+# GIT_COMMIT is. Without a value the published image keeps the description it
+# inherits from its own base, which for rbase is Canonical's text for the
+# ubuntu image. plan.py makes `description` a REQUIRED catalog key, so a
+# record cannot reach this point without one.
+DESCRIPTION="${10:-}"
+if [ -z "$DESCRIPTION" ]; then
+  echo "::error::build_image.sh: no description given (arg 10) -- every build must stamp org.opencontainers.image.description, or the published image presents its base image's description as ours." >&2
+  exit 1
+fi
+
 IFS=',' read -r -a TAGS <<< "$TAGS_CSV"
 
 BUILD_ARGS=()
@@ -176,13 +194,31 @@ done
 # separate argument -- one fewer positional to keep in sync, and GitHub
 # repository URLs resolve case-insensitively regardless.
 REPO_URL="https://github.com/$REPO"
+
+# org.opencontainers.image.title/.description/.version/.created state what
+# THIS image is. Without them each published image keeps the four labels it
+# inherits from the ubuntu base, so `docker inspect` reports the title
+# "ubuntu", the version "26.04", Canonical's description and a created date
+# from the ubuntu release rather than from this build.
+#
+# `created` is the wall-clock time of this build, so the same source builds
+# to a different digest every run. That is inherent to a real created stamp
+# and it is safe here: changed_images.py decides what to rebuild from the
+# revision label alone, and never reads created or compares a digest.
+CREATED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 LABEL_ARGS=(
   --label "org.opencontainers.image.revision=$GIT_COMMIT"
   --label "org.opencontainers.image.source=$REPO_URL"
+  --label "org.opencontainers.image.title=$NAME"
+  --label "org.opencontainers.image.description=$DESCRIPTION"
+  --label "org.opencontainers.image.version=${TAGS[0]}"
+  --label "org.opencontainers.image.created=$CREATED"
 )
 
 echo "Building $NAME from $DIR (context: $CONTEXT) with tags: ${TAGS[*]} (mode: $MODE)"
 echo "Stamping org.opencontainers.image.revision=$GIT_COMMIT, org.opencontainers.image.source=$REPO_URL"
+echo "Stamping org.opencontainers.image.title=$NAME, org.opencontainers.image.version=${TAGS[0]}, org.opencontainers.image.created=$CREATED"
+echo "Stamping org.opencontainers.image.description=$DESCRIPTION"
 if [ -n "${GITHUB_PAT:-}" ]; then
   echo "GITHUB_PAT is set (a read-only credential, or an operator-supplied token for local testing) -- passing it as a BuildKit secret."
 else

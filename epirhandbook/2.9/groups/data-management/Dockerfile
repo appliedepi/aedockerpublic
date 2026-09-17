@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # epirhandbook-data-management:2.9 -- v2.9 group image (9 chapters, 140
-# CRAN/Bioc package names -- see epirhandbook/2.9/groups.yaml for the exact
+# CRAN/Bioc package names -- see the packages_cran_<stem>.txt files here for
 # chapter membership and epirhandbook/2.9/generate_groups.py for how
 # packages_cran.txt below was derived).
 #

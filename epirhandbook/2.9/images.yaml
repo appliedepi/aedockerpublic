@@ -15,21 +15,26 @@
 # entry states which image owns the chapter, not which files it will be
 # given. plan.py reads the stem from the last path segment.
 #
-# The six GROUP images (see groups.yaml) each render several chapters via a
-# LIST-form `renders`. `renders` order follows groups.yaml's own per-group
-# stem order. `index` needs no special case now. It is content/en/index.qmd,
+# The six GROUP images each render several chapters via a LIST-form
+# `renders`. The layout states group membership: each chapter's package list
+# sits in the directory of the group image that renders it, as
+# groups/<group>/packages_cran_<stem>.txt. generate_groups.py compares the
+# `renders` lists below against that layout, group by group and in both
+# directions. `index` needs no special case now. It is content/en/index.qmd,
 # beside every other chapter of that language.
 #
 # epirhandbook-monolith is the last record below; see the comment there for
 # why it carries no `renders`.
 images:
   - name: epirhandbook-common
+    description: "Shared R environment for the Epi R Handbook: the packages every chapter needs"
     dir: epirhandbook/2.9/common
     context: epirhandbook/2.9
     tags: ["2.9"]
     base: "rbase:4.6.0-2026-07-01"
     live: true
   - name: epirhandbook-analysis
+    description: "R environment for the Analysis chapters of the Epi R Handbook"
     renders:
       - content/en/tables_descriptive.qmd
       - content/en/stat_tests.qmd
@@ -48,6 +53,7 @@ images:
     base: "epirhandbook-common:2.9"
     live: true
   - name: epirhandbook-basics
+    description: "R environment for the Basics chapters of the Epi R Handbook"
     renders:
       - content/en/index.qmd
       - content/en/editorial_style.qmd
@@ -63,6 +69,7 @@ images:
     base: "epirhandbook-common:2.9"
     live: true
   - name: epirhandbook-data-management
+    description: "R environment for the Data Management chapters of the Epi R Handbook"
     renders:
       - content/en/cleaning.qmd
       - content/en/dates.qmd
@@ -79,6 +86,7 @@ images:
     base: "epirhandbook-common:2.9"
     live: true
   - name: epirhandbook-data-viz
+    description: "R environment for the Data Visualization chapters of the Epi R Handbook"
     renders:
       - content/en/tables_presentation.qmd
       - content/en/ggplot_basics.qmd
@@ -97,6 +105,7 @@ images:
     base: "epirhandbook-common:2.9"
     live: true
   - name: epirhandbook-reports
+    description: "R environment for the Reports and dashboards chapters of the Epi R Handbook"
     renders:
       - content/en/rmarkdown.qmd
       - content/en/reportfactory.qmd
@@ -108,6 +117,7 @@ images:
     base: "epirhandbook-common:2.9"
     live: true
   - name: epirhandbook-miscellaneous
+    description: "R environment for the Miscellaneous chapters of the Epi R Handbook"
     renders:
       - content/en/writing_functions.qmd
       - content/en/directories.qmd
@@ -132,6 +142,7 @@ images:
   # already claim all 50 chapters between them, and no .qmd may be claimed
   # twice. `epirhandbook-common` omits `renders` for the same reason.
   - name: epirhandbook-monolith
+    description: "R environment for every chapter of the Epi R Handbook, the union of the six group images"
     dir: epirhandbook/2.9/monolith
     context: epirhandbook/2.9
     tags: ["2.9"]
