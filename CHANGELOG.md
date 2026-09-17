@@ -2,10 +2,10 @@
 
 The historical record of this project: what each image line changed, and why. Newest first.
 
-Split out of `PROJECT.md` on 2026-09-17. `PROJECT.md` keeps the durable reference, which is
-the problem statement, the design decisions, the traps and the way of working. Everything
-below describes the project AS IT WAS when each entry was written, and later work has changed
-some of it. Read it as a record, never as current documentation.
+Split out of `PROJECT.md` on 2026-09-17, which was then deleted: its standing material moved
+to `README.md` and everything historical came here. Every entry below describes the project AS
+IT WAS when it was written, and later work has changed some of it. Read it as a record, never
+as current documentation.
 
 ---
 
@@ -546,3 +546,70 @@ section before it.
 
 ---
 
+---
+
+## Phase roadmap and status
+
+One variable changes per phase. Every phase after Phase 1 is regression-tested against Phase 1's render.
+
+| Phase | What changes | Status |
+|---|---|---|
+| **1 — Bare reconstruct** | `rocker/r-ver:4.3.2` + sysdeps + Quarto 1.4.550 + `renv::restore()`. No custom base, no pak. Establishes the known-good baseline render. | **Done** — commit `017fdbe` |
+| **2 — Factor + pak rehearsal** | Split into `rbase/4.3.2` + `epirhandbook/2.5`; swap `renv::restore()` → **pak**, driven by the exact same lock pins. Must render identical to Phase 1. | **Done** — commits `bfec633`, `59ed133` |
+| **3 — Per-chapter rendering** | Render each chapter **individually** on the full 473-package image. Only the render *granularity* changes, not the package set. Capture each chapter's real package footprint. | **Done** — codex passed on round 6 |
+| **4 — Productionize** | `images.yaml` catalog, manifest-driven CI (selective + cascade + nightly), publish to GHCR, optional SSH runtime toggle. Same content, same two images. | **Code complete, codex PASS on round 8, committed local `1dd7960`. NOT yet pushed/published.** Rounds 1-7 each found a real supply-chain or schema defect; the parser was replaced by hash-pinned PyYAML + a strict schema after four rounds of hand-rolled-reader divergences (see §8). The first-ever GHCR publish fires on the first push to main and needs Richard's explicit go. `GH_READONLY_PAT` is OPTIONAL (build works tokenless; the PAT only lifts the anonymous GitHub API rate limit for the 7 GitHub-pinned packages) — add it only if a CI run actually hits the limit. |
+| **5a — Split, same packages** | Build `epirhandbook-common` + 50 thin per-chapter images, on the **frozen 4.3.2 stack**. Package versions do not move. | **Done** — codex PASS round 5, committed `beec92f`, unpushed |
+| **5b — Modernize** | Modern `rbase/4.6.0` + minimal forward-port of the frozen content to 2026 packages, published as **2.7**. Topology does not move. | Not started |
+
+**Repo state:** pushed. `origin/main` is at `e119c7f`; local and remote in sync. Note that the push
+bypassed a branch-protection rule on `appliedepi/aedockerpublic` ("Changes must be made through a
+pull request") — admin permissions allowed it, and GitHub recorded it as a bypass. Decide whether
+future work on this repo should go through a PR instead.
+
+### Why 3, 5a and 5b are separate
+
+Each asks a different question, and separating them is what makes a failure attributable.
+
+- **Phase 3** asks *"can a chapter render alone?"* — answered on the monolith, so the package set is
+  not a variable.
+- **Phase 5a** asks *"can a chapter render on a minimal package set?"* — answered on the frozen
+  4.3.2 stack, so the package **versions** are not a variable. A failure here means the footprint
+  was wrong, and nothing else.
+- **Phase 5b** asks *"does this content still work on 2026 packages?"* — answered without moving the
+  topology again.
+
+**Phase 5 was originally one phase, and that was a mistake.** It changed two major variables at once:
+package versions (2024 → 2026) *and* image topology (one monolith → ~50 thin images). A chapter
+failing to render would have been ambiguous — a wrong footprint, or a package that changed
+underneath it, with no way to tell which.
+
+The ordering matters as much as the split. **5a must come before 5b**, because 5a's success bar is
+"renders identically to the Phase 3 monolith render", and that frozen reference only exists while
+the packages are still pinned at 4.3.2. Modernize first and the reference is gone, so the footprints
+would ship having never been tested against anything.
+
+### Success bars
+
+| Phase | Bar |
+|---|---|
+| 5a | Each chapter renders on its minimal image **identically to its Phase 3 monolith render**, measured by the Phase 3 comparators (`compare_chapters.py`, `compare_assets.py`, `compare_widgets.py`) unchanged. |
+| 5b | **Size of the source diff** — as few changes as possible. NOT output equivalence: two years of newer packages render differently, and where an API changed the source must change. |
+
+---
+
+## The problem
+
+`github.com/appliedepi/aedockerpublic` will host the Docker images for Applied Epi products.
+The first job is to stabilize **epiRhandbook**, which had not compiled for a long time.
+
+The cause is a tightly pinned 2024 stack that no longer matches any current default toolchain:
+
+- The handbook pins **R 4.3.2**, **Bioconductor 3.18**, **Quarto CLI 1.4.550**, on **Ubuntu jammy**.
+- Its `renv.lock` pins **473 packages** (463 CRAN + 3 Bioc + 7 GitHub).
+- `ggtree`/`treeio` need Bioc 3.18, which hard-couples the build to R 4.3.
+- Each chapter loads its own packages with `pacman::p_load()`. When renv is not restored, `p_load`
+  reaches live CRAN and installs whatever is current today. That silently breaks the pinned stack.
+- The build uses **Quarto + babelquarto** (9 languages), not bookdown.
+
+The strategy is: reproduce the old environment exactly so the **unchanged** content renders, and
+only then modernize.

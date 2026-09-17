@@ -40,7 +40,7 @@ name: Build images
 #     workflow-level `contents: read` default and nothing else.
 #   - Every build-layer-N job runs under the `publish` GitHub Environment,
 #     so a required-reviewer rule CAN be configured in repo settings (see
-#     PROJECT.md for how to turn that on -- it is not assumed to be on).
+#     CHANGELOG.md for how to turn that on -- it is not assumed to be on).
 #
 # NO REPOSITORY SECRETS ARE REQUIRED. This workflow uses only the automatic
 # `secrets.GITHUB_TOKEN`, so nothing here depends on an individual's personal
@@ -62,7 +62,7 @@ name: Build images
 # automatic and org-owned rather than personal. If the risk is revisited, the
 # safer options are an ORG-owned fine-grained PAT scoped to public read only,
 # or leaving the slot empty and accepting the anonymous rate limit. See
-# PROJECT.md section 8.
+# CHANGELOG.md's phase 4 log.
 #
 # This file deliberately duplicates the plan + build-layer-N jobs rather
 # than sharing them via a reusable (workflow_call) workflow. That would
@@ -140,7 +140,7 @@ jobs:
       # does not match one of requirements.txt's recorded sha256 hashes. See
       # that file's header for why PyYAML is hash-pinned rather than either
       # left unpinned (Phase 4 round 1 finding) or vendored (the four
-      # semantic-divergence blockers that decision then drew -- PROJECT.md
+      # semantic-divergence blockers that decision then drew -- CHANGELOG.md
       # section 8).
       - name: Install pinned Python dependencies for the planner
         run: python3 -m pip install --require-hashes --force-reinstall -r .github/scripts/requirements.txt

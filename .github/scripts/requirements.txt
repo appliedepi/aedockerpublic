@@ -10,7 +10,7 @@
 # adversarial-review blockers for silently diverging from real YAML semantics
 # (a capitalized `False`, YAML boolean aliases, comma-in-quotes splitting, a
 # `#` abutting a value, bare numeric scalars, duplicate keys -- see
-# PROJECT.md section 8.9 for the full history and section 8.4/8.8 for the
+# CHANGELOG.md's phase 4 log, 8.9 for the full history and 8.4/8.8 for the
 # original findings). Four rounds total spent on the same "how do we read
 # images.yaml" question, once round 1's original vendoring decision is
 # counted too -- YAML's implicit scalar grammar is larger than any

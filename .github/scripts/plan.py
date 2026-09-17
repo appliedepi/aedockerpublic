@@ -20,7 +20,7 @@ an unbounded goal, since YAML's implicit scalar space (dates, hex, booleans,
 floats, ...) is larger than any hand-rolled rejection list, and that reader
 drew three further rounds of adversarial-review blockers for silently
 diverging from real YAML semantics anyway -- four rounds total spent on
-this same question (PROJECT.md section 8.9, and 8.4/8.8 for the originals).
+this same question (CHANGELOG.md, phase 4 log, 8.9 and 8.4/8.8).
 The new contract is bounded instead: PyYAML parses, the schema validates
 every field against one declared type, and anything else is a hard error --
 we never try to out-parse YAML ourselves.

@@ -188,7 +188,7 @@ class TestValidateCatalog(unittest.TestCase):
     adversarial-review blockers for silently diverging from real YAML
     semantics -- four rounds total spent on this question, counting the
     original decision to vendor it. See plan.py's module docstring and
-    PROJECT.md section 8.9). Each test drives a real YAML string through
+    CHANGELOG.md, phase 4 log, 8.9). Each test drives a real YAML string through
     yaml.safe_load() and then the validator, exactly as plan.load_images()
     does -- never the schema function in isolation on a hand-built dict."""
 

@@ -28,7 +28,7 @@
 #     in this mode -- a pull of a PUBLISHED base (the not-freshly-built
 #     branch) is a read of a PUBLIC image, which needs none. Nothing in
 #     this repo schedules "verify" automatically; it remains available for
-#     a human to run by hand (e.g. PROJECT.md's local-registry rehearsal).
+#     a human to run by hand (e.g. the local-registry rehearsal in CHANGELOG.md).
 #
 # GIT_COMMIT (the CI's per-image change-detection anchor): stamped onto the
 # built image as the org.opencontainers.image.revision LABEL, alongside
@@ -53,7 +53,7 @@
 # BuildKit secret (--secret id=github_pat,env=GITHUB_PAT), NEVER as
 # --build-arg: a build-arg lands in `docker history` even if it is never
 # promoted to an ENV, which is exactly the leak this project's own hard rule
-# forbids (see PROJECT.md section 4 / the Dockerfile's own comment on this).
+# forbids (see README.md's maintainer section / the Dockerfile's own comment).
 # It exists ONLY to raise pak's GitHub API rate limit while resolving the
 # GitHub-SHA-pinned packages in epirhandbook's build -- a repo-CONTENTS
 # read, nothing more -- so the caller (build.yml) must source it from a
@@ -65,7 +65,7 @@
 # unset or empty, this script builds with NO token at all -- it never
 # substitutes a different, more-privileged credential on its own; the build
 # then simply relies on the ANONYMOUS GitHub API rate limit for those GitHub
-# lookups (fine in normal operation; see PROJECT.md for the documented
+# lookups (fine in normal operation; see CHANGELOG.md for the documented
 # consequence on a shared runner IP).
 set -euo pipefail
 

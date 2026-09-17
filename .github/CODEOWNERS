@@ -4,7 +4,7 @@
 # This ONLY takes effect where GitHub is configured to require it: repo
 # Settings -> Rules (or the classic Settings -> Branches -> branch
 # protection) -> "Require review from Code Owners" on a rule covering
-# `main`. See PROJECT.md for the current state -- this repo currently
+# `main`. See README.md for the current state -- this repo currently
 # allows direct pushes to `main` by design, so today this file documents
 # ownership and would only start gating anything the moment that setting is
 # turned on. It does not, by itself, block a direct push.

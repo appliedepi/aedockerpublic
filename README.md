@@ -20,7 +20,7 @@ from the other at build time.
 
 Everything the 2.9 line builds from sits in `epirhandbook/2.9/`. Its own
 [README](epirhandbook/2.9/README.md) covers how packages install, how one chapter renders, and how
-the book is assembled. [`PROJECT.md`](PROJECT.md) is the design record.
+the book is assembled. [`CHANGELOG.md`](CHANGELOG.md) is the historical record.
 
 2.5, 2.6, 2.7 and 2.8 are gone from the working tree. They remain in git history: `git log --diff-filter=D -- archive/` finds the commit that removed them, and `git show <sha>^:archive/<path>` reads any file back.
 
@@ -231,3 +231,87 @@ The `miscellaneous` group, 7 chapters. Tag `2.9`. Base `epirhandbook-common`. Re
 Every package of all six groups in one image. Tag `2.9`. Base `epirhandbook-common`. It renders
 nothing in CI. It is the dev-container image for contributors, named in the handbook's
 `.devcontainer.json`, and it can render any chapter.
+
+---
+
+# Maintaining this repository
+
+Everything below is for whoever maintains the image lines. A contributor using the images
+does not need it.
+
+### Which content, and which reference
+
+Two different versions of the handbook content exist. Do not mix them.
+
+| Content | Where | Role |
+|---|---|---|
+| **Sep-18-2024** (`epiRhandbook_eng` commit `c3cbc76`) | live at `https://www.epirhandbook.com/en/` | **The frozen baseline. This is what we reproduce.** |
+| **Jan-2025 drift** (branch `richard` @ `e121efa`, and `deploy-preview`) | published nowhere | **Parked.** A 52-chapter unpublished content update. Reviewed only at the very end to salvage anything useful. |
+
+The reproduction target is a **fresh crawl of the live site**, not the `html_outputs/` committed in
+the repo. The committed output is stale, so it is not a valid reference.
+
+- Live crawls on compute: `~/ae/live_crawl` (English) and `~/ae/live_crawl_ml/<lang>` (7 languages).
+- Sep-18 render source on compute: `~/ae/render_sep18`.
+- The regression bar is `epirhandbook/2.5/verify/manifest.tsv` — per-page text similarity plus a
+  `sha16` content hash. Regenerate it with `epirhandbook/2.5/verify/make_manifest.py`.
+
+**The manifest means "same output" only when package versions match.** It is the bar for Phase 2
+and Phase 3. It is **not** the bar for Phase 5, where newer packages legitimately render differently.
+
+### Design decisions, and why
+
+- **`rbase`, not `base`.** The name leaves room for a separate `pythonbase` later, and it matches
+  the existing `ghcr.io/niphr/cs/rbase`.
+- **`rbase:4.3.2` is fully self-owned.** `FROM ubuntu:jammy` (digest-pinned) + R 4.3.2 from **Posit
+  r-builds**, with **no rocker**. Control and consistency over lower maintenance.
+- **openblas 0.3.20 is installed deliberately.** It is the exact BLAS that rocker links. Matching it
+  is why dropping rocker moved no computed numbers. A different BLAS would have shifted values
+  across many chapters.
+- **pak is driven by the lock, and chooses nothing.** `renv.lock` stays the single source of truth.
+  The installed version is always the pin; the *ref form* only changes how each package is fetched.
+- **CRAN is `cloud.r-project.org` source, not PPM.** Phase 2 restores a lock whose pins span many
+  dates, so no single PPM snapshot contains them all. Only cloud carries every archived version.
+- **`GITHUB_PAT` is a BuildKit secret.** Never `--build-arg` + `ENV`, which would bake the token
+  into the image's `Config.Env` and leak it on `docker inspect` or push.
+
+### Traps already found (do not re-derive)
+
+- **pak's SAT solver versus R 4.4.** A naive `pkg@version` ref fails for 15 packages. pak evaluates
+  the *current* release's R constraint even when an *older* version is pinned, and reports a spurious
+  dependency conflict. The fix is `url::` refs pointing straight at the CRAN Archive tarball, which
+  bypasses the solver. renv never hits this, because renv does not solve — it just installs the pin.
+- **pak install ordering.** `dependencies = FALSE` resolves cleanly but drops build-order edges, so
+  a source package races its own build dependency (RcppRoll built before Rcpp). `dependencies = NA`
+  restores order but re-activates the solver. The fix is a **topological layer install**: build the
+  graph from the lock's own `Requirements`, Kahn-sort into 15 layers, install each layer with
+  `dependencies = FALSE`.
+- **Bioconductor drift.** The lock pins `ggtree` 3.10.0, but Bioc 3.18's live contrib directory now
+  serves 3.10.1. Only the Bioc Archive still has 3.10.0.
+- **pak leaves about 4 GB of build scratch in `/tmp`.** Delete it in the *same* `RUN` layer, or the
+  image doubles in size (9.5 GB → 5.1 GB).
+- **Docker tag races.** Two builds tagging the same image name: last to finish wins, so a bad build
+  can clobber a good one. Serialize builds that share a tag.
+- **Two render failures are not the image's fault.** `plot_continuous` never calls
+  `library(tidyr)`, and it is an unused `.qmd`. `gis` fetches live OpenStreetMap tiles at render
+  time, which aborts the whole book, so it is commented out of `_quarto.yml` for rendering.
+- **Render into a writable copy.** `render_book()` deletes `html_outputs` first.
+- **Linux needs the filename-case shim.** Run `python3 fix_image_case.py <source>` before rendering.
+
+### How we work on this
+
+- **Build on compute.** bench has no Docker. Rsync the build context to `compute:~/ae/ehb_build`,
+  then `docker build` over SSH.
+- **Verify the built image, not the Dockerfile.** After every build, run
+  `docker inspect <img> --format '{{.Config.Env}}'` to confirm no token was baked in. A
+  source-only review, codex included, does not catch a baked-in secret.
+- **Execution model:** opus orchestrates and writes the brief, sonnet implements, a *fresh* sonnet
+  re-runs the objective check and returns raw evidence, opus makes the call.
+- **codex is the phase gate.** A phase is done only on codex sign-off. codex attacks soundness
+  ("what is not really pinned"), not the render, which is objective and already measured.
+- **The gate is per phase, not per build iteration** — Claude owns the tight loop, and the codex
+  quota is spent deliberately.
+
+---
+
+---
