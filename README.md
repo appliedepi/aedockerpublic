@@ -22,7 +22,7 @@ Everything the 2.9 line builds from sits in `epirhandbook/2.9/`. Its own
 [README](epirhandbook/2.9/README.md) covers how packages install, how one chapter renders, and how
 the book is assembled. [`PROJECT.md`](PROJECT.md) is the design record.
 
-2.5, 2.6, 2.7 and 2.8 are frozen under [`archive/`](archive/README.md). CI never builds them.
+2.5, 2.6, 2.7 and 2.8 are gone from the working tree. They remain in git history: `git log --diff-filter=D -- archive/` finds the commit that removed them, and `git show <sha>^:archive/<path>` reads any file back.
 
 ### The catalogue
 
@@ -149,8 +149,7 @@ The names of those nine packages are exactly the nine names of the catalogue, wh
 unchanged from 2.8. Every tag published up to 2026-09-08 is `2.8`, apart from
 `4.6.0-2026-07-01` on `rbase` and one survivor:
 `epirhandbook-common:2.7`, a distinct digest inside the `epirhandbook-common` package, dated
-2026-07-24. Nothing builds or consumes that tag. [`archive/README.md`](archive/README.md) has the
-detail.
+2026-07-24. Nothing builds or consumes that tag.
 
 ### Known limitations
 

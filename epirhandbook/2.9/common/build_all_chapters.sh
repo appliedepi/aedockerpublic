@@ -152,6 +152,10 @@ HANDBOOK_DIR="$(cd "$HANDBOOK_DIR_ARG" && pwd)"
 [ -f "$HANDBOOK_DIR/docker-images.yml" ] || fail "no docker-images.yml in $HANDBOOK_DIR"
 [ -d "$HANDBOOK_DIR/content" ] || fail "no content/ directory in $HANDBOOK_DIR"
 [ -d "$HANDBOOK_DIR/images" ] || fail "no images/ directory in $HANDBOOK_DIR -- the assembled site links to it"
+# rsync is used to assemble the per-language output. ubuntu-latest ships it, so this
+# only bites on a different runner, and it bites late: after every chapter has
+# rendered. Fail here instead.
+command -v rsync >/dev/null 2>&1 || fail "rsync is not on PATH -- this script needs it to assemble the output"
 [ -n "$REGISTRY_PREFIX" ] || fail "registry prefix (arg 2) must not be empty"
 
 COMMON_IMAGE="$REGISTRY_PREFIX/epirhandbook-common:$COMMON_TAG"

@@ -59,7 +59,7 @@ def parse_base(base):
 
 REQUIRED_IMAGE_KEYS = {"name", "dir", "tags", "base"}
 # `renders`: the .qmd file, or the list of .qmd files, that this image renders,
-# repo-relative to the handbook source root. 2.8 uses the list form on its six
+# repo-relative to the handbook source root. 2.9 uses the list form on its six
 # group images. The field is optional: rbase, epirhandbook-common and the
 # monolith render nothing. It names the CONCRETE artifact rather than an
 # abstract chapter id. It also carries information `dir` does not: `index.qmd`
@@ -74,9 +74,9 @@ REQUIRED_IMAGE_KEYS = {"name", "dir", "tags", "base"}
 #   context = the directory `docker build` is given, i.e. the root that COPY
 #             paths resolve against.
 # For rbase they coincide, so `context` is omitted. Every image in
-# epirhandbook/2.8/images.yaml sets it to epirhandbook/2.8, because the two
+# epirhandbook/2.9/images.yaml sets it to epirhandbook/2.9, because the two
 # cannot coincide there. Each Dockerfile sits in the image's own `dir`. It
-# COPYs pak_install_subset.R from the 2.8 root, and reaches its own
+# COPYs pak_install_subset.R from the 2.9 root, and reaches its own
 # packages_cran.txt by a path relative to that root. Change detection stays
 # per-image, on `dir`. A build given the image's own dir as context fails,
 # because the COPY sources sit outside it.
@@ -388,11 +388,11 @@ def load_catalogs(paths):
     reasons over.
 
     Both files are hand-maintained. The root images.yaml holds the base
-    image, rbase. The file epirhandbook/2.8/images.yaml holds the 2.8 line:
+    image, rbase. The file epirhandbook/2.9/images.yaml holds the 2.9 line:
     epirhandbook-common, the six group images and the monolith.
 
     The PLANNER must see ONE catalog, because base edges cross the files:
-    epirhandbook-common (2.8) is FROM rbase (root). Load only one of them and
+    epirhandbook-common (2.9) is FROM rbase (root). Load only one of them and
     `rbase` looks like a typo, so the plan dies.
 
     Every image is defined in exactly ONE file. A name appearing in two
@@ -578,8 +578,8 @@ def build_plan(images, changed_images=None):
             # Normalized so the build step never has to decide: the docker
             # build context, defaulting to `dir` when the catalog omits it.
             # Only rbase omits it. The eight images in
-            # epirhandbook/2.8/images.yaml all set it. Their Dockerfile's
-            # COPY paths resolve against the shared epirhandbook/2.8 root,
+            # epirhandbook/2.9/images.yaml all set it. Their Dockerfile's
+            # COPY paths resolve against the shared epirhandbook/2.9 root,
             # not against the directory the Dockerfile sits in.
             rec["context"] = img.get("context", img["dir"])
             layer_out.append(rec)

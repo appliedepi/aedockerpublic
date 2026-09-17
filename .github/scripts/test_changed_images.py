@@ -147,7 +147,7 @@ class TestFilesTouchImage(unittest.TestCase):
             "epirhandbook/2.7/CHANGES-2.6-to-2.7.md",
             "epirhandbook/2.7/BREAKAGE.tsv",
             "epirhandbook/2.7/forward-port.patch",
-            "epirhandbook/2.7/archive/footprints.tsv",
+            "epirhandbook/2.7/footprints.tsv",
         ):
             for img in (self.COMMON, self.BASICS, self.CLEANING):
                 touched, reason = changed_images.files_touch_image(

@@ -6,7 +6,7 @@ runtime from mounted `.qmd` files, never baked in.
 
 2.9 carries the same nine images and the same package lists as 2.8. What changed is the handbook
 layout the render scripts drive: every language is now its own Quarto book project, at
-`content/<lang>/`. 2.8 is frozen under [`../../archive/`](../../archive/README.md).
+`content/<lang>/`. 2.8 is in git history, not in the working tree.
 
 This file covers the mechanics of this directory. The
 [root README](../../README.md) covers the catalogue, the build trigger, and what each image is
@@ -52,7 +52,7 @@ The per-chapter lists were derived once, from an instrumented render that record
 `loadedNamespaces()` for each chapter. 48 of them were captured for 2.7 and copied here unchanged
 on 2026-09-02, and `gis` was captured the same way in 2.8. The `errors` chapter needed no capture,
 which accounts for all 50. That derivation is finished, and its
-generator is frozen at `../../archive/epirhandbook/2.7/archive/`. **Do not run it.**
+generator was removed with the rest of the archived lines. Read it out of git history if you need it. **Do not run it.**
 
 ## Rendering one chapter
 
@@ -137,6 +137,6 @@ site, so it runs once, after the legs are joined.
 - **No chapter content.** The `.qmd` files, the data and `docker-images.yml` live in
   [`appliedepi/epirhandbook`](https://github.com/appliedepi/epirhandbook).
 - **No older line.** 2.5, 2.6, 2.7 and 2.8 are frozen under
-  [`../../archive/`](../../archive/README.md) and nothing builds them.
+  git history and nothing builds them.
 - **No package version.** Versions come from the dated CRAN snapshot that `rbase`'s tag owns. See
   the root README's "How dependencies resolve".

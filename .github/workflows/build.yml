@@ -194,9 +194,9 @@ jobs:
           # names its images `epirhandbook-common`, `epirhandbook-analysis`
           # and so on, with the version in `tags:`, and load_catalogs refuses
           # a name defined in two catalog files. Cutting over means SWAPPING
-          # this path, never appending. 2.5 to 2.8 are historical, under
-          # archive/ -- 2.6's catalog no longer even validates against the
-          # current schema.
+          # this path, never appending. 2.5 to 2.8 are historical and live
+          # in git history only. 2.6's catalog no longer even validates
+          # against the current schema.
           python3 .github/scripts/plan.py \
             --images-yaml images.yaml \
             --images-yaml epirhandbook/2.9/images.yaml \

@@ -1,16 +1,17 @@
 # syntax=docker/dockerfile:1
 # epirhandbook-common:2.9 -- shared base for the group-image split, on the
-# 2026 package stack. Same shape as archive/epirhandbook/2.7/common/Dockerfile
+# 2026 package stack. Same shape as 2.7's own common/Dockerfile, in git history,
 # (Phase 5b's per-chapter common image); hand-edit this file directly, the
 # way 2.7's own common/Dockerfile is hand-edited (not generated).
 #
-# The common set: common/packages_cran.txt (59 names) is the 56 packages most
+# The common set: common/packages_cran.txt (58 names) is the 56 packages most
 # chapters share (chosen in 2.7 from the per-chapter footprints: the names
-# present in most of them), plus brio, fs and xml2. inject_language_links.R
+# present in most of them), plus fs and xml2. inject_language_links.R
 # loads fs and xml2 directly, and nothing else in this image guarantees
-# them. brio is now loaded by no script here. It stays in the list so the
-# 2.9 rewrite does not change the package set. NO closure: pak resolves the
-# hard dependencies itself (dependencies = NA -- not Suggests) against the
+# them. brio was here too, for the config rewriter that 2.9 deleted. It was
+# kept through the 2.9 rewrite to hold the package set steady, then removed
+# once that rewrite had landed. NO closure: pak resolves the hard
+# dependencies itself (dependencies = NA -- not Suggests) against the
 # immutable dated snapshot below.
 #
 # BASE_IMAGE mirrors epirhandbook/2.6 and 2.7's own ARG pattern: a floating

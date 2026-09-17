@@ -89,9 +89,9 @@ if [ -z "$GIT_COMMIT" ]; then
 fi
 # The docker build CONTEXT. Defaults to DIR, which today means rbase alone:
 # its Dockerfile sits in the same directory its COPY paths resolve against.
-# The eight images in epirhandbook/2.8/images.yaml each pass a different one.
+# The eight images in epirhandbook/2.9/images.yaml each pass a different one.
 # Their Dockerfile lives in the image's own dir but COPYs pak_install_subset.R
-# from epirhandbook/2.8. So the context must be that shared root, while DIR
+# from epirhandbook/2.9. So the context must be that shared root, while DIR
 # stays per-image (the change-detection scope). A build that uses the image's
 # own dir as context fails: the COPY sources are outside it.
 CONTEXT="${9:-$DIR}"
@@ -105,7 +105,7 @@ BUILD_ARGS=()
 # source of truth for the pinned CRAN snapshot: extract it and pass it so the
 # Dockerfile derives the snapshot URL from it (rbase/4.6.0/Dockerfile). The
 # rule is generic, not rbase-specific. A tag with no date suffix (a group
-# image's "2.8") simply does not match, so no arg is passed and no Dockerfile
+# image's "2.9") simply does not match, so no arg is passed and no Dockerfile
 # consumes one. One date, defined once, in the tag.
 if [[ "${TAGS[0]}" =~ -([0-9]{4}-[0-9]{2}-[0-9]{2})$ ]]; then
   BUILD_ARGS+=(--build-arg "CRAN_SNAPSHOT_DATE=${BASH_REMATCH[1]}")

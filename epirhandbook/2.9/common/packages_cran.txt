@@ -5,7 +5,6 @@ R.utils
 R6
 RColorBrewer
 S7
-brio
 bslib
 cachem
 cli

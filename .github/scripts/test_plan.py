@@ -683,8 +683,8 @@ class TestMergedCatalogs(unittest.TestCase):
 
 class TestAgainstRealCatalog(unittest.TestCase):
     """Canary: the real catalogs still have the shape the tests above assume.
-    The public deliverable is the 2.9 catalog only. 2.5 to 2.8 are frozen
-    under archive/epirhandbook/ and the CI planner never loads them:
+    The public deliverable is the 2.9 catalog only. 2.5 to 2.8 are in git
+    history only, and the CI planner never loaded them:
     the root images.yaml holds just the base image (rbase:4.6.0-2026-07-01),
     and epirhandbook-common, the six group images and the monolith live in
     epirhandbook/2.9/images.yaml, FROM this rbase across the file boundary.

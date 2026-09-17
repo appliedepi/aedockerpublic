@@ -48,14 +48,14 @@ Determining the "shared build inputs" for a given image uses the exact
 same rule plan.py's build_plan() used to compute inline (before this
 split): a file living inside an image's build `context` but outside EVERY
 image's own `dir` is a shared input. One example is
-epirhandbook/2.8/pak_install_subset.R, COPYed by all eight Dockerfiles under
-epirhandbook/2.8/, but not itself inside any image's own dir. See
+epirhandbook/2.9/pak_install_subset.R, COPYed by all eight Dockerfiles under
+epirhandbook/2.9/, but not itself inside any image's own dir. See
 files_touch_image below -- kept in exactly one place so the two modules can
 never silently drift apart on this rule.
 
 CLI:
     python3 changed_images.py --images-yaml images.yaml \\
-        --images-yaml epirhandbook/2.8/images.yaml \\
+        --images-yaml epirhandbook/2.9/images.yaml \\
         --repo appliedepi/aedockerpublic --sha $GITHUB_SHA
 Prints one CHANGED image NAME per line to stdout (plan.py's
 --changed-image consumes this directly, one flag per line). Per-image
@@ -102,7 +102,7 @@ def is_machinery_file(f):
 # outside an image's own dir" swept all of those in, so a README edit rebuilt
 # 50 of 51 images.
 #
-# 2.8 keeps that shape. epirhandbook/2.8 is the shared context for
+# 2.9 keeps that shape. epirhandbook/2.9 is the shared context for
 # epirhandbook-common, the six group images and the monolith. Its root holds
 # a README beside these inputs. The same broad rule would rebuild eight of
 # the merged catalog's nine images on one README edit.
@@ -134,7 +134,7 @@ def files_touch_image(img, changed_files, all_dirs):
          under an image's own directory always touches it);
       2. it is a SHARED context input: `img`'s build `context` differs
          from its `dir` (true for all eight images in
-         epirhandbook/2.8/images.yaml, and for no other), the
+         epirhandbook/2.9/images.yaml, and for no other), the
          file is one of the DECLARED inputs at that context's root (see
          SHARED_CONTEXT_INPUTS), AND it is outside EVERY image's own `dir`
          in the whole catalog (all_dirs) -- so pak_install_subset.R fans

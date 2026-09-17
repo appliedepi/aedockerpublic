@@ -1,5 +1,5 @@
 # epirhandbook/2.9/images.yaml -- the v2.9 group-image catalog. It uses the
-# same schema as the archived catalogs under archive/epirhandbook. See
+# same schema as the catalogs of 2.5 to 2.8, which are in git history. See
 # .github/scripts/plan.py's validate_catalog for the authoritative field
 # rules. It is loaded ALONGSIDE the root images.yaml, because base edges
 # cross the two files: epirhandbook-common here is FROM rbase there. See
