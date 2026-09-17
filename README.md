@@ -31,9 +31,11 @@ Two files, read together as one catalogue: `images.yaml` at the repository root 
 `epirhandbook-common` is FROM `rbase`. Both files are hand-maintained, and `images.yaml`'s own
 header comment carries the authoritative field rules.
 
-Each record names the image (`name`), the tags to publish (`tags`), and the image in this
-catalogue it is FROM (`base`, or `null`). The `base` edge drives the cascade. Four fields need
-more than their name:
+Each record names the image (`name`), one line about it (`description`), and the tags to publish
+(`tags`). It also names the image in this catalogue it is FROM (`base`, or `null`). The `base`
+edge drives the cascade. All four are required. An image with no `description` publishes its base
+image's description, so the planner rejects a record without one. Four fields need more than their
+name:
 
 | Field | Meaning |
 |---|---|
