@@ -9,6 +9,18 @@ as current documentation.
 
 ---
 
+## 2.9 addendum (2026-09-22): the workflows get a structural linter
+
+- [ ] **`checks.yml` now runs actionlint over the workflow files.** Nothing looked at them before. The planner tests say nothing about `build.yml`, and the `yaml.safe_load` parse in the catalog validation cannot see a malformed `uses:` reference, a `needs:` edge to a job that does not exist, a shell fault, or an expression that cannot resolve. Both workflows passed clean on the day the step was added, under actionlint 1.7.7 with shellcheck 0.9.0 and 0.10.0, so the step arrived green rather than with a backlog behind it.
+- [ ] **What actionlint does NOT do.** It does not verify that a `uses:` repository exists, only that the reference is well formed: a step naming a repository that was never published passes. It reads and never runs. Its shell coverage is whatever shellcheck's static rules catch, which is not "any shell fault".
+- [ ] **The step asserts shellcheck is present.** actionlint disables its shellcheck rule when the binary is missing and still exits 0, so without the assertion the step would keep passing while silently covering less. shellcheck itself comes from the runner image and stays unpinned; actionlint is pinned by version and verified against the published SHA-256.
+- [ ] **The lint gates publication, which took a second step to achieve.** `build.yml` has no `needs:` on `checks.yml`, and both fire on `push`, so on a push to main they run at the same time: a lint living only in `checks.yml` catches faults before a merge and stops nothing from reaching GHCR. The lint therefore also runs in `build.yml`'s `plan` job, which every build layer `needs:`. This is the same shape as a published site being built from a commit whose gate failed.
+- [ ] **The lint is a script, not a pasted block.** `.github/scripts/lint_workflows.sh`, called from both places. The pinned version and its SHA-256 are one fact, and two copies of one fact can disagree: this repository already removed an instance of that shape when `groups.yaml` went, in the addendum below. The script is itself shellcheck-clean under 0.9.0 and 0.10.0.
+- [ ] **`description` must now be ONE line.** The catalog header always promised "One line about the image", but validation only required a non-empty string, so a YAML block scalar passed. The check asks `splitlines()` what a line is rather than testing for `\n` and `\r`: an adversarial review found five separators reachable from ordinary double-quoted YAML escapes (U+000B, U+000C, U+0085, U+2028, U+2029) that a hand-written newline test misses and Python counts as line boundaries. Three tests cover it, including the accepting direction. An OCI label value MAY hold a newline; this is a presentation contract, not a format limit.
+- [ ] **What CI will do on push.** `.github/scripts` and `.github/workflows` are both machinery directories, so `changed_images.py` reports every catalog image as changed and the run PLANS all nine. How many actually republish depends on execution: an image already carrying this SHA from an earlier partial run is skipped, and a failure in an earlier layer blocks the layers that depend on it. No catalog content changed.
+
+---
+
 ## 2.9 addendum (2026-09-17): the layout becomes the group membership
 
 - [ ] **What changed here.** All 50 per-chapter package lists moved out of
@@ -30,6 +42,8 @@ as current documentation.
 - [ ] **Why that check cannot rely on the generated lists.** The `errors` chapter runs no R, so
       its package list is empty. Delete that list, or file it under the wrong group, and all six
       group lists and the monolith stay byte-identical. Only the membership check sees it.
+- [ ] **Why the generator's two patterns anchor with `\A` and `\Z`, never `^` and `$`.** Python's `$` also matches immediately before a final newline, so `^content/en/(...)\.qmd$` accepts `'content/en/rmarkdown.qmd\n'`. A `renders:` entry written as a YAML block scalar produces exactly that value, and the membership check must reject it. `generate_groups.py:118` and `:120` carry a comment saying so. It is recorded here as well because the simplification is tempting and nothing would stop it: no committed test covers a block-scalar entry, so swapping the anchors back reintroduces the fault with every test still green. A test fixture would be the stronger guard, and `generate_groups.py` has no test suite at all, so that is its own piece of work.
+
 - [ ] **Six Dockerfile comments.** Each group Dockerfile's header pointed at `groups.yaml` for its
       chapter membership. It now points at the `packages_cran_<stem>.txt` files beside it. No
       instruction changed.

@@ -160,6 +160,14 @@ jobs:
       - name: Check the generated group and monolith package lists are current
         run: python3 epirhandbook/2.9/generate_groups.py --check
 
+      # Structural lint of the workflow files, run HERE and not only in
+      # checks.yml because this is the job every build layer `needs:`. A red
+      # lint therefore blocks publication. checks.yml fires on the same push
+      # and runs concurrently, so its copy gates nothing on main; it catches
+      # the fault at pull-request time instead.
+      - name: Lint the workflow files (fail loud before planning a real build)
+        run: bash .github/scripts/lint_workflows.sh
+
       - name: Set lowercase repository name
         run: echo "REPO_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
 

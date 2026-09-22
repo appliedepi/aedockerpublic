@@ -293,6 +293,45 @@ class TestValidateCatalog(unittest.TestCase):
             self._validate(text)
         self.assertIn("description", str(ctx.exception))
 
+    def test_multi_line_description_is_rejected(self):
+        # The catalog header promises "One line about the image", and a LABEL
+        # is a single line. A YAML block scalar is the way this gets written
+        # by accident: it appends a trailing newline that no author sees.
+        text = self.VALID.replace(
+            "    description: a test image\n",
+            "    description: |\n      a test image\n      with a second line\n",
+        )
+        with self.assertRaises(ValueError) as ctx:
+            self._validate(text)
+        self.assertIn("ONE line", str(ctx.exception))
+
+    def test_single_line_description_with_no_trailing_newline_is_accepted(self):
+        # The passing direction. A gate proved only against a bad input has
+        # never run its accepting branch.
+        images = self._validate(self.VALID)
+        self.assertEqual(images[0]["description"], "a test image")
+
+    def test_exotic_line_separators_in_description_are_rejected(self):
+        # A newline test that looks for "\n" and "\r" misses five separators
+        # that ordinary double-quoted YAML escapes produce and that Python
+        # counts as line boundaries. Each one would reach the registry as a
+        # broken description. Found by an adversarial review, 2026-09-22.
+        for name, escape in (
+            ("vertical tab", "\\v"),
+            ("form feed", "\\f"),
+            ("next line", "\\N"),
+            ("line separator", "\\L"),
+            ("paragraph separator", "\\P"),
+        ):
+            with self.subTest(separator=name):
+                text = self.VALID.replace(
+                    "description: a test image",
+                    'description: "a test%simage"' % escape,
+                )
+                with self.assertRaises(ValueError) as ctx:
+                    self._validate(text)
+                self.assertIn("ONE line", str(ctx.exception))
+
     def test_non_string_description_is_rejected(self):
         # PyYAML resolves a bare 2.9 to a float, not a string. The tags tests
         # below cover the same implicit-scalar trap.

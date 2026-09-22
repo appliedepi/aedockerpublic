@@ -256,6 +256,25 @@ def _validate_image(image, path, index):
             f"string; got {description!r}. It is published as this image's "
             f"org.opencontainers.image.description OCI label."
         )
+    # The catalog header promises "One line about the image". Enforce that,
+    # rather than trusting every future editor to keep it: a description that
+    # spans lines reaches `docker inspect` with an escape in it and renders
+    # broken on the registry page. (An OCI label value MAY contain a newline.
+    # This is our presentation contract, not a format limit.)
+    #
+    # Ask Python what a line is, instead of testing for "\n" and "\r". YAML
+    # double-quoted escapes reach here as U+000B, U+000C, U+0085, U+2028 and
+    # U+2029, every one of which `splitlines()` treats as a line boundary and
+    # a hand-written newline test does not. The second clause catches the
+    # common case the first cannot see: a block scalar yields 'text\n', and
+    # 'text\n'.splitlines() is a one-element list.
+    lines = description.splitlines()
+    if len(lines) != 1 or lines[0] != description:
+        raise ValueError(
+            f"{path}: image {label!r} field 'description' must be ONE line; "
+            f"got {description!r}. It is published as this image's "
+            f"org.opencontainers.image.description OCI label."
+        )
 
     # `renders`: the .qmd file, or the list of .qmd files, this image renders.
     # The STRING form must have a stem equal to the last segment of `dir`.

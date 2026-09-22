@@ -4,7 +4,10 @@ name: Checks
 # push, so a stale generated list or a broken planner is caught before a
 # merge to main starts a real image build (build.yml runs on main only).
 # Keep this file in step with the plan job of build.yml: the same tests and
-# the same generator check, minus anything that touches the registry.
+# the same generator check, minus anything that touches the registry. The
+# workflow lint below is the one deliberate exception: it checks the workflow
+# files themselves, so it belongs at pull-request time and has no counterpart
+# in the build job.
 on:
   pull_request:
   push:
@@ -41,3 +44,16 @@ jobs:
       # here instead of in the first real build.
       - name: Validate the image catalogs
         run: python3 .github/scripts/plan.py --images-yaml images.yaml --images-yaml epirhandbook/2.9/images.yaml > /dev/null
+
+      # Structural lint of the workflow files. Nothing else here looks at
+      # them: the planner tests say nothing about build.yml, and the
+      # `yaml.safe_load` parse below cannot see a malformed `uses:`
+      # reference, a `needs:` edge to a job that does not exist, a shell
+      # fault, or an expression that cannot resolve.
+      #
+      # The same script runs in build.yml's `plan` job, which is what makes
+      # it a publication gate. This copy catches the fault at pull-request
+      # time instead. See the script's header for what actionlint does not
+      # cover.
+      - name: Lint the workflow files
+        run: bash .github/scripts/lint_workflows.sh
