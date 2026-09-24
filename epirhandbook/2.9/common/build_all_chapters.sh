@@ -172,8 +172,10 @@ read_languages() {
 import sys
 import yaml
 
+# BaseLoader keeps every scalar a string. yaml.safe_load reads an unquoted
+# `no` as False, so the Norwegian code `no` would fail the 'code' check below.
 with open(sys.argv[1]) as fh:
-    cfg = yaml.safe_load(fh) or {}
+    cfg = yaml.load(fh, Loader=yaml.BaseLoader) or {}
 main = cfg.get("main")
 entries = cfg.get("languages") or []
 codes = []

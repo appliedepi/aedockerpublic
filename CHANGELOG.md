@@ -9,6 +9,13 @@ as current documentation.
 
 ---
 
+## 2.9 addendum (2026-09-24): an unquoted language code `no` stays a code
+
+- [ ] **`build_all_chapters.sh` read `languages.yml` with `yaml.safe_load`.** That reads an unquoted `no` as False, so a Norwegian `code: no` stopped the build with "every languages[] entry needs a 'code'". `read_languages` now uses `yaml.BaseLoader`, which keeps every scalar a string. On the handbook's current `languages.yml` it prints the same two lines as before.
+- [ ] **`inject_language_links.R` read the same file with plain `yaml.load_file`.** `code: no` became the text "FALSE", and the injector skipped that language without an error: "8 of 9 declared language(s)". It now passes handlers that keep yes, no, on, off, y, n, true and false as text. On a 16-page fixture from the handbook's staging site, the old and new injectors write identical pages for the current language list. With `code: no` added, the new one links `../no/basics.html` on every page.
+- [ ] **The code shape is still checked before the image runs.** The handbook's `build-deploy.yml` accepts only 2 or 3 lowercase letters for each code and for `main`, before it calls `build_all_chapters.sh`. `read_languages` itself checks presence only, as it did before.
+- [ ] **What CI will do on push.** Both files are under `epirhandbook/2.9/common/`, so `epirhandbook-common` changes and every image built on it rebuilds.
+
 ## 2.9 addendum (2026-09-22): the workflows get a structural linter
 
 - [ ] **`checks.yml` now runs actionlint over the workflow files.** Nothing looked at them before. The planner tests say nothing about `build.yml`, and the `yaml.safe_load` parse in the catalog validation cannot see a malformed `uses:` reference, a `needs:` edge to a job that does not exist, a shell fault, or an expression that cannot resolve. Both workflows passed clean on the day the step was added, under actionlint 1.7.7 with shellcheck 0.9.0 and 0.10.0, so the step arrived green rather than with a backlog behind it.

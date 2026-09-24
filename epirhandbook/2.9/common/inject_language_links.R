@@ -84,7 +84,13 @@ if (!fs::file_exists(languages_yml)) {
   )
   quit(status = 2L)
 }
-config <- yaml::yaml.load_file(languages_yml)
+## The yaml package reads an unquoted yes, no, on, off, y, n, true or false as
+## a logical. These handlers keep each one as its text, so the Norwegian code
+## `no` stays "no" instead of becoming "FALSE".
+config <- yaml::yaml.load_file(
+  languages_yml,
+  handlers = list("bool#yes" = function(x) x, "bool#no" = function(x) x)
+)
 
 main_language <- config[["main"]]
 entries <- config[["languages"]]
