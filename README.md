@@ -81,7 +81,7 @@ One source of truth per axis, and **no package version is asserted anywhere**.
 - **Bioconductor**: the release paired with R, from `BiocManager::version()`. Derived, never
   stored.
 - **GitHub**: the one thing a dated CRAN snapshot cannot pin.
-  `epirhandbook/2.9/packages_github.json` holds 6 packages with a commit SHA each.
+  `epirhandbook/2.9/packages_github.json` holds 7 packages with a commit SHA each.
 - **Resolution**: `pak_install_subset.R` runs `pak::pkg_install(refs, dependencies = NA)`. That is
   hard dependencies only (Depends, Imports, LinkingTo), with **Suggests deliberately excluded**.
   There is no hand-computed dependency closure. pak resolves the tree against a snapshot that
@@ -188,7 +188,7 @@ renders nothing.
 
 ### epirhandbook-common
 
-The shared package environment. It holds 59 CRAN and Bioconductor names, all 6 GitHub pins, and
+The shared package environment. It holds 59 CRAN and Bioconductor names, all 7 GitHub pins, and
 the render scripts on `PATH`. The 59 are the names most chapters share, plus the ones the render
 scripts import. Tag `2.9`. Base `rbase`. It renders no chapter, so it declares no `renders` list.
 

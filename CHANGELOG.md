@@ -9,6 +9,14 @@ as current documentation.
 
 ---
 
+## 2.9 addendum (2026-10-01): i2extras is the seventh GitHub pin, and the build checks every pin's commit
+
+- [ ] **`packages_github.json` pins `i2extras` at `reconverse/i2extras@10fea678`.** The dated PPM snapshot does not carry it, so it cannot go in a `packages_cran.txt`. pak resolves its dependencies `incidence2` and `ciTools` from the snapshot.
+- [ ] **The build-time check of `epirhandbook-common` now reads the pin names from `packages_github.json`.** Before, it named `appliedepidata` alone, and no package list of any image names the other 5 pins. So no build-time check loaded them. A new pin is now checked with no edit to the Dockerfile.
+- [ ] **A pin that loads at the wrong commit now fails the build.** The check compares the installed `RemoteSha` of each pin with the `RemoteSha` in `packages_github.json`. Before, a pin at any commit passed.
+- [ ] **Verified on the compute host in verify mode.** `epirhandbook-common` printed `PIN CHECK OK: all 7 GitHub pins load at their pinned RemoteSha`. `epirhandbook-data-viz`, built FROM that image, loads `i2extras` at `10fea678` with no network. A wrong expected SHA failed the build with `PIN CHECK FAILED`. An install without `i2extras` failed it with `LOAD CHECK FAILED (1): i2extras`, and the old check passed that same install.
+- [ ] **What CI will do on push.** `packages_github.json` is a shared context input of `epirhandbook/2.9`, so all eight 2.9 images rebuild: `epirhandbook-common`, the six group images and the monolith.
+
 ## 2.9 addendum (2026-09-24): an unquoted language code `no` stays a code
 
 - [ ] **`build_all_chapters.sh` read `languages.yml` with `yaml.safe_load`.** That reads an unquoted `no` as False, so a Norwegian `code: no` stopped the build with "every languages[] entry needs a 'code'". `read_languages` now uses `yaml.BaseLoader`, which keeps every scalar a string. On the handbook's current `languages.yml` it prints the same two lines as before.

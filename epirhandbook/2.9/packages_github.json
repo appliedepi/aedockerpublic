@@ -30,6 +30,12 @@
       "RemoteRef": "HEAD",
       "RemoteSha": "55cd9fdbf9c74c20de1eeb9ec2629a7d16c76aa4"
     },
+    "i2extras": {
+      "RemoteUsername": "reconverse",
+      "RemoteRepo": "i2extras",
+      "RemoteRef": "main",
+      "RemoteSha": "10fea678e96bde442324df85272b3d641f32933c"
+    },
     "sitrep": {
       "RemoteUsername": "R4EPI",
       "RemoteRepo": "sitrep",

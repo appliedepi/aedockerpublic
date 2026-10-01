@@ -42,8 +42,8 @@ moves.
 CI runs `--check` twice: in `checks.yml` on every pull request and push, and in `build.yml`'s plan
 job before any image builds. A stale list fails both.
 
-[`packages_github.json`](packages_github.json) holds the 6 GitHub-pinned packages, each with a
-commit SHA. `epirhandbook-common` installs all 6, so every group image inherits them. A
+[`packages_github.json`](packages_github.json) holds the 7 GitHub-pinned packages, each with a
+commit SHA. `epirhandbook-common` installs all 7, so every group image inherits them. A
 transitively pulled GitHub package then resolves to its pinned commit instead of coming from
 CRAN.
 
