@@ -67,6 +67,7 @@ lwgeom
 magrittr
 memoise
 minqa
+ncmeta
 nlme
 nloptr
 otel

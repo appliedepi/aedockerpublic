@@ -193,6 +193,7 @@ mitml
 mitools
 modelbased
 naniar
+ncmeta
 networkD3
 nlme
 nloptr

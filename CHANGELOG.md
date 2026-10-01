@@ -9,6 +9,15 @@ as current documentation.
 
 ---
 
+## 2.9 addendum (2026-10-01): the analysis image carries ncmeta, so time_series can read NetCDF without GDAL
+
+- [ ] **`groups/analysis/packages_cran_time_series.txt` lists `ncmeta`.** `generate_groups.py` added it to `groups/analysis/packages_cran.txt` and `monolith/packages_cran.txt`. pak installs ncmeta 0.4.0 and its import RNetCDF 2.11-1 from the snapshot. Before, no published 2.9 image held either package.
+- [ ] **Why.** The `time_series` chapter reads the 10 `germany_weather` NetCDF files with `stars::read_stars`. That reader goes through GDAL, which raises "GDAL Message 1: 1-pixel width/height files not supported" twice per file. `stars::read_ncdf` does not use GDAL, but it needs ncmeta. This entry changes the image only. The chapter still calls `read_stars`.
+- [ ] **Verified on the compute host.** `epirhandbook-analysis:2.9-ncmeta`, built in verify mode FROM the published `epirhandbook-common:2.9`, printed `LOAD CHECK OK: all 254 target packages load` and passed the smoke render. With no network, `read_ncdf` read each of the 10 files with 0 warnings. `read_stars` raised 20 warnings on the same files. In the published `epirhandbook-analysis:2.9`, `read_ncdf` stopped on each file with "package ncmeta required".
+- [ ] **What CI will do on push.** The changed lists sit under the `dir` of `epirhandbook-analysis` and of `epirhandbook-monolith`, so those two images rebuild. Nothing else rebuilds.
+
+---
+
 ## 2.9 addendum (2026-10-01): each image renders a smoke document before it is pushed
 
 - [ ] **`build_image.sh` renders `common/smoke.qmd` in each image it builds.** The render runs after `docker build` in both modes, before any push and before verify mode exits. A failed render stops the script with exit 1, so publish mode pushes nothing.
