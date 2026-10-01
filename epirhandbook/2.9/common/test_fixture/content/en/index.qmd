@@ -1,0 +1,3 @@
+# Test fixture {.unnumbered}
+
+This book exists to test `build_all_chapters.sh`.

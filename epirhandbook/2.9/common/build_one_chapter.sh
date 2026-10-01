@@ -35,9 +35,13 @@
 # epirhandbook/2.9/README.md "Assembling the book".
 #
 # Usage (with the book content mounted, and the language project as the
-# working directory):
-#   docker run --rm -v <book>:/book -w /book/content/<lang> \
+# working directory). These are the flags build_all_chapters.sh uses:
+#   docker run --rm --network none \
+#     -e R_PROFILE_USER=/usr/local/lib/ehb/warnings_to_log.R \
+#     -v <book>:/book -w /book/content/<lang> \
 #     epirhandbook-<group>:2.9 build_one_chapter.sh <stem>.qmd
+# A render by hand MAY leave out --network none and R_PROFILE_USER.
+# warnings_to_log.R says what the profile writes to the log.
 set -euo pipefail
 
 if [ "$#" -ne 1 ]; then
@@ -47,6 +51,12 @@ fi
 qmd="$1"
 if [ ! -f "$qmd" ]; then
   echo "build_one_chapter.sh: file not found: $qmd (is the book content mounted at the working directory?)" >&2
+  exit 2
+fi
+# R ignores an R_PROFILE_USER that names a missing file, and says nothing.
+# The render would then log no warnings, and nothing would show it.
+if [ -n "${R_PROFILE_USER:-}" ] && [ ! -r "$R_PROFILE_USER" ]; then
+  echo "build_one_chapter.sh: R_PROFILE_USER is '$R_PROFILE_USER', and this image holds no readable file there" >&2
   exit 2
 fi
 

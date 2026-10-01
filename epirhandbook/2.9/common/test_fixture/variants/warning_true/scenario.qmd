@@ -1,0 +1,14 @@
+# Scenario
+
+Three warnings in a chunk with the default `warning: true`. The first two
+are identical, and knitr merges identical adjacent warnings on the page.
+
+```{r}
+#| label: warning-true
+h <- function() {
+  warning("fixture warning-true repeated")
+  warning("fixture warning-true repeated")
+  warning("fixture warning-true distinct")
+}
+h()
+```

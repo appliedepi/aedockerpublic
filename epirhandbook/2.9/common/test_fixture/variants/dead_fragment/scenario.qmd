@@ -1,0 +1,4 @@
+# Scenario
+
+This link points to [x](#nope), a fragment that no element on this page
+carries.

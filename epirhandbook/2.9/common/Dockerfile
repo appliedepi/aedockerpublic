@@ -67,6 +67,12 @@ RUN --mount=type=cache,target=/root/.cache/R --mount=type=secret,id=github_pat \
 COPY common/build_one_chapter.sh /usr/local/bin/build_one_chapter.sh
 RUN chmod +x /usr/local/bin/build_one_chapter.sh
 
+# --- The R profile of every chapter render. build_all_chapters.sh passes
+# --- -e R_PROFILE_USER=/usr/local/lib/ehb/warnings_to_log.R, so this path
+# --- and that script's R_PROFILE_IN_IMAGE MUST stay the same. It logs
+# --- every chunk warning as an EHB-WARNING line; see its header. ----------
+COPY common/warnings_to_log.R /usr/local/lib/ehb/warnings_to_log.R
+
 # --- Book-level render tooling: also installed onto PATH, also inherited by
 # --- every group image, but only ever RUN against the common image itself
 # --- (see build_all_chapters.sh's COMMON_IMAGE) -- these are per-BOOK steps

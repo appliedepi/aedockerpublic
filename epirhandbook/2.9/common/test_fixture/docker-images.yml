@@ -1,0 +1,6 @@
+registry: ghcr.io/appliedepi/aedockerpublic
+chapters:
+  - stem: index
+    image: epirhandbook-common:2.9
+  - stem: scenario
+    image: epirhandbook-common:2.9

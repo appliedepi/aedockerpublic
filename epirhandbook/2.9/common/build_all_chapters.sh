@@ -67,8 +67,8 @@
 #      registered once, resolves them: re-running the same renders a second
 #      time took the dead-link count from 3 to 0 and reproduced the
 #      whole-book reference byte-for-byte. Do not remove pass 2 -- it looks
-#      redundant and it is not; removing it produces dead links silently,
-#      not a build error.
+#      redundant and it is not. Without it, the dead-fragment check in
+#      validate_language() fails the build.
 #
 # FAIL LOUDLY: a chapter that fails to render fails this build, immediately,
 # naming the chapter, the language, and the pass. Rendering itself is not
@@ -103,6 +103,12 @@ usage() {
 # --- inject_language_links.R is irrelevant. This script itself lives in
 # --- epirhandbook/2.9, so "2.9" is the correct common tag for it to use.
 COMMON_TAG="2.9"
+
+# --- the R profile every chapter render runs with. common/Dockerfile COPYs
+# --- common/warnings_to_log.R to this path. build_one_chapter.sh fails when
+# --- R_PROFILE_USER names a file the image does not hold, because R itself
+# --- ignores a missing profile without a word.
+R_PROFILE_IN_IMAGE="/usr/local/lib/ehb/warnings_to_log.R"
 
 # --- arg parsing -------------------------------------------------------------
 # Two optional flags, both there so a CI matrix can put ONE language in each
@@ -373,6 +379,18 @@ prepare_workspace() {
 # /book/content/<lang>, and the argument is the bare <stem>.qmd inside it.
 # build_one_chapter.sh's header says why that matters: a render started
 # anywhere else is not a project render, and it exits 0 anyway.
+#
+# The container has NO NETWORK (--network none). A chapter that installs a
+# missing package while it renders, or downloads data, fails here. Without
+# it, the render installs the package and exits 0, and the image defect
+# stays hidden. The image holds every package, and the checkout holds the
+# data, so a correct chapter needs no network.
+#
+# R_PROFILE_USER points R at warnings_to_log.R, which common/Dockerfile
+# installs at $R_PROFILE_IN_IMAGE. It writes one EHB-WARNING line to the log
+# for each R warning a chunk raises, whatever the chunk's `warning` option,
+# and one EHB-ERROR line for each error an `error: true` chunk captures. The
+# page does not change. That file's header says how.
 render_pass() {
   local lang="$1" ws="$2" pass="$3"
   local stem image qmd image_ref
@@ -383,7 +401,8 @@ render_pass() {
     fi
     image_ref="$REGISTRY_PREFIX/$image"
     echo "build_all_chapters.sh: lang=$lang pass=$pass: rendering $stem.qmd with $image_ref"
-    if ! docker run --rm -v "$ws:/book" -w "/book/content/$lang" "$image_ref" build_one_chapter.sh "$stem.qmd"; then
+    if ! docker run --rm --network none -e "R_PROFILE_USER=$R_PROFILE_IN_IMAGE" \
+        -v "$ws:/book" -w "/book/content/$lang" "$image_ref" build_one_chapter.sh "$stem.qmd"; then
       fail "lang=$lang pass=$pass: chapter '$stem' failed to render 'content/$lang/$stem.qmd' using '$image_ref'"
     fi
   done < "$MANIFEST_FILE"
@@ -422,41 +441,40 @@ validate_language() {
   # deliberately -- it is a JS-hook placeholder used by dropdown/toggle
   # controls in the page template, never a same-page anchor, and same-page
   # anchors are never empty strings.
-  # Dead same-page fragments are REPORTED, never fatal. It is tempting to fail
-  # the build on them -- that is the exact symptom of the cross-reference bug
-  # the second render pass exists to fix. It does not work as a gate, and this
-  # was measured, not assumed. The measurement is the whole-book reference
-  # render of the real 49-chapter book, which is the 2.7 book. It was the live
-  # site at the time. That render contains 106 dead fragments of its own after
-  # percent-decoding, and 4552 before it. They are pre-existing content bugs
-  # -- `#gis` 15 times, `#contact_us` 7 -- not render faults. A gate here would
-  # fail every build forever, and a numeric threshold would be arbitrary.
+  # A dead same-page fragment FAILS the build. So does a count that cannot be
+  # made: the python step failing, or printing something that is not a count.
+  # The failure names every dead fragment as <page>#<fragment>.
   #
-  # So: count them, print the worst, move on. What actually guards the
-  # cross-reference bug is the second render pass itself, plus the two checks
-  # above, which are exact and do fail the build.
+  # Before 2026-10-01 the count was only printed, and a failed count printed
+  # "?". The reason given was the 2.7 whole-book render of 49 chapters, which
+  # held 106 dead fragments, all content bugs (`#gis` 15 times, `#contact_us`
+  # 7). A printed count that nobody reads guards nothing, so those content
+  # bugs MUST be fixed in the handbook for its build to pass.
   #
   # Percent-decoding matters: an href fragment is URL-encoded
   # (`#r%C3%A9visions-majeures`) while the matching `id=` is not, so a literal
   # comparison reports ~40x more "dead" links than really are.
-  local dead
-  dead="$(python3 - "$outdir" <<'PY'
-import re, glob, os, sys, urllib.parse, collections
+  local dead n
+  if ! dead="$(python3 - "$outdir" <<'PY'
+import re, glob, os, sys, urllib.parse
 root = sys.argv[1]
-files = [f for f in glob.glob(root + "/**/*.html", recursive=True) if "/site_libs/" not in f]
-n = 0
-worst = collections.Counter()
+files = sorted(f for f in glob.glob(root + "/**/*.html", recursive=True) if "/site_libs/" not in f)
+found = []
 for path in files:
     text = open(path, encoding="utf-8", errors="replace").read()
     ids = set(re.findall(r'id="([^"]*)"', text))
-    for frag in set(re.findall(r'href="#([^"]*)"', text)):
+    for frag in sorted(set(re.findall(r'href="#([^"]*)"', text))):
         if frag and frag not in ids and urllib.parse.unquote(frag) not in ids:
-            n += 1
-            worst[urllib.parse.unquote(frag)] += 1
-print(n, " ".join(f"#{k}x{v}" for k, v in worst.most_common(5)))
+            found.append(os.path.relpath(path, root) + "#" + urllib.parse.unquote(frag))
+print(len(found), " ".join(found))
 PY
-)" || dead="?"
-  echo "build_all_chapters.sh: lang=$lang: dead same-page fragments: $dead"
+)"; then
+    fail "lang=$lang: could not count the dead same-page fragments in '$outdir'"
+  fi
+  n="${dead%% *}"
+  [[ "$n" =~ ^[0-9]+$ ]] || fail "lang=$lang: the dead same-page fragment count is not a number: '$dead'"
+  [ "$n" -eq 0 ] || fail "lang=$lang: $n dead same-page fragment(s): ${dead#* }"
+  echo "build_all_chapters.sh: lang=$lang: dead same-page fragments: 0"
 }
 
 # This loop is a plain, SEQUENTIAL `for`, one language after another, even

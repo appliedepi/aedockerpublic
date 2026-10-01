@@ -1,0 +1,14 @@
+project:
+  type: book
+  output-dir: html_outputs
+
+lang: en
+
+book:
+  title: "build_all_chapters.sh test fixture"
+  chapters:
+    - index.qmd
+    - scenario.qmd
+
+format:
+  html: default

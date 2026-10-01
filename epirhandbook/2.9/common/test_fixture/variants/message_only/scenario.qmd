@@ -1,0 +1,9 @@
+# Scenario
+
+Two messages and no warning. The log MUST NOT report a message.
+
+```{r}
+#| label: message-only
+message("fixture message one")
+message("fixture message two")
+```

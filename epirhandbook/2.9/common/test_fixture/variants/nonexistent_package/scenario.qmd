@@ -1,0 +1,10 @@
+# Scenario
+
+No repository holds `ehbnosuchpackage`. With network access,
+`pacman::p_load()` warns and the render exits 0. With `--network none`,
+`pacman::p_load()` stops the render with an error.
+
+```{r}
+#| label: nonexistent-package
+pacman::p_load(ehbnosuchpackage)
+```

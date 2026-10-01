@@ -1,0 +1,8 @@
+# Scenario
+
+The clean scenario. Its one chunk raises no warning, no message and no error.
+
+```{r}
+#| label: clean
+1 + 1
+```

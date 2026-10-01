@@ -9,6 +9,18 @@ as current documentation.
 
 ---
 
+## 2.9 addendum (2026-10-01): chapters render offline, every chunk warning reaches the log, and a dead fragment fails the build
+
+- [ ] **Every chapter container of `build_all_chapters.sh` now runs with `--network none`.** Before, a chapter that called `pacman::p_load()` on a package missing from its image installed it during the render and exited 0. The image defect stayed hidden. That render now fails.
+- [ ] **A new R profile, `common/warnings_to_log.R`, logs every chunk warning.** `epirhandbook-common` installs it at `/usr/local/lib/ehb/warnings_to_log.R`, and every chapter container gets `R_PROFILE_USER` set to that path. Each warning writes `EHB-WARNING<TAB><input file><TAB><chunk label><TAB><message>` to stderr, for `warning` set to true, false or NA, in the chunk or for the whole document. Each error that an `error: true` chunk captures writes an `EHB-ERROR` line. `message()` output writes nothing.
+- [ ] **Why a profile.** A `warning: false` chunk dropped its warnings, and R's own report batches more than 10 into "There were 12 warnings". The log could not say which chunk raised what. The profile wraps knitr's `evaluate` hook at the start of each chunk, because Quarto sets its own knitr hooks after knitr loads. It passes `keep_warning = NA` where the chunk asked for FALSE. evaluate() captures nothing for both values, so the page does not change.
+- [ ] **The profile reads a `.Rprofile` in the working directory.** `R_PROFILE_USER` stops R from reading it.
+- [ ] **`build_one_chapter.sh` fails when `R_PROFILE_USER` names a missing file.** R ignores a missing profile and says nothing. A wrong path would then turn the log off with no error.
+- [ ] **A dead same-page fragment now fails the build, and names each one as `<page>#<fragment>`.** So does a count that cannot be made. Before, the count was printed, and a failed count printed `?`. The 2.7 whole-book render held 106 dead fragments, so a handbook that still holds them fails until they are fixed.
+- [ ] **`common/test_fixture/` is a two-chapter handbook for `build_all_chapters.sh`, with one variant per behaviour.** Its README says how to select a variant.
+- [ ] **Verified on the compute host.** `epirhandbook-common:2.9-p3` was built in verify mode, and the real script rendered each fixture variant with it. The log held 1 `EHB-WARNING` line per render for `warning: false` and for `warning = NA`. It held 3 for `warning: true`, 12 for the document-level `warning: false`, and 0 for messages only. The old script with the published image logged 0 for each, and exited 0 on a missing package and on a dead fragment. The new script exits 1 on both. All 16 pages of the 8 variants that render are byte-identical to a render with `R_PROFILE_USER` unset.
+- [ ] **What CI will do on push.** The image inputs that changed are all under `epirhandbook/2.9/common/`, so `epirhandbook-common` changes and every image built on it rebuilds. The two Markdown files rebuild nothing.
+
 ## 2.9 addendum (2026-10-01): i2extras is the seventh GitHub pin, and the build checks every pin's commit
 
 - [ ] **`packages_github.json` pins `i2extras` at `reconverse/i2extras@10fea678`.** The dated PPM snapshot does not carry it, so it cannot go in a `packages_cran.txt`. pak resolves its dependencies `incidence2` and `ciTools` from the snapshot.

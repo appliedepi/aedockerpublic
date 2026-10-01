@@ -84,11 +84,21 @@ cross-links are all project-level settings, so a render started anywhere else ge
 `quarto render` exits 0 and writes a standalone page beside its source, with no book navigation
 and its own duplicated asset tree. An exit code is not evidence here.
 
-**A chapter must also render without network access.** CI renders inside a container that reaches
-only the registry, so a chapter that fetches something while it renders, such as map tiles, fails
-there. The GIS chapter is the precedent: it reads a saved basemap from the handbook's `data/gis/`
-and shows, without running, the code that fetched it. Prove a new chapter the same way, with
-`docker run --network none`.
+**A chapter MUST render without network access.** `build_all_chapters.sh` starts every chapter
+container with `--network none`. A chapter that fetches something while it renders, such as map
+tiles, fails the build. So does a chapter that installs a missing package while it renders, for
+example with `pacman::p_load()`. Add that package to the chapter's package list instead. The GIS
+chapter is the precedent for data. It reads a saved basemap from the handbook's `data/gis/`, and
+it shows the code that fetched the basemap without running it.
+
+**Every chunk warning reaches the build log.** `build_all_chapters.sh` also sets
+`R_PROFILE_USER=/usr/local/lib/ehb/warnings_to_log.R`, where `epirhandbook-common` installs
+[`common/warnings_to_log.R`](common/warnings_to_log.R). Each R warning that a chunk raises writes
+one line, `EHB-WARNING<TAB><input file><TAB><chunk label><TAB><message>`. That holds for `warning`
+set to true, false or NA, in the chunk or for the whole document. Each error that an `error: true`
+chunk captures writes an `EHB-ERROR` line. The lines are a report and do not fail the build. The
+header of that file lists what it does not cover, such as a chunk served from the knitr cache. The
+profile also reads a `.Rprofile` in the working directory, as R does without `R_PROFILE_USER`.
 
 ## Assembling the book
 
@@ -130,10 +140,14 @@ Every language assembles to its own `<lang>/` directory, the main language inclu
 holds `images/` and a four-line redirect stub to the main language, and nothing else.
 
 `build_all_chapters.sh` validates its own output rather than trusting exit codes: every expected
-page exists, and the search index references each one. It also **reports** dead same-page
-fragments without failing on them. The 2.7 whole-book reference render of 49 chapters contains
-106 of its own. They are pre-existing content bugs, so a gate there would fail every build
-forever.
+page exists, and the search index references each one. It also **fails** on a dead same-page
+fragment, an `href="#x"` with no `id="x"` on the same page, and names each one as
+`<page>#<fragment>`. It fails when it cannot count them, too. The 2.7 whole-book render of 49
+chapters held 106 dead fragments, all content bugs. A handbook that still holds such bugs fails
+here until they are fixed.
+
+[`common/test_fixture/`](common/test_fixture/) is a two-chapter handbook that the script accepts.
+Its README lists the variants that test the network rule, the warning log and the fragment check.
 
 `--only-lang <code>` renders one language, for one leg of a CI matrix. That language's site lands
 at the root of the output directory, with no `<lang>/` nesting, no `images/` copy and no stub. It

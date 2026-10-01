@@ -1,0 +1,12 @@
+# Scenario
+
+`praise` is on the dated CRAN snapshot and is not in `epirhandbook-common`.
+With network access, `pacman::p_load()` installs it during the render. With
+`--network none`, the install fails and the call to `praise()` stops the
+render.
+
+```{r}
+#| label: missing-package
+pacman::p_load(praise)
+praise::praise()
+```

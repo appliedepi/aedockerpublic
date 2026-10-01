@@ -1,0 +1,9 @@
+# Scenario
+
+One warning in a chunk with `warning = NA`, which sends warnings to the
+console and not to the page.
+
+```{r warning-na, warning=NA}
+warning("fixture warning-na")
+1 + 1
+```

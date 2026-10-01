@@ -1,0 +1,16 @@
+# Scenario
+
+One warning in a `warning: false` chunk. Its message holds a newline. The
+function prints before and after the warning, so a capture of the warning
+would split the printed output into two blocks.
+
+```{r}
+#| label: warning-false
+#| warning: false
+f <- function() {
+  print("before")
+  warning("fixture warning-false\nsecond line")
+  print("after")
+}
+f()
+```

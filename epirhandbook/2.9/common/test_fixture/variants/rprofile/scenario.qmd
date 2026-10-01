@@ -1,0 +1,8 @@
+# Scenario
+
+The `.Rprofile` beside this file sets an option. The chunk prints it.
+
+```{r}
+#| label: rprofile
+cat(getOption("ehb.fixture.rprofile", "RPROFILE-NOT-SOURCED"))
+```

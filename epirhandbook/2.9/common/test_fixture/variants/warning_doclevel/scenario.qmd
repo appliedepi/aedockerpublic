@@ -1,0 +1,14 @@
+---
+execute:
+  warning: false
+---
+
+# Scenario
+
+Twelve warnings in one chunk, under the document-level `warning: false`. R
+reports more than 10 warnings as one line, "There were 12 warnings".
+
+```{r}
+#| label: warning-doclevel
+for (i in 1:12) warning(paste("fixture warning-doclevel", i))
+```

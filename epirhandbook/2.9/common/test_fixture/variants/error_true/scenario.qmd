@@ -1,0 +1,10 @@
+# Scenario
+
+One error in an `error: true` chunk. The render continues, and the page
+shows the error.
+
+```{r}
+#| label: error-true
+#| error: true
+stop("fixture error-true")
+```
