@@ -9,6 +9,19 @@ as current documentation.
 
 ---
 
+## 2.9 addendum (2026-10-01): each image renders a smoke document before it is pushed
+
+- [ ] **`build_image.sh` renders `common/smoke.qmd` in each image it builds.** The render runs after `docker build` in both modes, before any push and before verify mode exits. A failed render stops the script with exit 1, so publish mode pushes nothing.
+- [ ] **The render uses the image's own `build_one_chapter.sh`.** The container has `--network none` and `R_PROFILE_USER=/usr/local/lib/ehb/warnings_to_log.R`, the profile that `build_all_chapters.sh` sets. It copies the document to a new directory and runs as the image's default user. The script also fails when no `smoke.html` exists.
+- [ ] **`smoke.qmd` holds an R chunk that computes and checks a value, a ggplot2 plot and a `knitr::kable` table.** `epirhandbook-common` installs it at `/usr/local/lib/ehb/smoke.qmd`, so the six group images and the monolith carry it too.
+- [ ] **An image without `/usr/local/bin/build_one_chapter.sh` gets no render, and the log names it.** Today that is `rbase` alone. The script runs `test -x` in the image. Exit 1 means skip. Any other exit is a docker failure, and it stops the script.
+- [ ] **Why.** The build checked that each package loads. Nothing checked that the image renders a page before the push, so a broken Quarto, knitr or R profile could reach the registry.
+- [ ] **What it does not show.** A pass does not show that an image holds every package its chapters need, or that the R profile logs warnings. `build_all_chapters.sh` and `common/test_fixture/` check those.
+- [ ] **Verified on the compute host.** `epirhandbook-common:2.9-p5`, built in verify mode, rendered the document and exited 0. `rbase`, built in verify mode with the tag `4.6.0-p5-2026-07-01`, logged the skip and exited 0. A `smoke.qmd` that calls `stop()` made the build exit 1, and so did a `build_one_chapter.sh` that exits 1. In publish mode, a docker shim recorded each push: the `stop()` build recorded 0 pushes, and the real document recorded 1. The previous `build_image.sh` built the `stop()` image and exited 0.
+- [ ] **What CI will do on push.** `.github/scripts` is a machinery directory, so `changed_images.py` reports all nine catalogue images as changed and the run plans all nine. `epirhandbook-common` and the seven images built FROM it each run the smoke render, which took 10 to 13 seconds on the compute host. `rbase` logs the skip.
+
+---
+
 ## 2.9 addendum (2026-10-01): an image built FROM an old base is rebuilt
 
 - [ ] **`build_image.sh` stamps each image that has a base with `org.opencontainers.image.base.digest`.** The value is the digest of the exact base image that the build is FROM. In verify mode, a base built earlier in the same run has no registry digest, so the label holds its local image id.

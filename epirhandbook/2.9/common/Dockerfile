@@ -73,6 +73,11 @@ RUN chmod +x /usr/local/bin/build_one_chapter.sh
 # --- every chunk warning as an EHB-WARNING line; see its header. ----------
 COPY common/warnings_to_log.R /usr/local/lib/ehb/warnings_to_log.R
 
+# --- The smoke document. build_image.sh renders it in this image, and in
+# --- each image built FROM it, before it pushes the image. That script reads
+# --- it from this path, so the two MUST stay the same. ---------------------
+COPY common/smoke.qmd /usr/local/lib/ehb/smoke.qmd
+
 # --- Book-level render tooling: also installed onto PATH, also inherited by
 # --- every group image, but only ever RUN against the common image itself
 # --- (see build_all_chapters.sh's COMMON_IMAGE) -- these are per-BOOK steps

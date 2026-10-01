@@ -65,6 +65,14 @@ An image with a `base` has a second check. `build_image.sh` stamps it with the
 missing label, an unreadable base digest or a different digest means rebuild. An image with
 `live: false` skips this check, because a moved base is the cascade it opts out of.
 
+**Each image renders a smoke document before it is pushed.** After `docker build`, in both modes,
+`build_image.sh` renders `epirhandbook/2.9/common/smoke.qmd` with the image's own
+`build_one_chapter.sh`. The container has no network and the `R_PROFILE_USER` that
+`build_all_chapters.sh` sets. A failed render stops the script before any push, and verify mode
+exits 1. An image without `/usr/local/bin/build_one_chapter.sh` gets no render, and the log names
+it. Today that is `rbase` alone. A pass shows that R, knitr, ggplot2 and Quarto render together in
+the image. It does not show that the image holds every package its chapters need.
+
 Know this before you push:
 
 - The diff runs from each image's published revision to the pushed commit. Several commits in one

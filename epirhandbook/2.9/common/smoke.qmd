@@ -1,0 +1,26 @@
+---
+title: "Image smoke test"
+format: html
+# build_image.sh renders this document in epirhandbook-common and in each
+# image built FROM it, before it pushes the image. A failed render stops the
+# push. The render has no network, so no chunk can download anything.
+---
+
+```{r}
+#| label: value
+x <- sum(1:10)
+stopifnot(x == 55)
+x
+```
+
+```{r}
+#| label: plot
+library(ggplot2)
+ggplot(mtcars, aes(wt, mpg)) +
+  geom_point()
+```
+
+```{r}
+#| label: table
+knitr::kable(head(mtcars[, 1:4]))
+```

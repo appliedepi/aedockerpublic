@@ -2,7 +2,8 @@
 # Build (and, in "publish" mode, push) ONE image from the CI plan, resolving
 # its base image (if any) by re-querying the registry LIVE for the base's
 # digest -- from the image it just pushed if the base was ALSO rebuilt this
-# run, else from the base's published (unchanged) tag.
+# run, else from the base's published (unchanged) tag. Between the build and
+# any push it renders a smoke document in the image (see "Smoke render" below).
 #
 # Usage:
 #   build_image.sh <mode> <repo_lowercased> <name> <dir> <tags_csv> \
@@ -252,6 +253,56 @@ DOCKER_BUILDKIT=1 docker build \
   "${TAG_ARGS[@]}" \
   -f "$DIR/Dockerfile" \
   "$CONTEXT"
+
+# --- Smoke render: before any push, and before verify mode exits ------------
+# The image renders common/smoke.qmd: an R chunk that computes a value, a
+# ggplot2 plot and a knitr::kable table. It runs the image's own
+# build_one_chapter.sh, with no network and with the R_PROFILE_USER that
+# build_all_chapters.sh gives each chapter container. The render runs in a
+# new directory in the container, as the image's default user. A failed
+# render, or no smoke.html, stops this script. So publish mode pushes nothing
+# and verify mode exits non-zero.
+#
+# A pass shows that R, knitr, ggplot2, Quarto and the R profile run together
+# in this image. It does not show that the image holds every package its
+# chapters need, or that the profile logs warnings. build_all_chapters.sh
+# and common/test_fixture check those.
+#
+# SKIP RULE: an image without an executable /usr/local/bin/build_one_chapter.sh
+# renders nothing. It gets no smoke render, and the log names it. Today that
+# is rbase alone. `test -x` runs in the image. Its exit 1 means the file is
+# absent. Any other failure is docker's own, and it stops this script, so a
+# broken docker cannot pass as a skip.
+if [ "$MODE" = "publish" ]; then
+  BUILT_REF="$REGISTRY/$REPO/$NAME:${TAGS[0]}"
+else
+  BUILT_REF="$NAME:${TAGS[0]}"
+fi
+SMOKE_QMD_IN_IMAGE="/usr/local/lib/ehb/smoke.qmd"            # common/Dockerfile COPYs it here
+R_PROFILE_IN_IMAGE="/usr/local/lib/ehb/warnings_to_log.R"    # the same path as build_all_chapters.sh
+HAS_RENDERER=0
+docker run --rm --pull never --network none "$BUILT_REF" \
+  test -x /usr/local/bin/build_one_chapter.sh || HAS_RENDERER=$?
+case "$HAS_RENDERER" in
+  0)
+    echo "Smoke render: $BUILT_REF renders $SMOKE_QMD_IN_IMAGE with build_one_chapter.sh (--network none, R_PROFILE_USER=$R_PROFILE_IN_IMAGE)"
+    # shellcheck disable=SC2016  # $(mktemp -d) and $1 expand in the container
+    if ! docker run --rm --pull never --network none -e "R_PROFILE_USER=$R_PROFILE_IN_IMAGE" "$BUILT_REF" \
+        bash -euc 'cd "$(mktemp -d)" && cp "$1" smoke.qmd && build_one_chapter.sh smoke.qmd && test -s smoke.html' \
+        smoke "$SMOKE_QMD_IN_IMAGE"; then
+      echo "::error::Smoke render FAILED in $BUILT_REF. Nothing was pushed. The output above shows the render error." >&2
+      exit 1
+    fi
+    echo "Smoke render PASSED in $BUILT_REF"
+    ;;
+  1)
+    echo "Smoke render SKIPPED for $NAME: the image has no executable /usr/local/bin/build_one_chapter.sh, so it renders nothing"
+    ;;
+  *)
+    echo "::error::Could not check $BUILT_REF for /usr/local/bin/build_one_chapter.sh: docker run exited $HAS_RENDERER" >&2
+    exit 1
+    ;;
+esac
 
 if [ "$MODE" = "verify" ]; then
   LOCAL_ID="$(docker inspect --format='{{.Id}}' "$NAME:${TAGS[0]}")"
