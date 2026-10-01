@@ -40,9 +40,10 @@
 # `docker buildx imagetools inspect`, never a `docker pull`) to decide
 # whether THIS image needs rebuilding: never-published, or no revision
 # label -> changed; otherwise a `git diff` of this image's own dir + the
-# shared build inputs + .github/ machinery, since exactly this commit. This
-# is what makes an ordinary content-change rebuild and a clean resume of a
-# partial publish the SAME mechanism -- see changed_images.py's own header.
+# shared build inputs + .github/ machinery, since exactly this commit. An
+# image with a base also carries org.opencontainers.image.base.digest (see
+# LABEL_ARGS below), which catches a base that moved after this image was
+# built -- see changed_images.py's own header.
 # A missing/empty GIT_COMMIT is a hard error (below): a build that silently
 # stamped an empty revision would make changed_images.py treat this image
 # as changed FOREVER, on every future run, with no visible symptom until
@@ -131,6 +132,7 @@ if [[ "${TAGS[0]}" =~ -([0-9]{4}-[0-9]{2}-[0-9]{2})$ ]]; then
 fi
 
 BASE_REF=""
+BASE_DIGEST=""
 if [ -n "$BASE_NAME" ]; then
   if [ "$BASE_FRESH" = "true" ]; then
     if [ "$MODE" = "publish" ]; then
@@ -142,12 +144,16 @@ if [ -n "$BASE_NAME" ]; then
         exit 1
       fi
       BASE_REF="$REGISTRY/$REPO/$BASE_NAME@$DIGEST"
+      BASE_DIGEST="$DIGEST"
     else
       # verify mode: the base was built earlier in THIS SAME job, on THIS
       # SAME runner -- reference it by its plain local tag directly. There
       # is no push, so there is no registry digest to re-resolve.
       BASE_REF="$BASE_NAME:$BASE_TAG"
       echo "Using the LOCAL image built earlier in this run: $BASE_REF (verify mode never pushes, so there is no registry digest to re-resolve)"
+      # The local image id, because a local base has no registry digest.
+      # No registry digest equals it, which is correct: verify never pushes.
+      BASE_DIGEST="$(docker image inspect --format '{{.Id}}' "$BASE_REF")"
     fi
   else
     # The base was NOT rebuilt in this run. Under the OCI-revision change model
@@ -174,6 +180,7 @@ if [ -n "$BASE_NAME" ]; then
     fi
     echo "$NAME will build FROM the published $BASE_NAME at digest $DIGEST"
     BASE_REF="$REGISTRY/$REPO/$BASE_NAME@$DIGEST"
+    BASE_DIGEST="$DIGEST"
   fi
   BUILD_ARGS+=(--build-arg "BASE_IMAGE=$BASE_REF")
   echo "$NAME will build FROM: $BASE_REF"
@@ -202,9 +209,11 @@ REPO_URL="https://github.com/$REPO"
 # from the ubuntu release rather than from this build.
 #
 # `created` is the wall-clock time of this build, so the same source builds
-# to a different digest every run. That is inherent to a real created stamp
-# and it is safe here: changed_images.py decides what to rebuild from the
-# revision label alone, and never reads created or compares a digest.
+# to a different digest every run. That is inherent to a real created stamp.
+# changed_images.py never reads created. It does compare digests: see
+# org.opencontainers.image.base.digest below. So a base rebuilt from the same
+# source gets a new digest, and every image built FROM it rebuilds on the next
+# run. That is the intended result: those images hold the old base's layers.
 CREATED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 LABEL_ARGS=(
   --label "org.opencontainers.image.revision=$GIT_COMMIT"
@@ -214,11 +223,23 @@ LABEL_ARGS=(
   --label "org.opencontainers.image.version=${TAGS[0]}"
   --label "org.opencontainers.image.created=$CREATED"
 )
+# org.opencontainers.image.base.digest: the digest of the exact base image
+# this build is FROM, as resolved above. changed_images.py compares it with
+# the digest the base's tag points to on the next run. A difference means
+# this image was built FROM an older base, and it rebuilds. The revision
+# label cannot show that: after a partial publish, this image's own diff can
+# be empty while its base has moved on.
+if [ -n "$BASE_NAME" ]; then
+  LABEL_ARGS+=(--label "org.opencontainers.image.base.digest=$BASE_DIGEST")
+fi
 
 echo "Building $NAME from $DIR (context: $CONTEXT) with tags: ${TAGS[*]} (mode: $MODE)"
 echo "Stamping org.opencontainers.image.revision=$GIT_COMMIT, org.opencontainers.image.source=$REPO_URL"
 echo "Stamping org.opencontainers.image.title=$NAME, org.opencontainers.image.version=${TAGS[0]}, org.opencontainers.image.created=$CREATED"
 echo "Stamping org.opencontainers.image.description=$DESCRIPTION"
+if [ -n "$BASE_DIGEST" ]; then
+  echo "Stamping org.opencontainers.image.base.digest=$BASE_DIGEST"
+fi
 if [ -n "${GITHUB_PAT:-}" ]; then
   echo "GITHUB_PAT is set (a read-only credential, or an operator-supplied token for local testing) -- passing it as a BuildKit secret."
 else

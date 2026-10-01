@@ -9,6 +9,21 @@ as current documentation.
 
 ---
 
+## 2.9 addendum (2026-10-01): an image built FROM an old base is rebuilt
+
+- [ ] **`build_image.sh` stamps each image that has a base with `org.opencontainers.image.base.digest`.** The value is the digest of the exact base image that the build is FROM. In verify mode, a base built earlier in the same run has no registry digest, so the label holds its local image id.
+- [ ] **`changed_images.py` now reports an image with a base as changed in three more cases:**
+  - the image has no such label;
+  - the published digest of its base cannot be read;
+  - the label differs from the digest that the base's tag points to now.
+- [ ] **Why.** README said that resume after a partial publish was automatic, and it was not. Say `epirhandbook-common` published at commit S and a group image failed both attempts. A rerun found common unchanged, because its revision label was S. It found the group unchanged too, because a change under common's `dir` is not in the group's own diff. The group stayed on the old common, and nothing failed. A base rebuilt from the same commit had the same defect: its digest changes, and no commit comparison sees that.
+- [ ] **An image with `live: false` skips the check.** A moved base is the automatic rebuild that `live: false` opts out of. All nine catalogue images are live.
+- [ ] **The three registry reads are parameters of `image_is_changed`.** `revision_of`, `labels_of` and `digest_of` default to the real reads. The tests pass dicts, so no test in `test_changed_images.py` reads the registry or runs docker. Before, the never-published test called the real registry. The command line reads the labels of each image once, for both the revision and the base digest label. The digest read uses `--format "{{json .Manifest}}"`, because buildx 0.11.2 ignores `{{.Manifest.Digest}}` and prints its default text.
+- [ ] **Verified on the compute host.** `epirhandbook-common:2.9-p4`, built in verify mode, carries `sha256:38e4d976de6e20fc23e55184db7fe4d774747c226e63698400f2e6634c65621b` in the label. That is the registry digest of `rbase:4.6.0-2026-07-01`. The same build by the previous `build_image.sh` has no such label. Against the previous `changed_images.py`, 5 of the 8 new tests fail on their assertions. The other 3 pin behaviour that did not change. At `--sha 46c3310`, the published revision of the 2.9 images, the new script reports the 8 images with a base as changed. The previous script reports all 9 unchanged.
+- [ ] **What CI will do on push.** `.github/scripts` is a machinery directory, so `changed_images.py` reports all nine catalogue images as changed and the run plans all nine. No published image carries the new label yet. So this first run would mark the 8 images with a base as changed even without the machinery change. `rbase` has no base.
+
+---
+
 ## 2.9 addendum (2026-10-01): chapters render offline, every chunk warning reaches the log, and a dead fragment fails the build
 
 - [ ] **Every chapter container of `build_all_chapters.sh` now runs with `--network none`.** Before, a chapter that called `pacman::p_load()` on a package missing from its image installed it during the render and exited 0. The image defect stayed hidden. That render now fails.

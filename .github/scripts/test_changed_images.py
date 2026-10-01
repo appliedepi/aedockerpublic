@@ -10,12 +10,15 @@ Two things are tested, deliberately differently:
     needed for this half), mirroring test_plan.py's own style of testing
     build_plan()'s selection logic directly.
 
-published_revision() (the registry-querying half, which shells out to
-`docker buildx imagetools inspect`) is NOT unit-mocked here -- mocking the
-registry call would only prove the mock agrees with itself, not that the
-real invocation actually extracts the label from a real registry. That
-half is integration-tested by running this helper for real in CI, not
-unit-mocked (see the brief this module implements).
+published_labels() and published_digest() (the registry-querying half,
+which shells out to `docker buildx imagetools inspect`) are NOT unit-mocked
+here -- mocking the registry call would only prove the mock agrees with
+itself, not that the real invocation actually extracts the label from a
+real registry. That half is integration-tested by running this helper for
+real in CI. image_is_changed() IS tested here, with dicts behind its
+`revision_of`, `labels_of` and `digest_of` parameters: that tests the
+decision, not the registry read. No test in this file makes a network
+request or runs docker.
 
 Run directly:
     python3 .github/scripts/test_changed_images.py -v
@@ -298,21 +301,183 @@ class TestFilesTouchImage(unittest.TestCase):
 
 
 class TestImageIsChanged(unittest.TestCase):
-    """image_is_changed()'s never-published branch -- the registry read
-    itself is not mocked (see module docstring), but published_revision()
-    returning None (which is exactly what it returns for a ref that does
-    not exist, since no registry is reachable in this test environment)
-    exercises the real "never-published = changed" path end to end."""
+    """image_is_changed()'s never-published branch. published_revision()
+    returns None for an image that is not published, has no revision label,
+    or cannot be read; the lookup here returns that None directly."""
 
     def test_unpublished_image_is_always_changed(self):
         img = {"name": "definitely-never-published-anywhere",
                "dir": "nowhere", "tags": ["1"]}
+
+        def must_not_run(*args):
+            raise AssertionError(f"unexpected lookup {args}: an unpublished image needs none")
+
         changed, reason = changed_images.image_is_changed(
             img, "ghcr.io", "appliedepi/aedockerpublic-test-nonexistent",
             "HEAD", ["nowhere"], {},
+            revision_of=lambda registry, repo, name, tag: None,
+            labels_of=must_not_run, digest_of=must_not_run,
         )
         self.assertTrue(changed)
         self.assertIn("never-published", reason)
+
+
+class TestBaseDigest(unittest.TestCase):
+    """image_is_changed()'s base-digest rule, with both registry reads
+    replaced by dicts: no network, no docker.
+
+    The scenario this rule exists for: common publishes at commit S, a group
+    image fails to publish, and a rerun finds common unchanged (its label is
+    S) and the group unchanged (its own diff is empty, because a change under
+    common's dir is not one of the group's files). Only the group's
+    org.opencontainers.image.base.digest label shows it was built FROM the
+    old common."""
+
+    REGISTRY = "ghcr.io"
+    REPO = "appliedepi/aedockerpublic"
+    OLD = "1" * 40  # the group's published revision, from before the failed run
+    S = "5" * 40    # the revision common published at
+    D_OLD = "sha256:" + "a" * 64
+    D_NEW = "sha256:" + "b" * 64
+
+    COMMON = {"name": "epirhandbook-common", "dir": "epirhandbook/2.9/common",
+              "context": "epirhandbook/2.9", "tags": ["2.9"],
+              "base": "rbase:4.6.0-2026-07-01", "live": True}
+    GROUP = {"name": "epirhandbook-analysis", "dir": "epirhandbook/2.9/groups/analysis",
+             "context": "epirhandbook/2.9", "tags": ["2.9"],
+             "base": "epirhandbook-common:2.9", "live": True}
+    RBASE = {"name": "rbase", "dir": "rbase/4.6.0", "tags": ["4.6.0-2026-07-01"],
+             "base": None, "live": True}
+    ALL_DIRS = [COMMON["dir"], GROUP["dir"], RBASE["dir"]]
+
+    def _run(self, img, labels, digests, diff_cache):
+        """image_is_changed() with `labels` ({name: labels dict}) and `digests`
+        ({(name, tag): digest}) behind the three registry reads. The revision
+        is the REVISION_LABEL entry of `labels`. Records every digest read in
+        self.digest_reads."""
+        self.digest_reads = []
+
+        def revision_of(registry, repo, name, tag):
+            self.assertEqual((registry, repo), (self.REGISTRY, self.REPO))
+            return (labels.get(name) or {}).get(changed_images.REVISION_LABEL)
+
+        def labels_of(registry, repo, name, tag):
+            self.assertEqual((registry, repo), (self.REGISTRY, self.REPO))
+            return labels.get(name)
+
+        def digest_of(registry, repo, name, tag):
+            self.assertEqual((registry, repo), (self.REGISTRY, self.REPO))
+            self.digest_reads.append((name, tag))
+            return digests.get((name, tag))
+
+        return changed_images.image_is_changed(
+            img, self.REGISTRY, self.REPO, "SHA", self.ALL_DIRS, diff_cache,
+            revision_of=revision_of, labels_of=labels_of, digest_of=digest_of,
+        )
+
+    def _labels(self, revision, base_digest=None):
+        labels = {changed_images.REVISION_LABEL: revision}
+        if base_digest is not None:
+            labels[changed_images.BASE_DIGEST_LABEL] = base_digest
+        return labels
+
+    def test_base_digest_differs_from_label_is_changed(self):
+        # The partial publish: common moved on, the group did not publish,
+        # and the group's own files did not change since its revision.
+        diff = ["epirhandbook/2.9/common/Dockerfile"]
+        touched, _ = changed_images.files_touch_image(self.GROUP, diff, self.ALL_DIRS)
+        self.assertFalse(touched, msg="the own-file rule alone must miss this case")
+        changed, reason = self._run(
+            self.GROUP,
+            labels={"epirhandbook-analysis": self._labels(self.OLD, self.D_OLD)},
+            digests={("epirhandbook-common", "2.9"): self.D_NEW},
+            diff_cache={self.OLD: diff},
+        )
+        self.assertTrue(changed, msg=reason)
+        self.assertIn("epirhandbook-common:2.9", reason)
+        self.assertIn(self.D_OLD, reason)
+        self.assertIn(self.D_NEW, reason)
+
+    def test_base_republished_at_same_revision_is_changed(self):
+        # Base and group both carry revision S, so no commit comparison sees
+        # anything. The base was republished at S with a new digest.
+        changed, reason = self._run(
+            self.GROUP,
+            labels={"epirhandbook-analysis": self._labels(self.S, self.D_OLD),
+                    "epirhandbook-common": self._labels(self.S, "sha256:" + "c" * 64)},
+            digests={("epirhandbook-common", "2.9"): self.D_NEW},
+            diff_cache={self.S: []},
+        )
+        self.assertTrue(changed, msg=reason)
+        self.assertIn("epirhandbook-common:2.9", reason)
+
+    def test_missing_base_digest_label_is_changed(self):
+        # Every image published before build_image.sh stamped the label.
+        changed, reason = self._run(
+            self.GROUP,
+            labels={"epirhandbook-analysis": self._labels(self.S)},
+            digests={("epirhandbook-common", "2.9"): self.D_NEW},
+            diff_cache={self.S: []},
+        )
+        self.assertTrue(changed, msg=reason)
+        self.assertIn(changed_images.BASE_DIGEST_LABEL, reason)
+        self.assertIn("epirhandbook-common:2.9", reason)
+
+    def test_unreadable_base_digest_is_changed(self):
+        changed, reason = self._run(
+            self.GROUP,
+            labels={"epirhandbook-analysis": self._labels(self.S, self.D_OLD)},
+            digests={},
+            diff_cache={self.S: []},
+        )
+        self.assertTrue(changed, msg=reason)
+        self.assertIn("epirhandbook-common:2.9", reason)
+        self.assertIn("could not be read", reason)
+
+    def test_label_equal_to_base_digest_and_no_own_change_is_unchanged(self):
+        changed, reason = self._run(
+            self.GROUP,
+            labels={"epirhandbook-analysis": self._labels(self.S, self.D_NEW)},
+            digests={("epirhandbook-common", "2.9"): self.D_NEW},
+            diff_cache={self.S: []},
+        )
+        self.assertFalse(changed, msg=reason)
+        # The base is read by its catalog name AND tag, from plan.parse_base.
+        self.assertEqual(self.digest_reads, [("epirhandbook-common", "2.9")])
+
+    def test_own_file_change_keeps_its_reason_when_the_base_matches(self):
+        changed, reason = self._run(
+            self.GROUP,
+            labels={"epirhandbook-analysis": self._labels(self.S, self.D_NEW)},
+            digests={("epirhandbook-common", "2.9"): self.D_NEW},
+            diff_cache={self.S: ["epirhandbook/2.9/groups/analysis/packages_cran.txt"]},
+        )
+        self.assertTrue(changed)
+        self.assertIn("own dir changed", reason)
+
+    def test_image_without_a_base_is_unaffected(self):
+        # rbase has base null: no base label, and no base digest is read.
+        changed, reason = self._run(
+            self.RBASE,
+            labels={"rbase": self._labels(self.S)},
+            digests={},
+            diff_cache={self.S: []},
+        )
+        self.assertFalse(changed, msg=reason)
+        self.assertEqual(reason, f"unchanged since published revision {self.S}")
+        self.assertEqual(self.digest_reads, [])
+
+    def test_image_not_live_ignores_its_base(self):
+        # A moved base is the automatic rebuild that `live: false` opts out of.
+        not_live = dict(self.GROUP, live=False)
+        changed, reason = self._run(
+            not_live,
+            labels={"epirhandbook-analysis": self._labels(self.S)},
+            digests={("epirhandbook-common", "2.9"): self.D_NEW},
+            diff_cache={self.S: []},
+        )
+        self.assertFalse(changed, msg=reason)
+        self.assertEqual(self.digest_reads, [])
 
 
 if __name__ == "__main__":

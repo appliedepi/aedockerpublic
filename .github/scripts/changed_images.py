@@ -5,18 +5,20 @@ have CHANGED, for the CI planner (plan.py) to build+publish.
 Rule (owner-designed): an image is rebuilt+republished iff its own files
 (its `dir`, the shared build-context inputs, and the .github/ build
 machinery) changed since the commit its CURRENTLY-PUBLISHED image was
-built from. Never-published, or published with no revision label -> always
-CHANGED. This is the single mechanism for both "content changed, rebuild
-it" and "a previous run partially failed, resume the missing images" --
-the images that published carry the current commit in their
-org.opencontainers.image.revision label; the one(s) that failed do not, so
-a rerun rebuilds exactly the missing ones. There is no separate per-image
-republish guard and no "images.yaml/workflow changed -> rebuild
-everything" special case: a .github/ machinery change simply shows up in
-EVERY image's own diff (see files_touch_image below), which is what
-subsumes that case.
+built from, or it was not built FROM the currently published digest of its
+base. Never-published, or published with no revision label -> always
+CHANGED. There is no separate per-image republish guard and no
+"images.yaml/workflow changed -> rebuild everything" special case: a
+.github/ machinery change simply shows up in EVERY image's own diff (see
+files_touch_image below), which is what subsumes that case.
 
-Two steps per catalog image, in this order:
+The base check is what makes a rerun after a partial publish complete. An
+image that failed to publish keeps its old revision label, and its own
+diff since then can be empty: a change under its base's dir is not one of
+its own files. Only the base-digest label shows that it was built FROM an
+old base (see base_is_changed below).
+
+Three steps per catalog image, in this order:
   1. READ the image's published revision: the org.opencontainers.image.
      revision OCI label on $REGISTRY/$REPO/<name>:<first tag>, via a
      METADATA-ONLY registry read (`docker buildx imagetools inspect
@@ -38,6 +40,11 @@ Two steps per catalog image, in this order:
      uses fetch-depth: 0), no network. The resulting file list is then
      matched against THIS image's own dir / shared-context inputs /
      CI machinery (files_touch_image) -- a match -> CHANGED.
+  3. For an image with a base: compare its
+     org.opencontainers.image.base.digest label (stamped by
+     build_image.sh) with the digest its base's tag points to now, by a
+     second metadata-only read. A missing label, an unreadable digest or a
+     difference -> CHANGED. An image with `live: false` skips this step.
 
 This module is the ONLY place in the CI that talks to git or the
 registry. plan.py itself stays pure (no subprocess, no network) and only
@@ -64,6 +71,7 @@ a consumer piping stdout into `--changed-image` args must never have to
 filter out log noise.
 """
 import argparse
+import functools
 import json
 import os
 import subprocess
@@ -73,6 +81,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import plan  # noqa: E402 -- reuse matching_dir + load_catalogs; never re-derive them
 
 REVISION_LABEL = "org.opencontainers.image.revision"
+# build_image.sh stamps this on every image that has a base: the digest of
+# the exact base image it was built FROM. See base_is_changed below.
+BASE_DIGEST_LABEL = "org.opencontainers.image.base.digest"
 
 # The CI machinery itself: a change here can change how EVERY image is
 # built, so it must show up as a match for every image, unconditionally --
@@ -182,27 +193,19 @@ def changed_since(revision, sha, cwd=None):
     return [line for line in result.stdout.splitlines() if line]
 
 
-def published_revision(registry, repo, name, tag, timeout=120):
-    """The org.opencontainers.image.revision OCI label currently published
-    for <name>:<tag>, via a METADATA-ONLY registry read (`docker buildx
-    imagetools inspect` fetches the manifest + config -- a few KB -- NEVER
+def _imagetools_inspect(ref, fmt, timeout):
+    """Parsed JSON of `docker buildx imagetools inspect <ref> --format <fmt>`,
+    a METADATA-ONLY registry read (the manifest + config, a few KB, NEVER
     the image layers; these images run 3-5GB each, so a `docker pull` per
     catalog image, every run, would be absurd).
 
-    Returns the label's string value, or None on ANY of: the image is not
-    published, the image has no such label (e.g. built before this label
-    existed), the registry read fails, or the response cannot be parsed.
-    All of these collapse to the same None -- the caller treats every one
-    of them as "never-published = changed", never as a hard error: a
-    transient registry hiccup on ONE image must not abort planning every
-    other image too."""
-    ref = f"{registry}/{repo}/{name}:{tag}"
+    Returns None on ANY of: the image is not published, the registry read
+    fails, or the response cannot be parsed. All of these collapse to the
+    same None, never a hard error: a transient registry hiccup on ONE image
+    must not abort planning every other image too."""
     try:
         result = subprocess.run(
-            [
-                "docker", "buildx", "imagetools", "inspect", ref,
-                "--format", "{{json .Image.Config.Labels}}",
-            ],
+            ["docker", "buildx", "imagetools", "inspect", ref, "--format", fmt],
             capture_output=True, text=True, timeout=timeout,
         )
     except (OSError, subprocess.TimeoutExpired) as e:
@@ -216,23 +219,91 @@ def published_revision(registry, repo, name, tag, timeout=120):
         )
         return None
     try:
-        labels = json.loads(result.stdout)
+        return json.loads(result.stdout)
     except ValueError:
         print(f"::warning::could not parse imagetools output for {ref}", file=sys.stderr)
         return None
-    if not isinstance(labels, dict):
+
+
+def published_labels(registry, repo, name, tag, timeout=120):
+    """The OCI labels currently published on <name>:<tag>, as a dict, or
+    None when they cannot be read (see _imagetools_inspect)."""
+    ref = f"{registry}/{repo}/{name}:{tag}"
+    labels = _imagetools_inspect(ref, "{{json .Image.Config.Labels}}", timeout)
+    return labels if isinstance(labels, dict) else None
+
+
+def published_revision(registry, repo, name, tag, labels_of=published_labels):
+    """The REVISION_LABEL value published on <name>:<tag>, or None when the
+    image is not published, has no such label, or cannot be read. Every one
+    of these means "never-published = changed" to the caller."""
+    return (labels_of(registry, repo, name, tag) or {}).get(REVISION_LABEL)
+
+
+def published_digest(registry, repo, name, tag, timeout=120):
+    """The manifest digest ("sha256:...") that <name>:<tag> currently
+    points to, or None when it cannot be read. This is the same digest
+    build_image.sh takes from the `Digest:` line of imagetools inspect when
+    it resolves a base, and stamps as BASE_DIGEST_LABEL. `{{json .Manifest}}`
+    and not `{{.Manifest.Digest}}`: buildx 0.11.2 ignores the second and
+    prints its default text."""
+    ref = f"{registry}/{repo}/{name}:{tag}"
+    manifest = _imagetools_inspect(ref, "{{json .Manifest}}", timeout)
+    if not isinstance(manifest, dict):
         return None
-    return labels.get(REVISION_LABEL)
+    digest = manifest.get("digest")
+    if isinstance(digest, str) and digest.startswith("sha256:"):
+        return digest
+    return None
 
 
-def image_is_changed(img, registry, repo, sha, all_dirs, diff_cache):
+def base_is_changed(img, registry, repo, labels_of, digest_of):
+    """(changed: bool, reason: str) for the image's BASE. True when the image
+    has a base in this catalog and its BASE_DIGEST_LABEL is missing, the
+    base's published digest cannot be read, or the two differ.
+
+    This is the cross-run half of plan.build_plan's cascade. A base rebuilt
+    in THIS run already cascades there. A base published in an EARLIER run
+    does not, and the image's own diff cannot see it: files_touch_image
+    never looks at the base's dir. Two cases need it. A partial publish
+    leaves a dependent on the old base, and a rerun finds both "unchanged".
+    A base republished at the SAME source revision gets a new digest (the
+    created label changes, and the rbase date tag is mutable), which no
+    commit comparison can see.
+
+    An image with `live: false` is skipped. A base that moved is exactly
+    the automatic rebuild that `live: false` opts out of."""
+    base_name, base_tag = plan.parse_base(img.get("base"))
+    if not base_name or not img.get("live", True):
+        return False, "no base, or not live"
+    base = f"{base_name}:{base_tag}"
+    labels = labels_of(registry, repo, img["name"], img["tags"][0]) or {}
+    built_from = labels.get(BASE_DIGEST_LABEL)
+    if not built_from:
+        return True, f"no {BASE_DIGEST_LABEL} label, so the {base} it was built FROM is unknown"
+    current = digest_of(registry, repo, base_name, base_tag)
+    if not current:
+        return True, f"the published digest of base {base} could not be read"
+    if built_from != current:
+        return True, f"built FROM base {base} at {built_from}, now published at {current}"
+    return False, f"built FROM the current published base {base} ({current})"
+
+
+def image_is_changed(img, registry, repo, sha, all_dirs, diff_cache,
+                     revision_of=published_revision, labels_of=published_labels,
+                     digest_of=published_digest):
     """(changed: bool, reason: str) for one catalog image. `diff_cache`
     memoizes changed_since() by revision, since several images can share
     the same published revision (e.g. everything published together in
-    one prior run)."""
+    one prior run).
+
+    `revision_of`, `labels_of` and `digest_of` are the three registry reads,
+    each with the signature (registry, repo, name, tag) and the result of
+    published_revision, published_labels and published_digest. Tests pass
+    dicts behind them, so no test needs the network."""
     name = img["name"]
     tag = img["tags"][0]
-    revision = published_revision(registry, repo, name, tag)
+    revision = revision_of(registry, repo, name, tag)
     if not revision:
         return True, "not published, or no revision label (never-published = changed)"
 
@@ -254,6 +325,9 @@ def image_is_changed(img, registry, repo, sha, all_dirs, diff_cache):
     touched, reason = files_touch_image(img, changed_files, all_dirs)
     if touched:
         return True, f"{reason} (since published revision {revision})"
+    base_changed, base_reason = base_is_changed(img, registry, repo, labels_of, digest_of)
+    if base_changed:
+        return True, base_reason
     return False, f"unchanged since published revision {revision}"
 
 
@@ -274,10 +348,20 @@ def main():
     all_dirs = [img["dir"] for img in images if img.get("dir")]
 
     diff_cache = {}
+    # Read each image's labels once: the revision and the base-digest label
+    # come from the same read. Every group image reads the same base: read
+    # each base digest once, so all of them compare against one value.
+    labels_of = functools.lru_cache(maxsize=None)(published_labels)
+    digest_of = functools.lru_cache(maxsize=None)(published_digest)
+
+    def revision_of(registry, repo, name, tag):
+        return published_revision(registry, repo, name, tag, labels_of=labels_of)
+
     changed_names = []
     for img in images:
         changed, reason = image_is_changed(
-            img, args.registry, args.repo, args.sha, all_dirs, diff_cache
+            img, args.registry, args.repo, args.sha, all_dirs, diff_cache,
+            revision_of=revision_of, labels_of=labels_of, digest_of=digest_of,
         )
         print(f"{img['name']}: {'CHANGED' if changed else 'unchanged'} -- {reason}",
               file=sys.stderr)

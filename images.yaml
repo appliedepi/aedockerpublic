@@ -45,16 +45,24 @@
 # stamps it; changed_images.py reads it via a metadata-only registry read,
 # never a `docker pull`). A .github/ machinery change shows up in EVERY
 # image's own diff, which is what used to need a separate special case.
-# This same rule is also the RESUME mechanism after a partial publish: the
-# images that published carry the current commit in their label and are
-# skipped on a rerun; the one(s) that failed do not, and are rebuilt.
+#
+# An image with a `base` also carries org.opencontainers.image.base.digest,
+# the digest of the exact base it was built FROM. changed_images.py rebuilds
+# a live image with a base in three more cases:
+#   - that label is missing;
+#   - the base's published digest cannot be read;
+#   - the label differs from that digest.
+# The revision label alone cannot show a moved base: a change under the
+# base's `dir` is not in the dependent's own diff. The two rules together are
+# the RESUME mechanism after a partial publish: an image that published is
+# skipped on a rerun, and one that failed is rebuilt.
 #
 # Trust boundary: a base that this rule decides NOT to rebuild is trusted to
-# be unchanged, and build_image.sh resolves its digest live from whatever its
-# published tag currently points to. That is only true if the registry tag is
-# written exclusively by this workflow -- an out-of-band retag or force-push
-# of a base tag is an accepted trust boundary, not something this rule or
-# build_image.sh detects.
+# be unchanged. build_image.sh resolves its digest live from whatever its
+# published tag currently points to. A retag or force-push out of band moves
+# that digest. So every live image FROM the base rebuilds on the next run,
+# FROM the moved tag. Nothing checks the moved base itself: that is an
+# accepted trust boundary.
 
 images:
   # THE rbase DATE TAG IS MUTABLE ON PURPOSE. DO NOT "FIX" IT.

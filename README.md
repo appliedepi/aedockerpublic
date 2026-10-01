@@ -59,6 +59,12 @@ commit: the image's own `dir`, the shared build-context inputs, and the CI machi
 (`.github/scripts/`, `.github/workflows/`). Anything changed means rebuild. Never published, or no
 readable label, also means rebuild, which is fail-closed.
 
+An image with a `base` has a second check. `build_image.sh` stamps it with the
+`org.opencontainers.image.base.digest` label: the digest of the exact base image it was built FROM.
+`changed_images.py` compares that label with the digest that the base's tag points to now. A
+missing label, an unreadable base digest or a different digest means rebuild. An image with
+`live: false` skips this check, because a moved base is the cascade it opts out of.
+
 Know this before you push:
 
 - The diff runs from each image's published revision to the pushed commit. Several commits in one
@@ -66,8 +72,13 @@ Know this before you push:
 - **A change anywhere under `.github/scripts/` or `.github/workflows/` rebuilds all nine images**,
   because it lands in every image's own diff. That includes editing a *test*: `test_plan.py` lives
   under `.github/scripts/`. Batch CI changes rather than pushing them one at a time.
-- **Resume is automatic.** After a partial publish, rerun. The images that published carry the
-  current commit in their label and are skipped. The ones that failed are rebuilt.
+- **Resume is automatic.** After a partial publish, rerun. The images that published are skipped.
+  An image that failed is rebuilt, because its own diff shows the change or its base digest label
+  names the old base. The revision label alone cannot show the second case: a change under the
+  base's `dir` is not in the dependent image's own diff.
+- **The base check compares digests, not commits.** A base rebuilt from the same commit still gets
+  a new digest, because its `created` label changes. A live image FROM that base that did not
+  rebuild in the same run then rebuilds on the next run.
 
 ### How dependencies resolve
 
@@ -168,10 +179,10 @@ unchanged from 2.8. Every tag published up to 2026-09-08 is `2.8`, apart from
   `xml2`, which the render scripts import and which those pins had supplied by accident, are now
   explicit in `common/packages_cran.txt`. Before you add a pin, read the package's `Remotes:`
   field. Before you remove one, check what the render scripts import.
-- **A base tag moved out of band is not detected.** The build resolves the digest of a non-rebuilt
-  base live from whatever its published tag currently points at. That is correct only while the
-  registry tag is written by this workflow alone. A manual retag or a force-push would be followed
-  silently. This is an accepted trust boundary, not a gap the build checks.
+- **A base tag moved out of band is followed, not checked.** The build resolves the digest of a
+  non-rebuilt base live from whatever its published tag currently points at. A manual retag or a
+  force-push moves that digest, so every live image FROM the base rebuilds on the next run, FROM
+  the moved tag. Nothing checks the moved base itself. This is an accepted trust boundary.
 
 ## The images
 
