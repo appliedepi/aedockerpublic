@@ -1,33 +1,32 @@
 #!/usr/bin/env python3
-"""CI planner: images.yaml + a list of already-CHANGED image names -> the
-ordered set of images to build.
+"""CI planner: images.yaml and a list of image names already known to have
+changed -> the ordered set of images to build.
 
-Pure logic, no GitHub Actions / subprocess / registry / git dependency, so
-it is directly unit-testable (see test_plan.py) -- this is the part of the
-CI most likely to be wrong and hardest to observe failing inside an actual
-Actions run. Deciding WHICH images changed is a separate, impure concern
-(it needs git and the registry) that lives entirely in the sibling
-`changed_images.py` -- this module only ever consumes that decision's
-OUTPUT (a list of image names), never recomputes it and never talks to
-git or the registry itself.
+This module is pure logic. It does not depend on GitHub Actions, subprocess,
+the registry or git, so unit tests call it directly (see test_plan.py). This
+is the part of the CI most likely to be wrong, and its faults are hard to see
+in a real Actions run. The decision about which images changed needs git and
+the registry. That decision lives only in the sibling `changed_images.py`.
+This module reads its output, a list of image names. It never computes the
+decision again, and it never calls git or the registry.
 
-Loading images.yaml is a two-stage contract, not a hand-rolled parser: real
-PyYAML (`yaml.safe_load`, hash-pinned -- see requirements.txt) does the
-parsing, and validate_catalog() below is a strict ALLOWLIST schema over its
-output. This replaced a vendored narrow YAML reader (`minimal_yaml.py`,
-deleted) that tried to promise "the same meaning as real YAML, or raise" --
-an unbounded goal, since YAML's implicit scalar space (dates, hex, booleans,
-floats, ...) is larger than any hand-rolled rejection list, and that reader
-drew three further rounds of adversarial-review blockers for silently
-diverging from real YAML semantics anyway -- four rounds total spent on
-this same question (CHANGELOG.md, phase 4 log, 8.9 and 8.4/8.8).
-The new contract is bounded instead: PyYAML parses, the schema validates
-every field against one declared type, and anything else is a hard error --
-we never try to out-parse YAML ourselves.
+Loading images.yaml has two stages, and neither is a hand-written parser.
+Real PyYAML (`yaml.safe_load`, hash-pinned, see requirements.txt) parses the
+file. Then validate_catalog() below applies a strict allowlist schema to the
+result. This replaced a narrow vendored YAML reader (`minimal_yaml.py`, now
+deleted). That reader tried to give "the same meaning as real YAML, or
+raise". That goal has no bound: YAML's implicit scalars (dates, hex,
+booleans, floats, ...) are more than any hand-written rejection list can
+cover. Three more review rounds found blockers where the reader differed
+from real YAML. In total, four rounds went to this one question (CHANGELOG.md,
+phase 4 log, 8.9 and 8.4/8.8). The new contract has a bound. PyYAML parses,
+the schema checks each field against one declared type, and anything else is
+a hard error. This module never tries to parse YAML itself.
 
 CLI:
     python3 plan.py --images-yaml images.yaml --changed-image name-a --changed-image name-b
-Prints one JSON object to stdout -- see build_plan()'s docstring for the shape.
+Prints one JSON object to stdout. See the docstring of build_plan() for the
+shape.
 """
 import argparse
 import json
@@ -36,13 +35,13 @@ import sys
 
 import yaml
 
-# Static ceiling matching build.yml's wired-up jobs
-# (build-layer-0 .. build-layer-3, i.e. 4 layers). This is NOT a soft limit:
-# a catalog that needs a 5th layer must not be silently truncated. The
-# catalog holds 9 images today in 3 layers, so the 4-layer ceiling leaves
-# one spare. A silently-dropped layer is a silent PARTIAL PUBLISH (some
-# images never built, no error). See build_plan()'s check below and
-# test_plan.py's test for a catalog deeper than this.
+# A fixed limit that matches the jobs in build.yml (build-layer-0 ..
+# build-layer-3, so 4 layers). It is a hard limit: a catalog that needs a 5th
+# layer MUST NOT be cut short without an error. The catalog holds 9 images
+# today in 3 layers, so the 4-layer limit leaves one spare. A dropped layer is
+# a partial publish with no error: some images are never built. See the check
+# in build_plan() below, and the test in test_plan.py for a catalog
+# deeper than this.
 MAX_SUPPORTED_LAYERS = 4
 
 
@@ -52,88 +51,88 @@ def parse_base(base):
         return "", ""
     name, _, tag = base.rpartition(":")
     if not name:
-        # no ':' present -- treat the whole string as the name, no tag
+        # No ':' is present, so the whole string is the name, with no tag.
         return base, ""
     return name, tag
 
 
 REQUIRED_IMAGE_KEYS = {"name", "dir", "tags", "base", "description"}
 # `description`: one line about the image. build_image.sh stamps it as the
-# org.opencontainers.image.description LABEL. It is REQUIRED, not optional.
-# An optional key would let a record that omits it publish with the
-# description it inherits from its base. For rbase that is Canonical's text
-# for ubuntu, and nothing would fail.
+# org.opencontainers.image.description label. It is REQUIRED. If it were
+# optional, a record without it would publish with the description it
+# inherits from its base. For rbase, that is Canonical's text for ubuntu, and
+# nothing would fail.
 # `renders`: the .qmd file, or the list of .qmd files, that this image renders,
-# repo-relative to the handbook source root. 2.9 uses the list form on its six
+# relative to the handbook source root. 2.9 uses the list form on its six
 # group images. The field is optional: rbase, epirhandbook-common and the
-# monolith render nothing. It names the CONCRETE artifact rather than an
-# abstract chapter id. It also carries information `dir` does not: `index.qmd`
-# sits at the source ROOT, not under chapters/. The validator below checks the
-# string form's stem against the `dir` basename. For the list form it checks
-# the image NAME against that same basename. Both checks keep the field tied
-# to the build context it belongs to.
-# `context`: the docker build CONTEXT, when it differs from `dir`. These are
-# two different facts and the split is the first place they diverge:
-#   dir     = this image's own files -- the change-detection scope, and where
-#             its Dockerfile lives.
-#   context = the directory `docker build` is given, i.e. the root that COPY
-#             paths resolve against.
-# For rbase they coincide, so `context` is omitted. Every image in
+# monolith render nothing. It names the real file, not an abstract chapter
+# id. It also carries a fact that `dir` does not: `index.qmd` is at the
+# source root, not under chapters/. For the string form, the validator below
+# checks the stem against the `dir` basename. For the list form, it checks
+# the image name against that basename. Both checks tie the field to its
+# build context.
+# `context`: the docker build context, when it differs from `dir`. These are
+# two different facts:
+#   dir     = this image's own files: the change-detection scope, and the
+#             directory of its Dockerfile.
+#   context = the directory given to `docker build`, which is the root that
+#             COPY paths resolve against.
+# For rbase they are the same, so `context` is omitted. Every image in
 # epirhandbook/2.9/images.yaml sets it to epirhandbook/2.9, because the two
-# cannot coincide there. Each Dockerfile sits in the image's own `dir`. It
+# differ there. Each Dockerfile is in the image's own `dir`. It
 # COPYs pak_install_subset.R from the 2.9 root, and reaches its own
 # packages_cran.txt by a path relative to that root. Change detection stays
-# per-image, on `dir`. A build given the image's own dir as context fails,
-# because the COPY sources sit outside it.
+# per image, on `dir`. A build with the image's own dir as context fails,
+# because the COPY sources are outside it.
 OPTIONAL_IMAGE_KEYS = {"live", "renders", "context"}
 ALLOWED_IMAGE_KEYS = REQUIRED_IMAGE_KEYS | OPTIONAL_IMAGE_KEYS
 
 # Image-name-safe: what is legal in a Docker/GHCR image name component.
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
-# A single Docker tag: the OCI/Docker rule -- first char [a-zA-Z0-9_], then up
-# to 127 of [a-zA-Z0-9_.-]. Crucially this EXCLUDES the comma, the slash, and
-# whitespace. The workflow serializes an image's tags with join(',') and
-# build_image.sh splits them back on ',', so a tag CONTAINING a comma
-# (`"prod,latest"`) would silently become TWO published tags -- a malformed
-# field changing the publish decision. Constraining the charset here makes that
-# unrepresentable rather than caught downstream.
+# A single Docker tag, by the OCI/Docker rule: first char [a-zA-Z0-9_], then
+# up to 127 of [a-zA-Z0-9_.-]. This excludes the comma, the slash and
+# whitespace. The workflow joins an image's tags with join(','), and
+# build_image.sh splits them again on ','. So a tag that contains a comma
+# (`"prod,latest"`) would become two published tags with no error. A
+# malformed field would then change what CI publishes. With this charset,
+# such a tag cannot exist, so no later step needs to catch it.
 TAG_RE = re.compile(r"^[a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}$")
-# A base reference: "<name>:<tag>", both halves non-empty and each side obeying
-# its own charset. `base: "rbase:"` (empty tag) previously reached the build
-# with an empty base tag; require a real tag after the colon.
+# A base reference: "<name>:<tag>". Both halves are non-empty, and each obeys
+# its own charset. Before this rule, `base: "rbase:"` (empty tag) reached the
+# build with an empty base tag. So the rule needs a real tag after the colon.
 BASE_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*:[a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}$")
-# A repo-relative build-context dir, in CANONICAL form: one or more path
-# segments of a shell-safe charset, joined by single '/', no leading or
-# trailing slash, no empty segment. `dir` is the Docker build context when
-# `context` is omitted (rbase), and it is ALWAYS the selective-change matcher
-# (matching_dir compares it raw against changed
-# file paths), so a non-canonical spelling that validates but doesn't match --
-# e.g. `./rbase/4.3.2`, which passes an "is it relative?" check but never
-# matches the changed file `rbase/4.3.2/Dockerfile` -- is a SILENT skipped
-# rebuild. Requiring the canonical form makes stored dir == what git reports.
-# The '.'/'..' segment cases are rejected explicitly below (the charset alone
-# would admit them).
+# A repo-relative build-context dir, in canonical form: one or more path
+# segments of a shell-safe charset, joined by single '/'. It has no leading or
+# trailing slash and no empty segment. `dir` is the Docker build context when
+# `context` is omitted (rbase). It is always the selective-change matcher:
+# matching_dir compares it, unchanged, against changed file paths. A
+# non-canonical form can pass validation and never match. For example,
+# `./rbase/4.3.2` passes an "is it relative?" check, but never matches the
+# changed file `rbase/4.3.2/Dockerfile`. CI then skips the rebuild with no
+# error. The canonical form makes the stored dir equal to what git reports.
+# The code below rejects '.' and '..' segments, because the charset alone
+# allows them.
 DIR_RE = re.compile(r"^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$")
 
 
 def _label(image, index):
-    """A human-readable name for error messages: the image's own `name`
-    field when it is usable, else its position in the list -- `name` itself
-    might be the very thing that's missing or malformed."""
+    """A name for error messages: the image's own `name` field when it is
+    usable, else its position in the list. The `name` field can itself be
+    the missing or malformed value."""
     if isinstance(image, dict) and isinstance(image.get("name"), str) and image["name"]:
         return image["name"]
     return f"images[{index}]"
 
 
 def validate_catalog(doc, path):
-    """Strict ALLOWLIST schema over yaml.safe_load(images.yaml)'s output.
-    Rejects anything not explicitly permitted, rather than trying to name
-    everything that might be wrong (the blacklist approach minimal_yaml.py
-    took, and kept failing at -- see this module's docstring). Every field
-    has exactly one declared type; anything else is a hard ValueError
-    naming the file, the image, the field, and what was expected. Returns
-    the validated `images` list (unchanged) on success -- the same shape
-    callers already expect."""
+    """A strict allowlist schema over the output of
+    yaml.safe_load(images.yaml). It rejects anything that it does not
+    permit. It does not try to list everything that can be wrong:
+    minimal_yaml.py used that denylist approach and failed (see this
+    module's docstring). Each field has one declared type. Anything else is
+    a hard ValueError that names the file, the image, the field and the
+    expected value. On success, it returns the validated `images` list,
+    unchanged, in the shape that callers expect."""
     if not isinstance(doc, dict) or set(doc) != {"images"}:
         raise ValueError(
             f"{path}: top level must be a mapping with exactly one key, "
@@ -147,11 +146,12 @@ def validate_catalog(doc, path):
     for index, image in enumerate(images):
         _validate_image(image, path, index)
 
-    # Unique image names. Every downstream structure keys by name
-    # (by_name = {img["name"]: img ...} in topological_order and build_plan),
-    # so a duplicate name silently collapses to the LAST record -- a change
-    # under the first would plan the second's dir/tags. Reject it here, where
-    # the whole catalog is in view (a per-image check cannot see the clash).
+    # Image names MUST be unique. Every later structure uses the name as key
+    # (by_name = {img["name"]: img ...} in topological_order and build_plan).
+    # So a duplicate name keeps only the last record, with no error. A change
+    # under the first record would then plan the dir and tags of the second.
+    # The check is here because only here is the whole catalog in view. A
+    # per-image check cannot see the clash.
     seen = {}
     for index, image in enumerate(images):
         nm = image["name"]
@@ -218,11 +218,11 @@ def _validate_image(image, path, index):
             f"{path}: image {label!r} field 'tags' must be a non-empty list; got {tags!r}."
         )
     for j, tag in enumerate(tags):
-        # This is what catches PyYAML turning an unquoted 2024-01-01 into a
-        # datetime.date, or 0x10 / 2.5 into a number: the schema demands a
-        # string, so anything else -- whatever type YAML resolved it to --
-        # is rejected here, without plan.py enumerating YAML's implicit-
-        # scalar grammar itself.
+        # PyYAML turns an unquoted 2024-01-01 into a datetime.date, and
+        # 0x10 or 2.5 into a number. This check finds those cases. The
+        # schema needs a string, so it rejects any other type that YAML
+        # gives. plan.py does not need to list YAML's implicit-scalar
+        # grammar.
         if not isinstance(tag, str) or not tag:
             raise ValueError(
                 f"{path}: image {label!r} field 'tags'[{j}] must be a non-empty "
@@ -246,9 +246,9 @@ def _validate_image(image, path, index):
             f"base tag."
         )
 
-    # `description` reaches a public registry verbatim, as this image's
-    # org.opencontainers.image.description OCI label. Require a real string
-    # with real content: a whitespace-only value is an empty label.
+    # `description` goes to a public registry unchanged, as this image's
+    # org.opencontainers.image.description OCI label. It MUST be a string
+    # with content: a value of only whitespace is an empty label.
     description = image["description"]
     if not isinstance(description, str) or not description.strip():
         raise ValueError(
@@ -256,17 +256,18 @@ def _validate_image(image, path, index):
             f"string; got {description!r}. It is published as this image's "
             f"org.opencontainers.image.description OCI label."
         )
-    # The catalog header promises "One line about the image". Enforce that,
-    # rather than trusting every future editor to keep it: a description that
-    # spans lines reaches `docker inspect` with an escape in it and renders
-    # broken on the registry page. (An OCI label value MAY contain a newline.
-    # This is our presentation contract, not a format limit.)
+    # The catalog header states "One line about the image". This check
+    # enforces it, so no future editor can break it. A description on more
+    # than one line reaches `docker inspect` with an escape in it, and the
+    # registry page shows it broken. (An OCI label value MAY contain a
+    # newline. The one-line rule is this project's presentation contract,
+    # not a format limit.)
     #
-    # Ask Python what a line is, instead of testing for "\n" and "\r". YAML
-    # double-quoted escapes reach here as U+000B, U+000C, U+0085, U+2028 and
-    # U+2029, every one of which `splitlines()` treats as a line boundary and
-    # a hand-written newline test does not. The second clause catches the
-    # common case the first cannot see: a block scalar yields 'text\n', and
+    # Use Python's definition of a line, not a test for "\n" and "\r". YAML
+    # double-quoted escapes arrive here as U+000B, U+000C, U+0085, U+2028 and
+    # U+2029. `splitlines()` treats each of them as a line boundary, and a
+    # hand-written newline test does not. The second clause finds a common
+    # case that the first misses: a block scalar gives 'text\n', and
     # 'text\n'.splitlines() is a one-element list.
     lines = description.splitlines()
     if len(lines) != 1 or lines[0] != description:
@@ -277,13 +278,12 @@ def _validate_image(image, path, index):
         )
 
     # `renders`: the .qmd file, or the list of .qmd files, this image renders.
-    # The STRING form must have a stem equal to the last segment of `dir`.
-    # That directory is the image's own dir, so a disagreement means the
-    # record names two different chapters and one is wrong. The LIST form
-    # cannot use that rule, because a group's dir basename is the group name,
-    # not any one chapter's. It checks the image NAME against that basename
-    # instead. Either check ties the field to the image's own dir, so the
-    # two cannot drift apart.
+    # In the string form, the stem MUST equal the last segment of `dir`.
+    # That directory is the image's own dir. If they differ, the record names
+    # two different chapters, and one is wrong. The list form cannot use that
+    # rule, because a group's dir basename is the group name, not the name of
+    # one chapter. So it checks the image name against that basename. Each
+    # check ties the field to the image's own dir, so the two cannot disagree.
     if "renders" in image:
         renders = image["renders"]
         if isinstance(renders, list):
@@ -308,12 +308,12 @@ def _validate_image(image, path, index):
                         f"say which build owns rendering it."
                     )
                 seen_qmd.add(r)
-            # The NAME must identify the GROUP this record renders (its dir
-            # basename, lowercased) -- the list-form counterpart of the
-            # string-form chapter check below. A row could otherwise render
-            # {regression,stat_tests}.qmd from groups/analysis while being
-            # published as `epirhandbook-wrong-group`, passing validation
-            # and putting a LYING name on a public registry.
+            # The name MUST identify the group this record renders: its dir
+            # basename, lowercased. This is the list-form match for the
+            # string-form chapter check below. Without it, a row could render
+            # {regression,stat_tests}.qmd from groups/analysis and publish as
+            # `epirhandbook-wrong-group`. It would pass validation, and a
+            # public registry would show a false name.
             dir_basename = image["dir"].rstrip("/").rsplit("/", 1)[-1]
             if not image["name"].endswith(f"-{dir_basename.lower()}"):
                 raise ValueError(
@@ -339,12 +339,13 @@ def _validate_image(image, path, index):
                     f"({image['dir']!r}). The source is the .qmd this image renders; "
                     f"dir is that chapter's build context. They must agree."
                 )
-            # ...and the NAME must correspond to that same chapter. Checking only
-            # source-vs-dir leaves the published artifact name unconstrained: a row
-            # could render basics.qmd from chapters/basics while being published as
-            # `epirhandbook-cleaning`, passing validation and putting a LYING name
-            # on a public registry. The name is the chapter lowercased (Docker
-            # requires lowercase; that transform happens only here).
+            # The name MUST also match that chapter. A check of source against
+            # dir alone puts no limit on the published name. A row could
+            # render basics.qmd from chapters/basics and publish as
+            # `epirhandbook-cleaning`. It would pass validation, and a public
+            # registry would show a false name. The name is the chapter in
+            # lowercase. Docker needs lowercase, and only this check applies
+            # that change.
             if not image["name"].endswith(f"-{renders_stem.lower()}"):
                 raise ValueError(
                     f"{path}: image {label!r} renders {renders!r} but its name does "
@@ -353,16 +354,16 @@ def _validate_image(image, path, index):
                     f"misrepresents its own content."
                 )
 
-    # A per-chapter or per-group image MUST declare what it renders. `renders`
-    # is optional in general: rbase, epirhandbook-common and
-    # epirhandbook-monolith render nothing. But a row whose dir has a
-    # `chapters` or `groups` path segment is a per-chapter or per-group image
-    # by construction, and omitting `renders` there would skip the
-    # stem/name/dir linkage checks entirely -- the row could then publish
-    # under any name. Matched by SEGMENT (split dir on '/'), not substring:
-    # a substring match on '/chapters/' or '/groups/' would miss a dir that
-    # IS exactly "chapters" or "groups", or one where the segment is the
-    # first component (no leading '/').
+    # A per-chapter or per-group image MUST declare what it renders.
+    # `renders` is optional in general: rbase, epirhandbook-common and
+    # epirhandbook-monolith render nothing. A row whose dir has a `chapters`
+    # or `groups` path segment is always a per-chapter or per-group image.
+    # Without `renders`, that row would skip all the stem/name/dir checks,
+    # and it could publish under any name. The match is by segment (dir split
+    # on '/'), not by substring. A substring match on '/chapters/' or
+    # '/groups/' would miss a dir that is only "chapters" or "groups". It
+    # would also miss a dir where that segment comes first, with no
+    # leading '/'.
     dir_segments = image["dir"].split("/")
     if "renders" not in image and (
         "chapters" in dir_segments or "groups" in dir_segments
@@ -375,9 +376,9 @@ def _validate_image(image, path, index):
             f"unchecked."
         )
 
-    # `context`: same canonical-path rules as `dir`, and `dir` MUST live inside
-    # it -- the Dockerfile is selected with `-f <dir>/Dockerfile` against this
-    # context, so a dir outside the context could not be built.
+    # `context`: the same canonical-path rules as `dir`, and `dir` MUST be
+    # inside it. The build selects the Dockerfile with `-f <dir>/Dockerfile`
+    # against this context, so a dir outside the context cannot build.
     if "context" in image:
         context = image["context"]
         if not isinstance(context, str) or not DIR_RE.match(context):
@@ -408,31 +409,30 @@ def _validate_image(image, path, index):
 
 
 def load_images(images_yaml_path):
-    """Read ONE images.yaml -> the validated list[dict] of image records.
-    PyYAML parses; validate_catalog() enforces the schema -- see this
-    module's docstring for why loading is split this way. No other code
-    path in this project reads images.yaml (build_image.sh only ever
-    receives already-validated values, as CLI args from this plan)."""
+    """Read one images.yaml -> the validated list[dict] of image records.
+    PyYAML parses, and validate_catalog() enforces the schema. This
+    module's docstring gives the reason for the two stages. No other code
+    path in this project reads images.yaml. build_image.sh only receives
+    values that this plan already validated, as CLI args."""
     with open(images_yaml_path) as f:
         doc = yaml.safe_load(f)
     return validate_catalog(doc, images_yaml_path)
 
 
 def load_catalogs(paths):
-    """Merge SEVERAL catalog files into the one logical catalog the planner
-    reasons over.
+    """Merge several catalog files into the one logical catalog that the
+    planner uses.
 
     Both files are hand-maintained. The root images.yaml holds the base
     image, rbase. The file epirhandbook/2.9/images.yaml holds the 2.9 line:
     epirhandbook-common, the six group images and the monolith.
 
-    The PLANNER must see ONE catalog, because base edges cross the files:
-    epirhandbook-common (2.9) is FROM rbase (root). Load only one of them and
-    `rbase` looks like a typo, so the plan dies.
+    The planner MUST see one catalog, because base edges cross the files:
+    epirhandbook-common (2.9) is FROM rbase (root). If only one file loads,
+    `rbase` looks like a typo, and the plan fails.
 
-    Every image is defined in exactly ONE file. A name appearing in two
-    catalogs is a hard error, the same rule that already forbids a duplicate
-    within one file."""
+    Each image is defined in one file only. A name in two catalogs is a hard
+    error. The same rule forbids a duplicate within one file."""
     merged = []
     seen = {}
     seen_renders = {}
@@ -445,13 +445,13 @@ def load_catalogs(paths):
                     f"Every image must be defined in exactly one catalog file."
                 )
             seen[name] = path
-            # No .qmd may be rendered by more than one image, across the
-            # WHOLE combined catalog (every --images-yaml file together, not
-            # per file) -- two images racing to publish the same page under
-            # two different names would each look correct on its own.
-            # Compared as raw strings exactly as written in `renders`, the
-            # same convention validate_catalog already uses elsewhere --
-            # `renders` has no canonical-form rule.
+            # Two images MUST NOT render the same .qmd. The check covers the
+            # whole combined catalog: all --images-yaml files together, not
+            # one file at a time. Two images could publish the same page under
+            # two different names, and each would look correct alone. The
+            # check compares raw strings as written in `renders`, as
+            # validate_catalog does elsewhere. `renders` has no
+            # canonical-form rule.
             renders = image.get("renders")
             if renders is not None:
                 qmds = [renders] if isinstance(renders, str) else renders
@@ -469,26 +469,28 @@ def load_catalogs(paths):
 
 
 def topological_order(images):
-    """Kahn's-algorithm layering over the base: edges of the FULL catalog
-    (not just a changed subset), so layer order is a fixed property of the
-    catalog, independent of which subset a given run happens to touch.
+    """Layers from Kahn's algorithm over the base edges of the full
+    catalog, not only a changed subset. So the layer order is a fixed
+    property of the catalog. It does not depend on which images a run
+    changes.
 
-    Returns a list of layers; each layer is a list of image dicts (order
-    within a layer is not meaningful -- they have no edges between them).
+    Returns a list of layers. Each layer is a list of image dicts. The order
+    within a layer has no meaning, because there are no edges between them.
     Raises ValueError on a cycle, an unknown base name, or more layers than
-    the workflow files support (should never happen for a real catalog;
-    fail loud rather than silently drop images).
+    the workflow files support. A real catalog should never cause these. The
+    function fails with an error so that it never drops images.
     """
     by_name = {img["name"]: img for img in images}
 
-    # Validate every base reference BEFORE sorting. Without this, an
-    # unknown base name (a typo in `base:`) looks IDENTICAL to "this image
-    # has no base" to the Kahn's-algorithm loop below: `base_name not in
-    # remaining` is true both when the base was already placed in an
-    # earlier layer (correct) and when the base was never a real image at
-    # all (a typo). That would silently drop the cascade edge -- the image
-    # builds as if base-less, and the entire point of `base` (rebuild me
-    # when my base rebuilds) silently never fires again. Fail loud instead.
+    # Validate every base reference before the sort. Without this check,
+    # the Kahn's-algorithm loop below cannot tell an unknown base name (a
+    # typo in `base:`) from "this image has no base". `base_name not in
+    # remaining` is true in two cases. In one, an earlier layer already
+    # holds the base, which is correct. In the other, the base is not an
+    # image at all, which is a typo. The typo would drop the cascade edge
+    # with no error. The image would build as if it had no base. Then it
+    # would never rebuild when its base rebuilds, which is the purpose of
+    # `base`. So the function raises an error.
     for name, img in by_name.items():
         base_name, _ = parse_base(img.get("base"))
         if base_name and base_name not in by_name:
@@ -501,8 +503,9 @@ def topological_order(images):
     remaining = dict(by_name)
     layers = []
     while remaining:
-        # An image is ready once its base (if any) is NOT in `remaining` --
-        # i.e. already placed in an earlier layer, or it has no in-catalog base.
+        # An image is ready when its base is not in `remaining`. Either an
+        # earlier layer holds the base, or the image has no base in the
+        # catalog.
         ready = []
         for name, img in remaining.items():
             base_name, _ = parse_base(img.get("base"))
@@ -541,33 +544,33 @@ def build_plan(images, changed_images=None):
         "trigger": "selective" | "none",
       }
     Each image_record is the image's images.yaml dict PLUS:
-      base_name, base_tag    -- parsed from `base`
-      base_freshly_built     -- true iff base_name is ALSO in this plan (i.e.
-                                 being built in an earlier layer of this SAME
-                                 run). Either way build_image.sh resolves the
-                                 base's digest LIVE from the registry: true =
-                                 from the image just pushed this run; false =
-                                 from the base's published (unchanged) tag.
+      base_name, base_tag    : parsed from `base`
+      base_freshly_built     : true iff base_name is also in this plan, so
+                               an earlier layer of this run builds it.
+                               In both cases build_image.sh resolves the
+                               base's digest from the registry at build
+                               time. If true, it uses the image this run
+                               pushed. If false, it uses the base's
+                               published, unchanged tag.
 
-    `changed_images` is a list of image NAMES that are already known to have
-    changed -- i.e. the output of the sibling `changed_images.py` helper,
-    which is the ONLY thing in this CI that decides WHETHER an image
-    changed (by reading each image's published org.opencontainers.image.
-    revision label and diffing its own dir + the shared build inputs +
-    the .github/ machinery since that commit -- see that module's header).
-    This function does not know or care WHY a name is in the list; it only
-    ever does two PURE things with it:
-      1. seed `direct` with exactly those names (every name must exist in
-         the catalog -- an unknown name is a hard error, the same class of
-         mistake as a typo'd `base:` reference, below);
-      2. CASCADE: transitively add anyone whose base (direct or
-         already-cascaded) is in the selected set -- but ONLY if that
-         dependent image is `live`. A cascade is an AUTOMATIC rebuild
-         triggered by the base moving, which is exactly the class of
-         automatic rebuild `live: false` opts out of. A DIRECT edit to a
-         non-live image's own files still builds it (that is an
-         intentional, explicit change, not an automatic one) -- `direct`
-         is never filtered by `live` for that reason.
+    `changed_images` is a list of image names already known to have
+    changed. It is the output of the sibling `changed_images.py` helper.
+    That helper is the only part of this CI that decides whether an image
+    changed. It reads each image's published
+    org.opencontainers.image.revision label. Then it diffs the image's own
+    dir, the shared build inputs and the .github/ machinery since that
+    commit (see the header of that module). This function does not use the
+    reason that a name is in the list. It does two pure things with it:
+      1. Put those names in `direct`. Every name MUST exist in the catalog.
+         An unknown name is a hard error, the same kind of mistake as a
+         typo in a `base:` reference (below).
+      2. Cascade: add, transitively, each image whose base is in the
+         selected set, from `direct` or from an earlier cascade step. Add it
+         only if that dependent image is `live`. A cascade is an automatic
+         rebuild because the base moved, and `live: false` turns off that
+         kind of rebuild. A direct edit to a non-live image's own files
+         still builds it, because that change is intentional. So `live`
+         never filters `direct`.
     """
     all_layers = topological_order(images)
     by_name = {img["name"]: img for img in images}
@@ -610,12 +613,12 @@ def build_plan(images, changed_images=None):
             rec["base_name"] = base_name
             rec["base_tag"] = base_tag
             rec["base_freshly_built"] = bool(base_name) and base_name in selected
-            # Normalized so the build step never has to decide: the docker
-            # build context, defaulting to `dir` when the catalog omits it.
+            # The docker build context, set here so the build step never
+            # decides it. It defaults to `dir` when the catalog omits it.
             # Only rbase omits it. The eight images in
-            # epirhandbook/2.9/images.yaml all set it. Their Dockerfile's
-            # COPY paths resolve against the shared epirhandbook/2.9 root,
-            # not against the directory the Dockerfile sits in.
+            # epirhandbook/2.9/images.yaml all set it. The COPY paths in
+            # their Dockerfiles resolve against the shared epirhandbook/2.9
+            # root, not against the directory of the Dockerfile.
             rec["context"] = img.get("context", img["dir"])
             layer_out.append(rec)
         if layer_out:
@@ -632,14 +635,14 @@ def build_plan(images, changed_images=None):
 
 
 def chapter_image_rows(images):
-    """[(chapter, 'name:tag', renders_qmd), ...] for --chapter-images -- one
-    row per rendered .qmd, for BOTH the single-string and list forms of
-    `renders`. Preserves catalog order, and within a list-form record,
-    list order (never sorted). The chapter id is each .qmd's own stem --
-    for the string form this equals the dir basename (validate_catalog has
-    already proven the two agree), but a list-form record's dir basename
-    is the GROUP name, not any one chapter's, so the stem is the only
-    correct source for the chapter id there."""
+    """[(chapter, 'name:tag', renders_qmd), ...] for --chapter-images: one
+    row per rendered .qmd, for both the string and list forms of `renders`.
+    It keeps catalog order, and list order within a list-form record. It
+    never sorts. The chapter id is the stem of each .qmd. For the string
+    form, the stem equals the dir basename, because validate_catalog
+    already checked that. For a list-form record, the dir basename is the
+    group name, not the name of one chapter. So there the stem is the only
+    correct source for the chapter id."""
     rows = []
     for img in images:
         renders = img.get("renders")
@@ -660,18 +663,18 @@ def main():
     ap.add_argument("--images-yaml", required=True, action="append",
                     dest="images_yaml_paths",
                     help="catalog file; repeat for each file in the catalog")
-    # Repeatable: the already-resolved CHANGED image names -- the output of
-    # .github/scripts/changed_images.py, which is the only thing in this CI
-    # that decides whether an image changed (git diff + registry). This
-    # module never re-derives that decision from raw file paths; see
-    # build_plan()'s docstring.
+    # Repeatable: the image names already resolved as changed. They are the
+    # output of .github/scripts/changed_images.py, the only part of this CI
+    # that decides whether an image changed (git diff and registry). This
+    # module never derives that decision again from raw file paths. See the
+    # docstring of build_plan().
     ap.add_argument("--changed-image", action="append", default=[], dest="changed_images")
-    # For shell consumers (build/render loops): print "chapter<TAB>image:tag"
-    # for every row that names a chapter. This is how a script learns which
-    # image renders which chapter -- it must NEVER reconstruct
-    # "epirhandbook-<chapter>:<tag>" itself, or the naming rule ends up living
-    # in the catalog AND in every consumer, which is the duplication the
-    # single-source catalog exists to prevent.
+    # For shell consumers (build and render loops): print
+    # "chapter<TAB>image:tag" for every row that names a chapter. A script
+    # uses this to learn which image renders which chapter. A script MUST NOT
+    # build "epirhandbook-<chapter>:<tag>" itself. Otherwise the naming rule
+    # would live in the catalog and in every consumer, and the single-source
+    # catalog exists to prevent that copy.
     ap.add_argument("--chapter-images", action="store_true",
                     help="print 'chapter<TAB>image:tag' per chapter row and exit")
     args = ap.parse_args()

@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
 """Unit tests for changed_images.py.
 
-Two things are tested, deliberately differently:
-  - changed_since() -- against a REAL, synthetic, throwaway git repo (not a
-    mocked one), so this proves the actual `git diff --name-only <rev>
-    <sha>` invocation behaves as documented, including the "single diff
-    between two snapshots, never per-commit" invariant.
-  - files_touch_image() -- against a synthetic changed-file list (no git
-    needed for this half), mirroring test_plan.py's own style of testing
-    build_plan()'s selection logic directly.
+The tests use two different methods:
+  - changed_since() runs against a real git repo, created for the test and
+    then deleted. It is not a mock. So the tests show that the real
+    `git diff --name-only <rev> <sha>` call works as documented. That
+    includes the rule "one diff between two snapshots, never one per
+    commit".
+  - files_touch_image() runs against a synthetic list of changed files,
+    with no git. This is the same method that test_plan.py uses to test
+    the selection logic of build_plan().
 
-published_labels() and published_digest() (the registry-querying half,
-which shells out to `docker buildx imagetools inspect`) are NOT unit-mocked
-here -- mocking the registry call would only prove the mock agrees with
-itself, not that the real invocation actually extracts the label from a
-real registry. That half is integration-tested by running this helper for
-real in CI. image_is_changed() IS tested here, with dicts behind its
-`revision_of`, `labels_of` and `digest_of` parameters: that tests the
-decision, not the registry read. No test in this file makes a network
-request or runs docker.
+This file does not mock published_labels() or published_digest(). They
+query the registry with `docker buildx imagetools inspect`. A mock of that
+call would only show that the mock agrees with itself. It would not show
+that the real call reads the label from a real registry. CI tests that
+part when it runs this helper for real. This file does test
+image_is_changed(), with dicts behind its `revision_of`, `labels_of` and
+`digest_of` parameters. That tests the decision, not the registry read. No
+test in this file uses the network or runs docker.
 
 Run directly:
     python3 .github/scripts/test_changed_images.py -v
@@ -44,10 +44,10 @@ def _git(repo, *args):
 
 
 class TestChangedSinceAgainstSyntheticRepo(unittest.TestCase):
-    """changed_since() against a REAL git history in a throwaway repo --
-    this repo is created fresh per test and never touches global git
-    config (only ever `git -C <tmpdir> config ...`, scoped to that one
-    throwaway repo's own .git/config)."""
+    """changed_since() against a real git history in a temporary repo. Each
+    test creates a new repo. The tests never change the global git config.
+    They only run `git -C <tmpdir> config ...`, which writes the
+    .git/config of that temporary repo."""
 
     def setUp(self):
         self.repo = tempfile.mkdtemp(prefix="changed-images-test-")
@@ -78,12 +78,10 @@ class TestChangedSinceAgainstSyntheticRepo(unittest.TestCase):
         self.assertEqual(changed, [])
 
     def test_multiple_intermediate_commits_flatten_into_one_diff(self):
-        # A push containing several commits must produce exactly one
-        # comparison of final states, not one entry per intermediate
-        # commit -- git diff between two snapshots already has this
-        # property; this test pins it so a future refactor (e.g. an
-        # accidental switch to a per-commit `git log`-driven loop) would
-        # break it visibly.
+        # A push with several commits MUST give one comparison of the final
+        # states, not one entry per intermediate commit. git diff between
+        # two snapshots already does this. This test pins it, so that a
+        # future change to a per-commit loop driven by `git log` fails here.
         rev1 = self._commit("a/file.txt", "v1")
         self._commit("a/file.txt", "v2")  # intermediate commit
         rev3 = self._commit("c/new.txt", "v1")  # another intermediate commit
@@ -91,11 +89,10 @@ class TestChangedSinceAgainstSyntheticRepo(unittest.TestCase):
         self.assertEqual(set(changed), {"a/file.txt", "c/new.txt"})
 
     def test_change_then_revert_within_the_same_span_nets_to_no_diff(self):
-        # The exact scenario called out by name: a file changed and then
-        # reverted back to its original content across several commits
-        # between `revision` and `sha` must NOT appear in the diff --
-        # `git diff` compares tree snapshots, so identical content at both
-        # ends means no difference, regardless of what happened in between.
+        # A file changed and then reverted to its original content, across
+        # several commits between `revision` and `sha`, MUST NOT appear in
+        # the diff. `git diff` compares tree snapshots, so the same content
+        # at both ends is no difference, whatever happened between them.
         rev1 = self._commit("a/file.txt", "v1")
         self._commit("a/file.txt", "v2")
         rev3 = self._commit("a/file.txt", "v1")  # reverted back to v1
@@ -109,8 +106,8 @@ class TestChangedSinceAgainstSyntheticRepo(unittest.TestCase):
 
 
 class TestFilesTouchImage(unittest.TestCase):
-    """files_touch_image()'s matching rules, given an already-known
-    changed-file list (no git or registry involved)."""
+    """The matching rules of files_touch_image(), given a known list of
+    changed files. The tests use no git and no registry."""
 
     COMMON = {"name": "epirhandbook-common", "dir": "epirhandbook/2.7/common",
               "context": "epirhandbook/2.7"}
@@ -126,25 +123,25 @@ class TestFilesTouchImage(unittest.TestCase):
         self.assertTrue(touched)
 
     def test_sibling_dir_change_does_not_touch(self):
-        # A file under CLEANING's own dir must not touch BASICS -- else
-        # per-chapter selectivity would be lost entirely.
+        # A file under the own dir of CLEANING MUST NOT touch BASICS.
+        # Otherwise CI would lose the selection per chapter.
         touched, _ = changed_images.files_touch_image(
             self.BASICS, ["epirhandbook/2.7/chapters/cleaning/Dockerfile"], self.ALL_DIRS)
         self.assertFalse(touched)
 
     def test_shared_context_input_touches_every_image_sharing_that_context(self):
-        # renv.lock-equivalent sitting at the context root, outside every
-        # image's own dir -- touches common AND every chapter.
+        # A file like renv.lock at the context root, outside the own dir of
+        # every image. It touches common and every chapter.
         for img in (self.COMMON, self.BASICS, self.CLEANING):
             touched, _ = changed_images.files_touch_image(
                 img, ["epirhandbook/2.7/pak_install_subset.R"], self.ALL_DIRS)
             self.assertTrue(touched, msg=f"{img['name']} should see the shared context input")
 
     def test_undeclared_context_file_touches_nothing(self):
-        # A README, the change notes, a patch and five TSVs sit beside the
-        # real inputs at the context root. Matching "anything in the context
-        # outside an image's dir" swept them all in, so editing a README
-        # rebuilt 50 of 51 images. Only SHARED_CONTEXT_INPUTS count now.
+        # A README, the change notes, a patch and five TSVs are beside the
+        # real inputs at the context root. The old rule, "anything in the
+        # context outside an image's dir", matched all of them. So a README
+        # edit rebuilt 50 of 51 images. Now only SHARED_CONTEXT_INPUTS count.
         for undeclared in (
             "epirhandbook/2.7/README.md",
             "epirhandbook/2.7/CHANGES-2.6-to-2.7.md",
@@ -160,8 +157,8 @@ class TestFilesTouchImage(unittest.TestCase):
                     msg=f"{img['name']} should NOT rebuild for {undeclared} ({reason})")
 
     def test_declared_context_inputs_still_touch_every_sharing_image(self):
-        # The other half: narrowing to an allowlist must not have weakened
-        # the rule for files that ARE inputs.
+        # The other half: the allowlist MUST NOT weaken the rule for files
+        # that are inputs.
         for declared in (
             "epirhandbook/2.7/pak_install_subset.R",
             "epirhandbook/2.7/packages_github.json",
@@ -174,9 +171,9 @@ class TestFilesTouchImage(unittest.TestCase):
                     touched, msg=f"{img['name']} must rebuild for {declared}")
 
     def test_undeclared_file_does_not_mask_a_later_real_input(self):
-        # files_touch_image returns on the first match. An excluded file must
-        # fall through rather than short-circuit to False and hide a real
-        # input later in the same changeset.
+        # files_touch_image returns on the first match. An excluded file MUST
+        # pass to the next file. It MUST NOT return False early and hide a
+        # real input later in the same changeset.
         touched, reason = changed_images.files_touch_image(
             self.BASICS,
             ["epirhandbook/2.7/README.md", "epirhandbook/2.7/pak_install_subset.R"],
@@ -185,20 +182,23 @@ class TestFilesTouchImage(unittest.TestCase):
         self.assertIn("pak_install_subset.R", reason)
 
     def test_documentation_inside_an_image_own_dir_still_touches(self):
-        # The narrowing applies to the SHARED-context rule only. A file in an
-        # image's own dir rebuilds that one image -- cheap, and fail-closed.
+        # The allowlist applies only to the shared-context rule. A file in an
+        # image's own dir rebuilds that one image. That costs little, and it
+        # fails closed.
         touched, _ = changed_images.files_touch_image(
             self.BASICS, ["epirhandbook/2.7/chapters/basics/NOTES.md"], self.ALL_DIRS)
         self.assertTrue(touched)
 
     def test_every_copied_context_file_is_a_declared_input(self):
-        # THE INVARIANT that makes an allowlist safe. If a Dockerfile COPYs a
-        # context-root file that SHARED_CONTEXT_INPUTS does not name, edits to
-        # it would not rebuild and the image would go silently stale.
+        # This invariant makes the allowlist safe. If a Dockerfile COPYs a
+        # context-root file that SHARED_CONTEXT_INPUTS does not name, an edit
+        # to that file does not rebuild. The image then goes stale with no
+        # sign.
         #
-        # Parses COPY *and* ADD, shell and JSON form, --flags, and multiple
-        # sources (every argument but the last is a source). A bare-first-arg
-        # regex would miss `COPY pak_install_subset.R README.md /tmp/`.
+        # The parser reads COPY and ADD, shell and JSON form, --flags, and
+        # more than one source (every argument except the last is a source).
+        # A regex for the first argument only would miss
+        # `COPY pak_install_subset.R README.md /tmp/`.
         import glob
         import json as _json
         import re
@@ -262,9 +262,9 @@ class TestFilesTouchImage(unittest.TestCase):
             self.assertTrue(touched)
 
     def test_unrelated_workflow_adjacent_file_is_not_machinery(self):
-        # .github/CODEOWNERS is NOT in MACHINERY_DIRS (.github/scripts,
-        # .github/workflows only) -- same scope the old is_special_trigger
-        # used, deliberately not widened to all of .github/.
+        # .github/CODEOWNERS is not in MACHINERY_DIRS, which holds only
+        # .github/scripts and .github/workflows. That is the scope the old
+        # is_special_trigger used. It does not cover all of .github/.
         touched, _ = changed_images.files_touch_image(
             self.BASICS, [".github/CODEOWNERS"], self.ALL_DIRS)
         self.assertFalse(touched)
@@ -281,17 +281,17 @@ class TestFilesTouchImage(unittest.TestCase):
         self.assertTrue(touched)
 
     def test_sibling_directory_prefix_does_not_false_match(self):
-        # rbase/4.6.0-other/... must NOT match dir "rbase/4.6.0" -- pins
-        # plan.matching_dir's own sibling-prefix-collision protection,
-        # which files_touch_image relies on directly.
+        # rbase/4.6.0-other/... MUST NOT match dir "rbase/4.6.0". This pins
+        # the guard in plan.matching_dir against a sibling with the same
+        # prefix. files_touch_image uses that guard directly.
         rbase = {"name": "rbase", "dir": "rbase/4.6.0"}
         touched, _ = changed_images.files_touch_image(
             rbase, ["rbase/4.6.0-other/x.txt"], ["rbase/4.6.0"])
         self.assertFalse(touched)
 
     def test_multiple_changed_files_union_correctly(self):
-        # A changed-file list can touch an image via ANY entry, not just
-        # the first.
+        # Any entry of a changed-file list can touch an image, not only the
+        # first.
         touched, _ = changed_images.files_touch_image(
             self.BASICS,
             ["README.md", "epirhandbook/2.7/chapters/cleaning/x", "epirhandbook/2.7/chapters/basics/y"],
@@ -301,9 +301,10 @@ class TestFilesTouchImage(unittest.TestCase):
 
 
 class TestImageIsChanged(unittest.TestCase):
-    """image_is_changed()'s never-published branch. published_revision()
-    returns None for an image that is not published, has no revision label,
-    or cannot be read; the lookup here returns that None directly."""
+    """The never-published branch of image_is_changed().
+    published_revision() returns None for an image that is not published,
+    has no revision label, or cannot be read. The lookup here returns that
+    None directly."""
 
     def test_unpublished_image_is_always_changed(self):
         img = {"name": "definitely-never-published-anywhere",
@@ -323,15 +324,15 @@ class TestImageIsChanged(unittest.TestCase):
 
 
 class TestBaseDigest(unittest.TestCase):
-    """image_is_changed()'s base-digest rule, with both registry reads
-    replaced by dicts: no network, no docker.
+    """The base-digest rule of image_is_changed(). Dicts replace both
+    registry reads, so there is no network and no docker.
 
-    The scenario this rule exists for: common publishes at commit S, a group
-    image fails to publish, and a rerun finds common unchanged (its label is
-    S) and the group unchanged (its own diff is empty, because a change under
-    common's dir is not one of the group's files). Only the group's
-    org.opencontainers.image.base.digest label shows it was built FROM the
-    old common."""
+    The rule exists for this case. common publishes at commit S, and a group
+    image fails to publish. A rerun finds common unchanged, because its label
+    is S. It also finds the group unchanged, because its own diff is empty: a
+    change under common's dir is not one of the group's files. Only the
+    group's org.opencontainers.image.base.digest label shows that it was
+    built FROM the old common."""
 
     REGISTRY = "ghcr.io"
     REPO = "appliedepi/aedockerpublic"

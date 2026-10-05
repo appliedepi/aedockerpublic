@@ -1,76 +1,71 @@
 #!/bin/bash
-# Build (and, in "publish" mode, push) ONE image from the CI plan, resolving
-# its base image (if any) by re-querying the registry LIVE for the base's
-# digest -- from the image it just pushed if the base was ALSO rebuilt this
-# run, else from the base's published (unchanged) tag. Between the build and
-# any push it renders a smoke document in the image (see "Smoke render" below).
+# Build one image from the CI plan. In "publish" mode, also push it.
+# If the image has a base, the script asks the registry for the base's digest
+# at build time. A base that this run also rebuilt resolves from the image the
+# run pushed. Any other base resolves from its published tag. Between the
+# build and any push, the script renders a smoke document in the image (see
+# "Smoke render" below).
 #
 # Usage:
 #   build_image.sh <mode> <repo_lowercased> <name> <dir> <tags_csv> \
 #                   <base_name> <base_tag> <base_freshly_built> \
 #                   <git_commit> <context> <description>
-# (base_name/base_tag are empty strings, and base_freshly_built
-# is "false", for an image with no base, e.g. rbase itself. <context>
-# defaults to <dir> when omitted -- see CONTEXT below. <description> is
-# the catalog's own one-line description of the image and is REQUIRED:
-# see DESCRIPTION below.)
+# For an image with no base, such as rbase, base_name and base_tag are empty
+# strings and base_freshly_built is "false". <context> defaults to <dir> when
+# omitted (see CONTEXT below). <description> is the one-line description from
+# the image's catalog record. It is REQUIRED (see DESCRIPTION below).
 #
 # <mode> is "publish" or "verify":
-#   publish -- build.yml / the real publish path. Tags as
-#     $REGISTRY/<repo>/<name>:<tag> for EVERY tag and PUSHES every tag.
-#     Requires a prior `docker login` to $REGISTRY. A freshly-built base is
-#     re-resolved from the REGISTRY (it was pushed earlier in this run,
-#     possibly by a different job/runner -- see the base-resolution block
-#     below).
-#   verify -- a drift-detection / local dry-run path. Builds the exact same
-#     Dockerfile with the exact same base-resolution RULES, but never
-#     pushes: a freshly-built base is referenced by its plain LOCAL tag (no
-#     registry round-trip), and the image being built here is tagged
-#     WITHOUT the registry prefix (it is never going to be pushed, so it
-#     never gets a real registry name). No registry AUTH is needed at all
-#     in this mode -- a pull of a PUBLISHED base (the not-freshly-built
-#     branch) is a read of a PUBLIC image, which needs none. Nothing in
-#     this repo schedules "verify" automatically; it remains available for
-#     a human to run by hand (e.g. the local-registry rehearsal in CHANGELOG.md).
+#   publish: the path build.yml uses to publish. The script tags the image as
+#     $REGISTRY/<repo>/<name>:<tag> for every tag and pushes every tag. It
+#     needs a prior `docker login` to $REGISTRY. A freshly built base resolves
+#     from the registry. An earlier job in this run pushed it, possibly on a
+#     different runner (see the base-resolution block below).
+#   verify: a drift check or local dry run. It builds the same Dockerfile with
+#     the same base-resolution rules, but never pushes. A freshly built base is
+#     referenced by its plain local tag, with no registry round trip. The image
+#     built here gets tags without the registry prefix, because it is never
+#     pushed. This mode needs no registry login: the only registry access is a
+#     read of a published public base. Nothing in this repo runs "verify" on a
+#     schedule. A maintainer can run it by hand, for example for the
+#     local-registry rehearsal in CHANGELOG.md.
 #
-# GIT_COMMIT (the CI's per-image change-detection anchor): stamped onto the
-# built image as the org.opencontainers.image.revision LABEL, alongside
-# org.opencontainers.image.source (derived from REPO as
-# "https://github.com/$REPO"). This is what the NEXT run's
-# .github/scripts/changed_images.py reads back (via a metadata-only
-# `docker buildx imagetools inspect`, never a `docker pull`) to decide
-# whether THIS image needs rebuilding: never-published, or no revision
-# label -> changed; otherwise a `git diff` of this image's own dir + the
-# shared build inputs + .github/ machinery, since exactly this commit. An
-# image with a base also carries org.opencontainers.image.base.digest (see
-# LABEL_ARGS below), which catches a base that moved after this image was
-# built -- see changed_images.py's own header.
-# A missing/empty GIT_COMMIT is a hard error (below): a build that silently
-# stamped an empty revision would make changed_images.py treat this image
-# as changed FOREVER, on every future run, with no visible symptom until
-# someone notices the excess rebuilding.
+# GIT_COMMIT is the anchor for per-image change detection. The script stamps it
+# on the image as the org.opencontainers.image.revision label. It also stamps
+# org.opencontainers.image.source, which it derives from REPO as
+# "https://github.com/$REPO". On the next run, .github/scripts/changed_images.py
+# reads these labels with a metadata-only `docker buildx imagetools inspect`,
+# never a `docker pull`. It marks the image as changed when the image was never
+# published or has no revision label. Otherwise it runs `git diff` since that
+# commit over the image's own dir, the shared build inputs and the .github/
+# machinery. An image with a base also carries
+# org.opencontainers.image.base.digest (see LABEL_ARGS below). That label finds
+# a base that moved after this image was built (see the header of
+# changed_images.py).
+# A missing or empty GIT_COMMIT is a hard error (below). With an empty
+# revision label, changed_images.py would mark this image as changed on every
+# future run. Nothing would show the fault except the extra rebuilds.
 #
-# REGISTRY defaults to ghcr.io; overridable via the environment for local
-# testing against a throwaway registry (e.g. REGISTRY=localhost:5000).
+# REGISTRY defaults to ghcr.io. To test against a throwaway registry, set it in
+# the environment, for example REGISTRY=localhost:5000.
 #
-# GITHUB_PAT is OPTIONAL and, when set, is passed to `docker build` as a
-# BuildKit secret (--secret id=github_pat,env=GITHUB_PAT), NEVER as
-# --build-arg: a build-arg lands in `docker history` even if it is never
-# promoted to an ENV, which is exactly the leak this project's own hard rule
-# forbids (see README.md's maintainer section / the Dockerfile's own comment).
-# It exists ONLY to raise pak's GitHub API rate limit while resolving the
-# GitHub-SHA-pinned packages in epirhandbook's build -- a repo-CONTENTS
-# read, nothing more -- so the caller (build.yml) must source it from a
-# credential scoped to PUBLIC READ ONLY (this project's `GH_READONLY_PAT`
-# repository secret), NEVER from a token that also holds `packages: write`
-# (Phase 4 round 2 blocker: arbitrary package-build code for 473 packages,
-# several of them compiled from source with their own post-install scripts,
-# must never run with a registry-push-capable credential). If GITHUB_PAT is
-# unset or empty, this script builds with NO token at all -- it never
-# substitutes a different, more-privileged credential on its own; the build
-# then simply relies on the ANONYMOUS GitHub API rate limit for those GitHub
-# lookups (fine in normal operation; see CHANGELOG.md for the documented
-# consequence on a shared runner IP).
+# GITHUB_PAT is OPTIONAL. When it is set, the script passes it to
+# `docker build` as a BuildKit secret (--secret id=github_pat,env=GITHUB_PAT).
+# It MUST NOT be a --build-arg: a build-arg shows in `docker history` even when
+# no ENV uses it. This project's own rule forbids that leak (see the
+# maintainer section of README.md and the comment in the Dockerfile).
+# The token only raises pak's GitHub API rate limit. pak needs the API to
+# resolve the GitHub-SHA-pinned packages in the epirhandbook build, which is a
+# read of repo contents. So the caller (build.yml) MUST take it from a
+# credential scoped to public read only (the `GH_READONLY_PAT` repository
+# secret). It MUST NOT be a token that also holds `packages: write`. The build
+# installs 473 packages, and several compile from source with their own
+# post-install scripts. That code must never run with a credential that can
+# push to the registry.
+# If GITHUB_PAT is unset or empty, the script builds with no token. It never
+# substitutes a different credential with more privilege. The GitHub lookups
+# then use the anonymous GitHub API rate limit. That is enough in normal
+# operation. CHANGELOG.md records what happens on a shared runner IP.
 set -euo pipefail
 
 REGISTRY="${REGISTRY:-ghcr.io}"
@@ -91,25 +86,25 @@ if [ -z "$GIT_COMMIT" ]; then
   echo "::error::build_image.sh: no git commit given (arg 8) -- every build must stamp org.opencontainers.image.revision, or changed_images.py can never resolve this image's last-published commit and will treat it as changed on every future run." >&2
   exit 1
 fi
-# The docker build CONTEXT. Defaults to DIR, which today means rbase alone:
-# its Dockerfile sits in the same directory its COPY paths resolve against.
-# The eight images in epirhandbook/2.9/images.yaml each pass a different one.
-# Their Dockerfile lives in the image's own dir but COPYs pak_install_subset.R
-# from epirhandbook/2.9. So the context must be that shared root, while DIR
-# stays per-image (the change-detection scope). A build that uses the image's
-# own dir as context fails: the COPY sources are outside it.
+# The docker build CONTEXT. It defaults to DIR, which today applies to rbase
+# alone: its COPY paths resolve against its own Dockerfile's directory.
+# Each of the eight images in epirhandbook/2.9/images.yaml passes a context.
+# Their Dockerfile is in the image's own dir, but it COPYs pak_install_subset.R
+# from epirhandbook/2.9. So the context is that shared root, and DIR stays
+# per-image as the change-detection scope. A build with the image's own dir as
+# context fails, because the COPY sources are outside it.
 CONTEXT="${9:-$DIR}"
 
 # The image's own one-line description, from its catalog record. It becomes
-# the org.opencontainers.image.description LABEL below. Brace-written on
-# purpose: $10 is $1 followed by a literal 0, which would stamp the repo name
-# with a trailing zero onto every image.
+# the org.opencontainers.image.description label below. Keep the braces:
+# $10 is $1 followed by a literal 0, which would stamp the repo name with a
+# trailing zero on every image.
 #
-# An empty description is a hard error, for the same reason an empty
-# GIT_COMMIT is. Without a value the published image keeps the description it
-# inherits from its own base, which for rbase is Canonical's text for the
-# ubuntu image. plan.py makes `description` a REQUIRED catalog key, so a
-# record cannot reach this point without one.
+# An empty description is a hard error, as an empty GIT_COMMIT is. Without a
+# value, the published image keeps the description it inherits from its base.
+# For rbase, that is Canonical's text for the ubuntu image. plan.py makes
+# `description` a REQUIRED catalog key, so a record cannot reach this point
+# without one.
 DESCRIPTION="${10:-}"
 if [ -z "$DESCRIPTION" ]; then
   echo "::error::build_image.sh: no description given (arg 10) -- every build must stamp org.opencontainers.image.description, or the published image presents its base image's description as ours." >&2
@@ -120,13 +115,13 @@ IFS=',' read -r -a TAGS <<< "$TAGS_CSV"
 
 BUILD_ARGS=()
 
-# Date-stamped tag -> CRAN_SNAPSHOT_DATE build-arg. If the first tag ends in a
-# literal YYYY-MM-DD (rbase's "4.6.0-2026-07-01"), that date IS the single
-# source of truth for the pinned CRAN snapshot: extract it and pass it so the
-# Dockerfile derives the snapshot URL from it (rbase/4.6.0/Dockerfile). The
-# rule is generic, not rbase-specific. A tag with no date suffix (a group
-# image's "2.9") simply does not match, so no arg is passed and no Dockerfile
-# consumes one. One date, defined once, in the tag.
+# Date-stamped tag -> CRAN_SNAPSHOT_DATE build-arg. If the first tag ends in
+# YYYY-MM-DD (rbase's "4.6.0-2026-07-01"), that date is the only source for the
+# pinned CRAN snapshot. The script passes it as a build-arg, and the Dockerfile
+# derives the snapshot URL from it (rbase/4.6.0/Dockerfile). The rule applies
+# to every image, not only rbase. A tag with no date suffix, such as a group
+# image's "2.9", does not match. Then no arg is passed, and no Dockerfile
+# reads one.
 if [[ "${TAGS[0]}" =~ -([0-9]{4}-[0-9]{2}-[0-9]{2})$ ]]; then
   BUILD_ARGS+=(--build-arg "CRAN_SNAPSHOT_DATE=${BASH_REMATCH[1]}")
   echo "$NAME: tag '${TAGS[0]}' carries snapshot date ${BASH_REMATCH[1]} -> passing as --build-arg CRAN_SNAPSHOT_DATE"
@@ -147,9 +142,9 @@ if [ -n "$BASE_NAME" ]; then
       BASE_REF="$REGISTRY/$REPO/$BASE_NAME@$DIGEST"
       BASE_DIGEST="$DIGEST"
     else
-      # verify mode: the base was built earlier in THIS SAME job, on THIS
-      # SAME runner -- reference it by its plain local tag directly. There
-      # is no push, so there is no registry digest to re-resolve.
+      # verify mode: an earlier step of this job built the base on this
+      # runner, so use its plain local tag. Nothing is pushed, so there is no
+      # registry digest to resolve.
       BASE_REF="$BASE_NAME:$BASE_TAG"
       echo "Using the LOCAL image built earlier in this run: $BASE_REF (verify mode never pushes, so there is no registry digest to re-resolve)"
       # The local image id, because a local base has no registry digest.
@@ -157,21 +152,18 @@ if [ -n "$BASE_NAME" ]; then
       BASE_DIGEST="$(docker image inspect --format '{{.Id}}' "$BASE_REF")"
     fi
   else
-    # The base was NOT rebuilt in this run. Under the OCI-revision change model
-    # that means the base is UNCHANGED since its last publish and already in
-    # the registry, so its current published tag IS the correct base to build
-    # FROM -- resolve its digest LIVE. This is what makes a partial-publish
-    # RESUME clean: on a rerun the unchanged base is skipped (not rebuilt this
-    # run), but its dependent must still build against the published base. A
-    # pure registry READ (imagetools inspect) -- never a docker pull, no auth
-    # for a public image.
+    # This run did not rebuild the base. Under the OCI-revision change model,
+    # the base is unchanged since its last publish and is in the registry. So
+    # its current published tag is the correct base to build FROM, and the
+    # script resolves its digest now. This lets a rerun resume a partial
+    # publish: the rerun skips the unchanged base, and its dependent still
+    # builds against the published base. The lookup is a registry read
+    # (imagetools inspect). It never pulls, and a public image needs no login.
     #
-    # Trust boundary: "unchanged" holds provided the registry tag is written
-    # ONLY by this workflow. If a base tag is retagged or force-pushed OUT OF
-    # BAND (manually, or by some other process, outside this CI run), this
-    # script follows that moved tag silently -- there is no cross-check here
-    # to catch it. That is an accepted trust boundary, not a gap this script
-    # is meant to detect.
+    # Trust boundary: this assumes that only this workflow writes the registry
+    # tag. If someone retags or force-pushes a base tag outside this CI run,
+    # this script follows the moved tag with no warning. Nothing here checks
+    # for that. It is an accepted trust boundary.
     REG_TAG="$REGISTRY/$REPO/$BASE_NAME:$BASE_TAG"
     echo "Resolving $BASE_NAME's digest live from $REGISTRY (not rebuilt this run; unchanged since last publish): $REG_TAG"
     DIGEST="$(docker buildx imagetools inspect "$REG_TAG" | awk '/^Digest:/{print $2; exit}')"
@@ -196,21 +188,21 @@ for t in "${TAGS[@]}"; do
   fi
 done
 
-# org.opencontainers.image.revision/.source -- see the header comment above.
-# REPO_URL is derived from REPO (already the lowercased owner/repo used for
-# every registry ref in this script) rather than threaded through as a
-# separate argument -- one fewer positional to keep in sync, and GitHub
-# repository URLs resolve case-insensitively regardless.
+# org.opencontainers.image.revision and .source: see the header comment.
+# REPO_URL comes from REPO, the lowercased owner/repo that every registry ref
+# in this script uses. A separate argument would be one more positional to keep
+# in sync. GitHub repository URLs are not case-sensitive, so the lowercase form
+# resolves.
 REPO_URL="https://github.com/$REPO"
 
 # org.opencontainers.image.title/.description/.version/.created state what
-# THIS image is. Without them each published image keeps the four labels it
+# this image is. Without them, each published image keeps the four labels it
 # inherits from the ubuntu base, so `docker inspect` reports the title
 # "ubuntu", the version "26.04", Canonical's description and a created date
 # from the ubuntu release rather than from this build.
 #
 # `created` is the wall-clock time of this build, so the same source builds
-# to a different digest every run. That is inherent to a real created stamp.
+# to a different digest every run. A real created stamp always does that.
 # changed_images.py never reads created. It does compare digests: see
 # org.opencontainers.image.base.digest below. So a base rebuilt from the same
 # source gets a new digest, and every image built FROM it rebuilds on the next
@@ -268,7 +260,7 @@ DOCKER_BUILDKIT=1 docker build \
 # chapters need, or that the profile logs warnings. build_all_chapters.sh
 # and common/test_fixture check those.
 #
-# SKIP RULE: an image without an executable /usr/local/bin/build_one_chapter.sh
+# Skip rule: an image without an executable /usr/local/bin/build_one_chapter.sh
 # renders nothing. It gets no smoke render, and the log names it. Today that
 # is rbase alone. `test -x` runs in the image. Its exit 1 means the file is
 # absent. Any other failure is docker's own, and it stops this script, so a

@@ -1,30 +1,30 @@
-# epirhandbook/2.9/images.yaml -- the v2.9 group-image catalog. It uses the
-# same schema as the catalogs of 2.5 to 2.8, which are in git history. See
-# .github/scripts/plan.py's validate_catalog for the authoritative field
-# rules. It is loaded ALONGSIDE the root images.yaml, because base edges
-# cross the two files: epirhandbook-common here is FROM rbase there. See
-# plan.py's load_catalogs docstring.
+# epirhandbook/2.9/images.yaml: the v2.9 catalog of group images. It uses the
+# same schema as the catalogs of 2.5 to 2.8, which are in git history. The
+# validate_catalog function in .github/scripts/plan.py gives the field rules.
+# plan.py loads this file TOGETHER WITH the root images.yaml, because base
+# edges cross the two files: epirhandbook-common here is FROM rbase there.
+# See the load_catalogs docstring in plan.py.
 #
-# v2.9 is v2.8's nine images on the handbook's per-language layout. The
-# images, the groups and the package lists do not change. Every language is
-# now its own Quarto book project, so chapter S of language L is the source
-# file content/L/S.qmd.
+# v2.9 puts the nine images of v2.8 on the per-language layout of the
+# handbook. The images, the groups and the package lists are the same as in
+# v2.8. Each language is now its own Quarto book project, so chapter S of
+# language L is the source file content/L/S.qmd.
 #
-# A `renders` entry names the MAIN-language file, content/en/<stem>.qmd. The
-# group image that owns a stem renders that stem in EVERY language. The
-# entry states which image owns the chapter, not which files it will be
-# given. plan.py reads the stem from the last path segment.
+# A `renders` entry names the file in the MAIN language, content/en/<stem>.qmd.
+# The group image that owns a stem renders that stem in EVERY language. The
+# entry states which image owns the chapter. It does not list the files that
+# the image gets. plan.py reads the stem from the last path segment.
 #
-# The six GROUP images each render several chapters via a LIST-form
-# `renders`. The layout states group membership: each chapter's package list
-# sits in the directory of the group image that renders it, as
+# Each of the six GROUP images renders several chapters, given as a LIST in
+# `renders`. The layout states group membership: the package list of each
+# chapter is in the directory of the group image that renders it, as
 # groups/<group>/packages_cran_<stem>.txt. generate_groups.py compares the
-# `renders` lists below against that layout, group by group and in both
-# directions. `index` needs no special case now. It is content/en/index.qmd,
-# beside every other chapter of that language.
+# `renders` lists below with that layout, group by group and in both
+# directions. `index` needs no special case. It is content/en/index.qmd, in
+# the same directory as every other chapter of that language.
 #
-# epirhandbook-monolith is the last record below; see the comment there for
-# why it carries no `renders`.
+# epirhandbook-monolith is the last record below. The comment above it says
+# why it has no `renders`.
 images:
   - name: epirhandbook-common
     description: "Shared R environment for the Epi R Handbook: the packages every chapter needs"
@@ -132,15 +132,15 @@ images:
     base: "epirhandbook-common:2.9"
     live: true
   # The monolith: every package from all six groups in one image. It renders
-  # NOTHING -- it exists for contributors, as the image .devcontainer.json in
-  # the handbook repo points at, so that opening the book in a dev container
-  # gives you an environment that can render any chapter.
+  # NOTHING. It exists for contributors: .devcontainer.json in the handbook
+  # repo points at it. A contributor who opens the book in a dev container
+  # then has an environment that can render any chapter.
   #
-  # Hence no `renders` key, and hence it sits beside groups/ rather than in it:
-  # plan.py requires a `renders` list from anything under a `groups` path
-  # segment, and there is no list it could legally declare -- the six groups
-  # already claim all 50 chapters between them, and no .qmd may be claimed
-  # twice. `epirhandbook-common` omits `renders` for the same reason.
+  # For this reason it has no `renders` key, and it is beside groups/, not in
+  # it. plan.py needs a `renders` list from each image under a `groups` path
+  # segment. The monolith can declare no valid list, because the six groups
+  # already claim all 50 chapters and no .qmd can be claimed twice.
+  # `epirhandbook-common` has no `renders` for the same reason.
   - name: epirhandbook-monolith
     description: "R environment for every chapter of the Epi R Handbook, the union of the six group images"
     dir: epirhandbook/2.9/monolith

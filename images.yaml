@@ -1,5 +1,5 @@
-# images.yaml — the image catalog. Single source of truth for what gets
-# built, in what order, and where.
+# images.yaml: the image catalog. It is the single source of truth for what
+# is built, in what order, and where.
 #
 # Read by: .github/scripts/plan.py (the CI planner) and .github/scripts/
 # changed_images.py (decides WHICH images changed).
@@ -9,42 +9,41 @@
 #               (repo lowercased from GITHUB_REPOSITORY).
 #   description One line about the image, published as its
 #               org.opencontainers.image.description OCI label. REQUIRED.
-#               Without it the image keeps the description of its own
-#               base, which for rbase is Canonical's text for ubuntu.
-#   dir         The image's own directory, relative to repo root, where its
-#               Dockerfile lives. It is the build context unless `context`
-#               is set, and it is THIS image's own
-#               change-detection scope: changed_images.py rebuilds this
-#               image iff a file under `dir` (or a shared build-context
-#               input, or the .github/ build machinery -- see that
-#               module's header) changed since the commit this image's
-#               CURRENTLY-PUBLISHED tag was built from (its
-#               org.opencontainers.image.revision OCI label). Never
-#               published, or no revision label -> always rebuild.
-#   tags        List of tags to publish. First tag is used for the local
-#               `docker build -t` invocation; all tags are pushed.
+#               Without it, the image keeps the description of its base. For
+#               rbase, that is Canonical's text for ubuntu.
+#   dir         The image's own directory, relative to the repo root, where
+#               its Dockerfile is. It is the build context unless `context`
+#               is set. It is also THIS image's change-detection scope.
+#               changed_images.py rebuilds this image iff one of these
+#               changed since the commit that its CURRENTLY-PUBLISHED tag was
+#               built from (its org.opencontainers.image.revision OCI label):
+#               a file under `dir`, a shared build-context input, or the
+#               .github/ build machinery (see the header of that module).
+#               Never published, or no revision label -> always rebuild.
+#   tags        List of tags to publish. The local `docker build -t` uses the
+#               first tag. All tags are pushed.
 #   base        "<name>:<tag>" of another image IN THIS CATALOG that this
-#               image's Dockerfile is FROM, or null if it has none (i.e. its
-#               Dockerfile FROMs something external, like ubuntu:jammy).
+#               image's Dockerfile is FROM. Null if it has none, that is, if
+#               its Dockerfile is FROM something external, like ubuntu:jammy.
 #               This edge drives the cascade: a rebuild of `base` forces a
 #               rebuild of everything FROM it, transitively.
 #   live        true  = eligible for the CASCADE: a rebuild of `base`
 #                       automatically rebuilds this image too, transitively.
 #               false = opts OUT of that automatic cascade only. A DIRECT
-#                       edit to this image's own `dir` still builds it (an
-#                       explicit change must still be buildable) --
-#                       `live: false` only means "don't sweep me in
+#                       edit to this image's own `dir` still builds it,
+#                       because an explicit change must stay buildable.
+#                       `live: false` only means "do not rebuild me
 #                       automatically when my base moves."
 #
-# The previous per-image republish-guard field and the "images.yaml/
-# workflow file changed -> rebuild everything" special case are both gone.
-# ONE rule replaces both (owner-designed):
-# an image is rebuilt+republished iff its own files changed since the
-# commit its CURRENTLY-PUBLISHED image was built from, read back from that
-# image's org.opencontainers.image.revision OCI label (build_image.sh
-# stamps it; changed_images.py reads it via a metadata-only registry read,
-# never a `docker pull`). A .github/ machinery change shows up in EVERY
-# image's own diff, which is what used to need a separate special case.
+# ONE rule (owner-designed) replaces two older mechanisms: the per-image
+# republish-guard field, and the special case "images.yaml or a workflow
+# file changed -> rebuild everything". The rule: rebuild and republish an
+# image iff its own files changed since the commit that its
+# CURRENTLY-PUBLISHED image was built from. That commit comes from the
+# image's org.opencontainers.image.revision OCI label. build_image.sh stamps
+# the label. changed_images.py reads it with a metadata-only registry read,
+# never a `docker pull`. A .github/ machinery change shows up in EVERY
+# image's own diff, so the old special case is not needed.
 #
 # An image with a `base` also carries org.opencontainers.image.base.digest,
 # the digest of the exact base it was built FROM. changed_images.py rebuilds
@@ -65,20 +64,19 @@
 # accepted trust boundary.
 
 images:
-  # THE rbase DATE TAG IS MUTABLE ON PURPOSE. DO NOT "FIX" IT.
+  # The rbase date tag is MUTABLE on purpose. Do not make it immutable.
   #
-  # 4.6.0-2026-07-01 names the R version and the CRAN snapshot date, and it is
-  # overwritten in the registry every time rbase rebuilds. It has been rewritten
-  # at least eight times, across nine package versions. That is the design:
-  # the date is the CRAN snapshot the image was built against, not a claim that
-  # the bytes never change, and the tag is the single source of truth the build
-  # derives the snapshot URL from.
+  # 4.6.0-2026-07-01 names the R version and the CRAN snapshot date. Each
+  # rbase rebuild overwrites it in the registry. It was rewritten at least
+  # eight times, across nine package versions. The date names the CRAN
+  # snapshot that the image was built against. It does not claim that the
+  # bytes never change. The build derives the snapshot URL from this tag, and
+  # the tag is the single source of truth for it.
   #
-  # A reviewer who reads "date-pinned tag" as "immutable" will file this as a
-  # supply-chain defect. It has been filed once already, as box F27 of
-  # appliedepi/epirhandbook#455, and declined there for this reason.
-  # If you want byte-immutability for a particular build, pin the DIGEST at the
-  # point of use; do not make this tag immutable.
+  # A reviewer can read "date-pinned tag" as "immutable" and report a
+  # supply-chain defect. Box F27 of appliedepi/epirhandbook#455 reported it,
+  # and it was declined there for this reason. For byte-immutability of a
+  # particular build, pin the DIGEST at the point of use.
   - name: rbase
     description: "Base R 4.6.0 image built from a dated CRAN snapshot, used by the Epi R Handbook images"
     dir: rbase/4.6.0

@@ -1,10 +1,10 @@
-# Byte-compiled Python (from running .github/scripts/test_plan.py locally --
-# caught during Phase 4 review: it's easy to `git add -A` one of these by
-# accident otherwise).
+# Byte-compiled Python, created when you run .github/scripts/test_plan.py
+# locally. Without this rule, `git add -A` can add these files by accident
+# (found in the Phase 4 review).
 __pycache__/
 *.pyc
 
 # Local Claude Code settings (.claude/settings.local.json). A global ignore
-# already covers it on Richard's machines; this line keeps it ignored for
-# anyone without that global file.
+# file covers it on Richard's machines. This line ignores it for anyone who
+# does not have that global file.
 .claude/

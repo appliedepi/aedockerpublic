@@ -1,60 +1,61 @@
 #!/usr/bin/env Rscript
-## inject_language_links.R -- the mandatory post-render pass: add the
+## inject_language_links.R: the required pass after the render. It adds the
 ## language-switcher dropdown (`<ul id="languages-links">`) to every HTML
-## page in an ALREADY-ASSEMBLED output tree.
+## page in an output tree that is ALREADY ASSEMBLED.
 ##
-## WHY THIS EXISTS: rendering never produces the switcher. `quarto render`
-## sees ONE language's project at a time and has no way to know which other
-## languages exist. This script runs once, after every language has been
-## rendered and assembled into one tree, and walks every emitted `.html`
-## file to add it.
+## WHY THIS EXISTS: the render does not make the switcher. `quarto render`
+## sees the project of ONE language at a time, and cannot know which other
+## languages exist. This script runs once, after every language is rendered
+## and assembled into one tree. It reads every `.html` file and adds the
+## switcher.
 ##
 ## THE TREE IT EXPECTS, which build_all_chapters.sh assembles: one directory
-## per language at the site root, the main language included. A page is
-## <site_dir>/en/basics.html or <site_dir>/fr/basics.html. Beside those sits
-## <site_dir>/index.html, a redirect stub to the main language. A page's
-## language is therefore its FIRST path segment, and the same page in
-## another language is that same path with the first segment swapped. A page
-## whose first segment is not a declared code is not a book page. The root
-## stub is the only one today, and it is skipped.
+## for each language at the site root, the main language included. A page is
+## <site_dir>/en/basics.html or <site_dir>/fr/basics.html. Next to those is
+## <site_dir>/index.html, a redirect stub to the main language. Thus the
+## language of a page is its FIRST path segment. The same page in another
+## language has the same path with a different first segment. A page whose
+## first segment is not a declared code is not a book page. Today the root
+## stub is the only such page, and the script skips it.
 ##
-## Three deliberate departures from quarto_runfile.R's add_link(), the
-## vendored logic this ports:
+## This script ports add_link() from quarto_runfile.R, vendored code. It
+## differs from add_link() in three ways:
 ##
-## 1. THE <li> BUG IS FIXED. The original builds `<a>` as a direct child of
-##    the `<ul>`, then tries to wrap it in `<li>` with
+## 1. THE <li> BUG IS FIXED. The original makes `<a>` a direct child of the
+##    `<ul>`. It then tries to wrap the `<a>` in `<li>` with
 ##    `xml_add_parent(xml_find_first(html, "a[id='...']"), "li")`. That
-##    XPath has no leading `//` AND uses `id='...'` as an ELEMENT-CHILD
-##    test, not `@id='...'` (an attribute test) -- so it can never match
-##    the anchor it just created, xml_add_parent() silently finds nothing
-##    to wrap, and the `<li>` is never added. Browsers tolerate the bare
-##    `<a>` inside a `<ul>`, but it is invalid list markup. This script
-##    creates the `<li>` first and adds the `<a>` INSIDE it, so the output
-##    is always `<ul><li><a>...</a></li></ul>`.
+##    XPath has no leading `//`. It also uses `id='...'` as a test for an
+##    ELEMENT CHILD, not `@id='...'`, a test for an attribute. Thus it cannot
+##    match the anchor that the original just made. xml_add_parent() finds
+##    nothing to wrap and gives no error, and the `<li>` is never added.
+##    Browsers accept a bare `<a>` in a `<ul>`, but it is not valid list
+##    markup. This script makes the `<li>` first and adds the `<a>` IN it,
+##    so the output is always `<ul><li><a>...</a></li></ul>`.
 ##
-## 2. HREFS ARE NEVER ROOT-ABSOLUTE. The original builds every href as
-##    `paste0(site_url, "/", path)`; when `site_url` is empty (the common
-##    case) that still yields a leading "/", i.e. a root-absolute path.
-##    That breaks the moment the site is served from anything other than
-##    its domain root (a deploy preview under a subpath, for instance).
-##    This script takes `base_url` as an explicit, OPTIONAL argument:
-##      - non-empty base_url  -> href = "<base_url>/<path-from-site-root>"
-##        (root-relative to that base, same as the original when a real
-##        site_url was supplied).
-##      - empty base_url (the default) -> href is a TRUE relative path,
-##        computed with fs::path_rel() from the CURRENT page's own directory,
-##        so it is right at ANY depth. This resolves correctly under any base
-##        path the site is served from, including none.
+## 2. HREFS ARE NEVER ROOT-ABSOLUTE. The original makes every href as
+##    `paste0(site_url, "/", path)`. When `site_url` is empty, the usual
+##    case, the href still starts with "/", so it is a root-absolute path.
+##    That path fails when the server puts the site anywhere other than the
+##    root of its domain, for example a deploy preview under a subpath.
+##    This script takes `base_url` as an OPTIONAL argument:
+##      - non-empty base_url  -> href = "<base_url>/<path-from-site-root>".
+##        The href is relative to that base, as in the original when the
+##        caller gave a real site_url.
+##      - empty base_url (the default) -> href is a TRUE relative path. The
+##        script computes it with fs::path_rel() from the directory of the
+##        CURRENT page, so it is correct at ANY depth. It resolves correctly
+##        under any base path of the site, and with no base path.
 ##
-## 3. IT RECURSES. The original scanned only the top level of the site root
-##    and of each <lang>/ directory. This script walks the whole tree and
-##    refuses to exit 0 if it modified no chapter page.
+## 3. IT RECURSES. The original read only the top level of the site root
+##    and of each <lang>/ directory. This script reads the whole tree. It
+##    exits with an error if it changed no chapter page.
 ##
 ## Usage:
 ##   Rscript inject_language_links.R <site_dir> <languages_yml> [<base_url>]
-## <languages_yml> is the handbook's `languages.yml`: `main`, and
-## `languages[]` with a `code` and a `label` each. That file is the one
-## language list, read here for the switcher's order, codes and labels.
+## <languages_yml> is the `languages.yml` of the handbook: `main`, and
+## `languages[]`, each with a `code` and a `label`. That file is the one
+## language list. The script reads the order, the codes and the labels of
+## the switcher from it.
 
 suppressPackageStartupMessages({
   library(xml2)
@@ -109,7 +110,7 @@ field_of <- function(entry, name) {
   value <- entry[[name]]
   if (is.null(value)) NA_character_ else as.character(value)
 }
-## File order IS the switcher order, so it is preserved verbatim.
+## The order in the file IS the switcher order, so the script keeps it.
 language_codes <- vapply(entries, field_of, character(1), "code")
 labels <- vapply(entries, field_of, character(1), "label")
 names(labels) <- language_codes
@@ -123,10 +124,10 @@ if (anyNA(language_codes)) {
   )
   quit(status = 2L)
 }
-## The main language is not treated differently anywhere below: it has its
-## own directory like every other language. It is checked here because a
-## `main` outside the list means the site's root stub points at a language
-## this tree does not hold.
+## Below, the main language has no special case: it has its own directory,
+## as every other language does. The script checks it here for one reason.
+## A `main` outside the list means that the root stub of the site points at
+## a language that this tree does not hold.
 if (!main_language %in% language_codes) {
   cat(
     sprintf(
@@ -140,32 +141,32 @@ if (!main_language %in% language_codes) {
   quit(status = 2L)
 }
 
-## label_for(): the dropdown's display text for one language, from that
-## language's own `label`. A code with no label costs one ugly menu entry,
-## not the whole pass.
+## label_for(): the dropdown text for one language, from the `label` of that
+## language. A code with no label gives one poor menu entry, and the pass
+## does not fail.
 label_for <- function(lang) {
   label <- labels[[lang]]
   if (is.na(label)) sprintf("Version in %s", toupper(lang)) else label
 }
 
-## target_rel_from_root(): the emitted path of `lang`'s version of a page,
-## relative to site_dir -- "fr/basics.html" for French. Every language has
-## its own directory, so this is one expression for all of them. There is no
-## special case for the main language, and no language infix in a filename.
-## `canonical_rel` is the page's path MINUS its language segment:
+## target_rel_from_root(): the output path of the `lang` version of a page,
+## relative to site_dir. For French, it is "fr/basics.html". Every language
+## has its own directory, so one expression serves all of them. There is no
+## special case for the main language, and no language code in a filename.
+## `canonical_rel` is the path of the page WITHOUT its language segment:
 ## "basics.html", or "part/basics.html" for a page one directory deeper. It
-## must keep any directory below the language: reducing it to a basename
-## would compute a link one directory too shallow for a nested page.
+## MUST keep every directory below the language. With only the basename, the
+## link for a nested page would be one directory too shallow.
 target_rel_from_root <- function(lang, canonical_rel) {
   file.path(lang, canonical_rel)
 }
 
-## href_for(): see departure (2) in the header comment. With no base_url the
-## href is computed from the CURRENT page's own directory, so it is correct at
-## any depth -- `en/basics.html` linking to French gives
-## "../fr/basics.html", and `en/part/basics.html` gives
-## "../../fr/part/basics.html". Hard-coding ".." (the original) is only
-## ever right for a page exactly one level down.
+## href_for(): see difference (2) in the header comment. With no base_url,
+## the href comes from the directory of the CURRENT page, so it is correct at
+## any depth. A link from `en/basics.html` to French is "../fr/basics.html".
+## From `en/part/basics.html` it is "../../fr/part/basics.html". The
+## original hard-codes "..", which is correct only for a page one level
+## down.
 href_for <- function(doc_rel, target_lang, canonical_rel) {
   target <- target_rel_from_root(target_lang, canonical_rel)
   if (nzchar(base_url)) {
@@ -175,9 +176,9 @@ href_for <- function(doc_rel, target_lang, canonical_rel) {
   }
 }
 
-## add_dropdown_links(): mutate ONE HTML file in place, adding an <li><a>
-## entry per target language. `targets` is a named list, target language
-## code -> that page's canonical (language-free) path.
+## add_dropdown_links(): change ONE HTML file in place. It adds one <li><a>
+## entry for each target language. `targets` is a named list: target
+## language code -> the canonical path of the page, with no language.
 add_dropdown_links <- function(path, doc_rel, targets) {
   html <- xml2::read_html(path)
 
@@ -186,11 +187,11 @@ add_dropdown_links <- function(path, doc_rel, targets) {
     "//div[contains(@class,'sidebar-header')]"
   )
   if (inherits(sidebar, "xml_missing")) {
-    ## A meta-refresh redirect stub has no sidebar at all. The alias stubs
-    ## under new_pages/ never reach here, because is_alias_stub() drops them
-    ## before this function runs. This guard catches any other sidebar-less
-    ## page under a language folder. Skip one page rather than fail the whole
-    ## pass.
+    ## A meta-refresh redirect stub has no sidebar. The alias stubs under
+    ## new_pages/ do not get here, because is_alias_stub() removes them
+    ## before this function runs. This guard finds any other page with no
+    ## sidebar under a language directory. It skips that page, and the pass
+    ## does not fail.
     message(
       "inject_language_links.R: no sidebar in ",
       path,
@@ -244,22 +245,22 @@ add_dropdown_links <- function(path, doc_rel, targets) {
   TRUE
 }
 
-## Enumerate EVERY page in the assembled tree, at any depth. recurse = TRUE
-## is load-bearing: a non-recursive scan finds nothing but the root stub,
-## because every book page sits one level down under its language.
+## List EVERY page in the assembled tree, at any depth. recurse = TRUE is
+## necessary. Without it, the scan finds only the root stub, because every
+## book page is one level down, under its language.
 ##
-## site_libs/ and Quarto's per-page *_files/ directories hold vendored JS/CSS,
-## not book pages.
+## site_libs/ and the *_files/ directory that Quarto makes for each page hold
+## vendored JS/CSS. They are not book pages.
 is_asset <- function(paths) {
   grepl("(^|/)site_libs/", paths) | grepl("_files/", paths)
 }
 
-## new_pages/ holds the alias stubs that redirect the handbook's old URLs to
-## their current pages. The contract keeps every file under new_pages/
-## byte-identical after a run, so this exclusion tests the PATH and never the
-## content. A content test is not enough. add_dropdown_links() skips a page
-## that carries no sidebar, so it would rewrite any new_pages/ file that does
-## carry one.
+## new_pages/ holds the alias stubs that redirect the old URLs of the
+## handbook to their current pages. The contract says that a run MUST NOT
+## change any byte of a file under new_pages/. Thus this exclusion tests the
+## PATH, not the content. A content test is not sufficient.
+## add_dropdown_links() skips a page that has no sidebar, so it would change
+## any new_pages/ file that has one.
 is_alias_stub <- function(paths) {
   grepl("(^|/)new_pages/", paths)
 }
@@ -268,10 +269,10 @@ all_docs <- fs::dir_ls(site_dir, glob = "*.html", recurse = TRUE)
 docs_rel <- as.character(fs::path_rel(all_docs, start = site_dir))
 all_docs <- all_docs[!is_asset(docs_rel) & !is_alias_stub(docs_rel)]
 
-## A page's language is its first path segment, when that segment is a
-## declared code. Anything else is not a book page and is skipped: today
-## that is the root redirect stub. The canonical path is the rest of the
-## path, which is what every target path is built from.
+## The language of a page is its first path segment, when that segment is a
+## declared code. Any other page is not a book page, and the script skips it.
+## Today that is the root redirect stub. The canonical path is the rest of
+## the path. The script makes every target path from it.
 lang_of <- function(doc_rel) {
   first <- strsplit(doc_rel, "/", fixed = TRUE)[[1]][1]
   if (first %in% language_codes) first else NA_character_
@@ -292,8 +293,8 @@ for (doc in all_docs) {
   canonical <- canonical_of(doc_rel)
   others <- setdiff(language_codes, lang)
 
-  ## Only offer a language whose version of THIS page actually exists -- a
-  ## link to a page that was never rendered is worse than no link.
+  ## Offer only a language that has a version of THIS page. A link to a page
+  ## that was not rendered is worse than no link.
   present <- Filter(
     function(l) {
       fs::file_exists(file.path(site_dir, target_rel_from_root(l, canonical)))
@@ -306,25 +307,25 @@ for (doc in all_docs) {
 
   targets <- stats::setNames(as.list(rep(canonical, length(present))), present)
   changed <- add_dropdown_links(doc, doc_rel = doc_rel, targets = targets)
-  ## Count only pages actually MODIFIED. Redirect stubs return FALSE from
-  ## add_dropdown_links(), and reporting them as processed is exactly the kind
-  ## of reassuring-but-wrong number this script already shipped once.
+  ## Count only pages that the script CHANGED. Redirect stubs return FALSE
+  ## from add_dropdown_links(). An earlier version of this script counted
+  ## them as processed, and that count was wrong.
   if (isTRUE(changed)) {
     n_modified <- n_modified + 1L
     langs_touched <- union(langs_touched, lang)
-    ## A chapter page is any modified page that is not a language's own
-    ## index. Counting index pages here would let the guard below pass on a
-    ## tree holding nothing but the eight landing pages.
+    ## A chapter page is any changed page that is not the index of a
+    ## language. If this count included index pages, the guard below would
+    ## pass on a tree that holds only the eight landing pages.
     if (!identical(canonical, "index.html")) {
       n_chapter_pages <- n_chapter_pages + 1L
     }
   }
 }
 
-## Guard against the failure this script has had before: silently touching
-## only the index pages, or nothing at all, and exiting 0 anyway. No chapter
-## page modified means the assembled tree is not the shape this script
-## assumes. The site would then deploy with no switcher on any chapter.
+## This guard stops a failure that this script had before: it changed only
+## the index pages, or no page, and still exited 0. If no chapter page
+## changed, the assembled tree does not have the expected shape. The site
+## would then deploy with no switcher on any chapter.
 if (n_chapter_pages == 0L) {
   cat(
     "inject_language_links.R: no chapter page was modified -- expected pages under <lang>/ beside each language's index.html. The assembled tree is not the shape this script assumes.\n",

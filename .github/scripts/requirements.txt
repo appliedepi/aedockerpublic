@@ -1,37 +1,40 @@
 # Hash-pinned Python dependencies for the CI planner (plan.py / test_plan.py).
 #
-# Phase 4 round 1 review flagged an unpinned `pip install pyyaml` reached over
-# the network, at CI-plan time, on the exact code path that decides what gets
-# built and published -- an unpinned install on a publish-decision path is a
-# supply-chain risk (a compromised or yanked release on PyPI would run
-# straight into the planner with no check at all). Round 1's response was to
-# remove the dependency entirely and vendor a narrow hand-rolled YAML reader
-# instead (`minimal_yaml.py`). That reader then drew three further rounds of
-# adversarial-review blockers for silently diverging from real YAML semantics
-# (a capitalized `False`, YAML boolean aliases, comma-in-quotes splitting, a
-# `#` abutting a value, bare numeric scalars, duplicate keys -- see
-# CHANGELOG.md's phase 4 log, 8.9 for the full history and 8.4/8.8 for the
-# original findings). Four rounds total spent on the same "how do we read
-# images.yaml" question, once round 1's original vendoring decision is
-# counted too -- YAML's implicit scalar grammar is larger than any
-# hand-rolled rejection list can bound.
+# The phase 4 round 1 review found an unpinned `pip install pyyaml` over the
+# network at CI-plan time. That code path decides what CI builds and
+# publishes, so an unpinned install there is a supply-chain risk. A
+# compromised or yanked PyPI release would run inside the planner with no
+# check. Round 1 removed the dependency and added a narrow hand-written YAML
+# reader (`minimal_yaml.py`). Three more review rounds then found blockers
+# where that reader differed from real YAML:
+#   - a capitalized `False`
+#   - YAML boolean aliases
+#   - comma-in-quotes splitting
+#   - a `#` against a value
+#   - bare numeric scalars
+#   - duplicate keys
+# CHANGELOG.md's phase 4 log has the full history in 8.9 and the original
+# findings in 8.4/8.8. In total, four rounds went to the question of how to
+# read images.yaml. YAML's implicit scalar grammar is larger than any
+# hand-written rejection list can cover.
 #
-# Phase 4 reverses that decision: use the real PyYAML, and close the ORIGINAL
-# round-1 finding the correct way -- hash-pin it, rather than leave it
-# unpinned. `pip install --require-hashes -r this-file` refuses to install
-# anything whose downloaded artifact does not match one of the sha256 hashes
-# below, so a compromised or substituted release cannot silently run. Fetched
-# from PyPI's JSON API (https://pypi.org/pypi/PyYAML/6.0.3/json), not guessed.
+# Phase 4 reversed that decision. It uses the real PyYAML and closes the
+# original round 1 finding with a hash pin. `pip install --require-hashes -r
+# this-file` refuses any downloaded artifact that does not match one of the
+# sha256 hashes below. So a compromised or substituted release cannot run.
+# The hashes come from PyPI's JSON API
+# (https://pypi.org/pypi/PyYAML/6.0.3/json).
 #
-# 6.0.3 is PyPI's current stable release (Sept 2025; 6.0.2 is now one
-# version behind) and is not yanked.
+# 6.0.3 is PyPI's current stable release (Sept 2025; 6.0.2 is one version
+# older), and it is not yanked.
 #
-# Hashes cover: the sdist (pure-Python fallback, in case no wheel matches the
-# runner's exact Python build) plus manylinux2014/2_17/2_28 x86_64 wheels for
-# CPython 3.9 through 3.14 -- GitHub's `ubuntu-latest` runner is a glibc
-# x86_64 host, and `actions/setup-python`'s `python-version: "3.x"` tracks
-# whatever the latest stable release is at the time a workflow runs, so this
-# intentionally covers more than just today's resolved version.
+# The hashes cover two kinds of file:
+#   - the sdist, a fallback in case no wheel matches the runner's Python build
+#   - manylinux2014/2_17/2_28 x86_64 wheels for CPython 3.9 through 3.14
+# GitHub's `ubuntu-latest` runner is a glibc x86_64 host.
+# `actions/setup-python` with `python-version: "3.x"` uses the latest stable
+# release when the workflow runs. So the list covers more versions than the
+# one in use today.
 PyYAML==6.0.3 \
     --hash=sha256:d76623373421df22fb4cf8817020cbb7ef15c725b9d5e45f17e189bfc384190f \
     --hash=sha256:0150219816b6a1fa26fb4699fb7daa9caf09eb1999f3b70fb6e786805e80375a \

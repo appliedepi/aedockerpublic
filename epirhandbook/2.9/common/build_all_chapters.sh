@@ -1,29 +1,27 @@
 #!/bin/bash
-# build_all_chapters.sh -- render every chapter, in every language, and
+# build_all_chapters.sh: render every chapter in every language, and
 # assemble one output tree.
 #
-# THIS RUNS ON THE CI RUNNER, NOT INSIDE A CONTAINER. It starts one
-# container per chapter render (docker run ... build_one_chapter.sh ...),
-# so running it inside a container itself would need docker-in-docker. It
-# is nonetheless STORED in epirhandbook-common:2.9 (this file lives at
-# common/build_all_chapters.sh and is COPYed onto PATH by common/Dockerfile,
-# exactly like build_one_chapter.sh), so there is a single source of truth
-# for it. The CI runner extracts it before running it:
+# THIS SCRIPT RUNS ON THE CI RUNNER, NOT IN A CONTAINER. It starts one
+# container for each chapter render (docker run ... build_one_chapter.sh
+# ...). To run it in a container would need docker-in-docker. But it is
+# STORED in epirhandbook-common:2.9, so there is one copy of it. The file is
+# common/build_all_chapters.sh, and common/Dockerfile COPYs it onto PATH, as
+# it does build_one_chapter.sh. The CI runner extracts it before it runs it:
 #   docker run --rm <common-image> cat /usr/local/bin/build_all_chapters.sh > build_all.sh
 #
-# THE LAYOUT THIS BUILDS. Every handbook language is its own Quarto book
-# project, at content/<lang>/ in the handbook checkout. Chapter S of
-# language L is the source file content/L/S.qmd, index included, with no
-# special case. Each project's own content/L/_quarto.yaml declares that
+# THE LAYOUT THAT THIS SCRIPT BUILDS. Each handbook language is its own
+# Quarto book project, at content/<lang>/ in the handbook checkout. Chapter S
+# of language L is the source file content/L/S.qmd. This includes index, with
+# no special case. The content/L/_quarto.yaml of each project declares the
 # language, its title and its chapter list, and renders into
-# content/L/html_outputs/. Nothing here rewrites a config, and nothing
-# renames a source file per language.
+# content/L/html_outputs/. This script does not rewrite a config, and it
+# does not rename a source file for each language.
 #
-# WHY ONE .qmd AT A TIME: the whole book used to be rendered by one call.
-# This script renders one .qmd at a time instead, each in its own pinned
-# image. A chapter can therefore be pinned back to an older image (a
-# previous epirhandbook-basics tag, say) independently of the rest of the
-# book.
+# WHY ONE .qmd AT A TIME: before, one call rendered the whole book. This
+# script renders one .qmd at a time, each in its own pinned image. Thus you
+# can pin one chapter back to an older image, such as an earlier
+# epirhandbook-basics tag. The rest of the book does not change.
 #
 # INPUTS, all in the handbook checkout given as <handbook_dir>:
 #   languages.yml              the one language list: `main`, `languages[].code`
@@ -33,48 +31,47 @@
 #   images/                    the shared image assets the pages link to
 # Plus <registry_prefix>, which every image is pulled from.
 #
-# WHY NOT A LANGUAGE LIST ARGUMENT: languages.yml is the single source of
-# truth for which languages ship. This script reads it, inject_language_links.R
-# reads it, and the handbook's own workflow reads it. Accepting a language
-# list here too would be a second, driftable source of the same fact.
+# WHY THERE IS NO ARGUMENT FOR THE LANGUAGE LIST: languages.yml is the one
+# source for the languages that ship. This script, inject_language_links.R
+# and the workflow of the handbook all read it. A language list argument
+# would be a second source of the same fact, and the two could disagree.
 #
-# THE MANIFEST (docker-images.yml, at the HANDBOOK repo's root -- not this
-# repo): one row per chapter, covering every language of that chapter.
+# THE MANIFEST is docker-images.yml, at the root of the HANDBOOK repo, not
+# this repo. It has one row for each chapter, for all languages of that
+# chapter.
 #   registry: ghcr.io/appliedepi/aedockerpublic
 #   chapters:
 #     - stem: time_series
 #       image: epirhandbook-analysis:2.9
 #     - stem: basics
-#       image: epirhandbook-basics:2.9-old   # deliberately pinned back (illustrative tag)
-# A book chapter with no manifest row is a MISSING ENTRY, not something to
-# render with a guessed default -- see check_manifest_covers_book() below.
+#       image: epirhandbook-basics:2.9-old   # pinned back (example tag)
+# A book chapter with no manifest row is a MISSING ENTRY. The script does not
+# render it with a guessed default. See check_manifest_covers_book() below.
 #
-# THE TWO HARD CONSTRAINTS THIS SCRIPT EXISTS TO HONOUR (both measured, not
-# assumed -- see the brief this script was written from):
-#   1. Renders for a given language MUST share one persistent workspace and
-#      run SEQUENTIALLY. Quarto accumulates the project search index
-#      (search.json) across separate per-file render invocations via the
-#      `.quarto/` state directory on the shared mount; parallel renders
-#      within one language would race on it. Different LANGUAGES use
-#      separate workspaces, so they have nothing to race on and MAY be
-#      processed in parallel with each other -- see the `for lang in
-#      "${RENDER_LANGS[@]}"` loop below, which deliberately does NOT do so.
-#   2. EVERY CHAPTER MUST BE RENDERED TWICE, in the same workspace. A
-#      chapter rendered before its cross-reference target has registered
-#      in `.quarto/xref` falls back to a same-page anchor that does not
-#      exist on that page (a proven, measured dead link -- 3 of them, in
-#      one small spike). A second full pass, after every chapter has
-#      registered once, resolves them: re-running the same renders a second
-#      time took the dead-link count from 3 to 0 and reproduced the
-#      whole-book reference byte-for-byte. Do not remove pass 2 -- it looks
-#      redundant and it is not. Without it, the dead-fragment check in
+# TWO HARD CONSTRAINTS. Both were measured. The brief that this script was
+# written from records the measurements.
+#   1. All renders of one language MUST share one persistent workspace and
+#      run ONE AFTER ANOTHER. Quarto adds each separate render to the
+#      project search index (search.json), through the `.quarto/` state
+#      directory on the shared mount. Parallel renders in one language would
+#      race on it. Different LANGUAGES use separate workspaces, so they
+#      cannot race, and they MAY run in parallel. The `for lang in
+#      "${RENDER_LANGS[@]}"` loop below does NOT run them in parallel.
+#   2. EVERY CHAPTER MUST BE RENDERED TWICE, in the same workspace. Suppose
+#      a chapter renders before its cross-reference target is in
+#      `.quarto/xref`. The link then becomes a same-page anchor that does not
+#      exist on that page: a dead link. One small spike measured 3 of them.
+#      A second full pass, after every chapter is registered once, resolves
+#      them. In that spike, the second pass took the dead-link count from 3
+#      to 0, and the output was byte-identical to the whole-book reference.
+#      Do not remove pass 2. Without it, the dead-fragment check in
 #      validate_language() fails the build.
 #
-# FAIL LOUDLY: a chapter that fails to render fails this build, immediately,
-# naming the chapter, the language, and the pass. Rendering itself is not
-# enough to trust, either -- see finding 1 in this script's own header
-# history: 24 renders can exit 0 while producing unusable output. See
-# validate_language() below for the checks that catch that.
+# FAIL LOUDLY: if a chapter does not render, this build fails at once. The
+# message names the chapter, the language and the pass. An exit status of 0
+# from a render is not sufficient. Finding 1 in the history of this script
+# measured 24 renders that exited 0 and gave unusable output. The checks in
+# validate_language() below find that.
 set -euo pipefail
 
 fail() {
@@ -96,26 +93,26 @@ usage() {
   echo "  <output_dir>        where the assembled site is written (default: ./html_outputs)" >&2
 }
 
-# --- book-level tooling always runs against THIS common image. It never
-# --- runs against the (possibly pinned-back) image a chapter renders in.
-# --- The language-link injection is a per-BOOK step, not a per-chapter
-# --- one. Whether the image a chapter renders in also carries
-# --- inject_language_links.R is irrelevant. This script itself lives in
-# --- epirhandbook/2.9, so "2.9" is the correct common tag for it to use.
+# --- Tools for the whole book always run against THIS common image, never
+# --- against the image that a chapter renders in, which can be pinned back.
+# --- The language-link pass is a step for the whole BOOK, not for one
+# --- chapter. It does not matter whether a chapter image also holds
+# --- inject_language_links.R. This script is in epirhandbook/2.9, so "2.9"
+# --- is the correct common tag for it.
 COMMON_TAG="2.9"
 
-# --- the R profile every chapter render runs with. common/Dockerfile COPYs
+# --- The R profile of every chapter render. common/Dockerfile COPYs
 # --- common/warnings_to_log.R to this path. build_one_chapter.sh fails when
-# --- R_PROFILE_USER names a file the image does not hold, because R itself
-# --- ignores a missing profile without a word.
+# --- R_PROFILE_USER names a file that the image does not hold, because R
+# --- ignores a missing profile and gives no message.
 R_PROFILE_IN_IMAGE="/usr/local/lib/ehb/warnings_to_log.R"
 
 # --- arg parsing -------------------------------------------------------------
-# Two optional flags, both there so a CI matrix can put ONE language in each
-# leg. Without them a caller has to render every language in every leg and
-# throw most of it away, and has to strip this script's own switcher markup
-# back out of the HTML afterwards -- both of which were real workarounds in
-# the first version of the handbook workflow.
+# Two optional flags let a CI matrix put ONE language in each leg. Without
+# them, a caller must render every language in every leg and discard most of
+# the output. The caller must also remove the switcher markup of this script
+# from the HTML afterwards. The first version of the handbook workflow did
+# both of these things.
 ONLY_LANG=""
 DO_INJECT=1
 while [ "$#" -gt 0 ]; do
@@ -130,13 +127,13 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-# --only-lang without --no-inject is refused HERE, in argument parsing,
-# before any directory is read and before any container starts. The
-# switcher is defined over the ASSEMBLED site: a link from one language's
-# page to another's needs both pages in one tree. A leg holding one language
-# has no other language to link to, so injecting there writes a switcher
-# with nothing in it. The injector is not idempotent, so the assembled
-# site's own injection pass then appends a SECOND set of links.
+# The script refuses --only-lang without --no-inject HERE, in argument
+# parsing. No directory is read and no container starts before this check.
+# The switcher works on the ASSEMBLED site. A link from a page in one
+# language to a page in another needs both pages in one tree. A leg with one
+# language has no other language to link to, so the pass there writes an
+# empty switcher. The injector is not idempotent, so the later pass over the
+# assembled site then adds a SECOND set of links.
 if [ -n "$ONLY_LANG" ] && [ "$DO_INJECT" -eq 1 ]; then
   echo "build_all_chapters.sh: --only-lang needs --no-inject." >&2
   echo "  Inject once, over the assembled site, after every leg has landed." >&2
@@ -158,21 +155,20 @@ HANDBOOK_DIR="$(cd "$HANDBOOK_DIR_ARG" && pwd)"
 [ -f "$HANDBOOK_DIR/docker-images.yml" ] || fail "no docker-images.yml in $HANDBOOK_DIR"
 [ -d "$HANDBOOK_DIR/content" ] || fail "no content/ directory in $HANDBOOK_DIR"
 [ -d "$HANDBOOK_DIR/images" ] || fail "no images/ directory in $HANDBOOK_DIR -- the assembled site links to it"
-# rsync is used to assemble the per-language output. ubuntu-latest ships it, so this
-# only bites on a different runner, and it bites late: after every chapter has
-# rendered. Fail here instead.
+# The script uses rsync to assemble the output of each language.
+# ubuntu-latest has it, so only a different runner has this problem. The
+# problem shows late, after every chapter renders. Fail here instead.
 command -v rsync >/dev/null 2>&1 || fail "rsync is not on PATH -- this script needs it to assemble the output"
 [ -n "$REGISTRY_PREFIX" ] || fail "registry prefix (arg 2) must not be empty"
 
 COMMON_IMAGE="$REGISTRY_PREFIX/epirhandbook-common:$COMMON_TAG"
 
-# --- read the language list from languages.yml (the single source of truth) --
-# Uses real PyYAML, matching this repo's own established rule for reading
-# YAML (see .github/scripts/requirements.txt's header): no hand-rolled
-# parser, ever, for the same reasons that file documents at length.
-# `main` MUST be one of the declared codes. It names the language the root
-# redirect stub points at. A `main` outside the list would publish a
-# redirect to a directory this build never writes.
+# --- Read the language list from languages.yml, the one source of it ------
+# This uses PyYAML. The header of .github/scripts/requirements.txt gives the
+# rule of this repo for YAML: use a real parser, not a hand-written one.
+# `main` MUST be one of the declared codes. It names the language that the
+# root redirect stub points at. A `main` outside the list would publish a
+# redirect to a directory that this build does not write.
 read_languages() {
   python3 - "$HANDBOOK_DIR/languages.yml" <<'PY'
 import sys
@@ -213,22 +209,22 @@ MAIN="$(sed -n '1p' "$lang_info_file")"
 read -r -a DECLARED_LANGS <<< "$(sed -n '2p' "$lang_info_file")"
 rm -f "$lang_info_file"
 
-# DECLARED_LANGS is every language the handbook ships. RENDER_LANGS is what
-# THIS run renders, which --only-lang narrows to one. The manifest check
-# below stays on DECLARED_LANGS. A matrix leg then still catches a chapter
-# list that has drifted in a language it does not itself render.
+# DECLARED_LANGS is every language that the handbook ships. RENDER_LANGS is
+# the languages that THIS run renders, and --only-lang makes it one. The
+# manifest check below uses DECLARED_LANGS. Thus a matrix leg also finds a
+# chapter list that differs in a language that the leg does not render.
 RENDER_LANGS=("${DECLARED_LANGS[@]}")
 
-# --only-lang narrows the run to ONE of the declared languages. It never
-# invents one: the code must already be in that list. This cannot render
-# something the book does not ship.
+# --only-lang limits the run to ONE of the declared languages. The code MUST
+# already be in that list, so the run cannot render a language that the book
+# does not ship.
 #
-# LAYOUT NOTE, load-bearing for the caller: under --only-lang the OUTPUT_DIR
-# holds that language's site AT ITS ROOT, with no <lang>/ nesting -- there is
-# nothing to nest it under, because no other language was rendered. A CI leg
-# uploads that directory as-is; whoever assembles the legs decides where each
-# one lands, and writes the images/ copy and the root redirect stub that a
-# full run writes here.
+# LAYOUT NOTE FOR THE CALLER: with --only-lang, OUTPUT_DIR holds the site of
+# that language AT ITS ROOT, with no <lang>/ directory. No other language was
+# rendered, so there is no reason for one. A CI leg uploads that directory
+# as it is. The step that joins the legs decides where each one goes. That
+# step also writes the images/ copy and the root redirect stub, which a full
+# run writes here.
 if [ -n "$ONLY_LANG" ]; then
   found=0
   for l in "${DECLARED_LANGS[@]}"; do
@@ -239,9 +235,9 @@ if [ -n "$ONLY_LANG" ]; then
   echo "build_all_chapters.sh: --only-lang $ONLY_LANG -- rendering that language alone, output at the root of $OUTPUT_DIR"
 fi
 
-# --- read the chapter->image manifest ---------------------------------------
-# docker-images.yml lives at the HANDBOOK repo's root (a separate repo from
-# this one) -- read via the checkout passed in as $HANDBOOK_DIR.
+# --- Read the chapter->image manifest ---------------------------------------
+# docker-images.yml is at the root of the HANDBOOK repo, which is a separate
+# repo. The script reads it from the checkout given as $HANDBOOK_DIR.
 read_manifest() {
   python3 - "$HANDBOOK_DIR/docker-images.yml" <<'PY'
 import sys
@@ -268,12 +264,12 @@ if ! read_manifest > "$MANIFEST_FILE"; then
   fail "could not read the chapter manifest from $HANDBOOK_DIR/docker-images.yml"
 fi
 
-# --- one language's declared chapter stems, in book order -------------------
-# The book is what a language's own _quarto.yaml DECLARES, not what happens
-# to be on disk beside it. content/<lang>/ also holds obsolete drafts, and
-# any chapter deliberately commented out. Globbing the directory instead of
-# reading the config demands a manifest row for every one of those. It
-# fails the build outright, which is exactly what it did.
+# --- The declared chapter stems of one language, in book order -------------
+# The book is what the _quarto.yaml of a language DECLARES, not the files
+# next to it. content/<lang>/ also holds old drafts and chapters that are
+# commented out. A glob of the directory, in place of a read of the config,
+# needs a manifest row for each of those files. It then fails the build. An
+# earlier version used a glob, and the build failed.
 book_stems() {
   python3 - "$1" <<'PY'
 import sys, yaml
@@ -292,23 +288,23 @@ for path in paths:
 PY
 }
 
-# --- do not silently skip a chapter with no manifest entry ------------------
-# Every chapter the book declares must have a manifest row. A chapter the
-# manifest never mentions is a MISSING ENTRY, not a chapter to quietly
-# skip: someone added a chapter and forgot the manifest.
+# --- Do not skip a chapter that has no manifest row ------------------------
+# Every chapter that the book declares MUST have a manifest row. A chapter
+# with no row is a MISSING ENTRY, and the build fails.
 #
-# Checked in BOTH directions, because each catches a different mistake. A
-# declared chapter with no row means someone added a chapter and forgot the
-# manifest. A row for an undeclared chapter means one of two things. The
-# manifest would render an orphan page that is in no book, or it names an
-# image that need not exist.
+# The check works in BOTH directions, because each direction finds a
+# different mistake. A declared chapter with no row means that someone added
+# a chapter and did not add it to the manifest. A row for an undeclared
+# chapter has one of two causes:
+#   - the manifest would render an orphan page that is in no book.
+#   - the row names an image that does not need to exist.
 #
-# Then checked across languages. Every declared language is the SAME book,
-# so every content/<lang>/_quarto.yaml must flatten to the same stem list in
-# the same order. A translation that has quietly lost a chapter, or ordered
-# its sidebar differently, is a defect in the book and not something to
-# render around. The reference is the main language's project file, which is
-# content/en/_quarto.yaml today.
+# Then the check compares the languages. Every declared language is the SAME
+# book, so every content/<lang>/_quarto.yaml MUST give the same stem list in
+# the same order. A translation that lost a chapter, or that has a different
+# sidebar order, is a defect in the book. The build fails on it. The
+# reference is the project file of the main language, which today is
+# content/en/_quarto.yaml.
 check_manifest_covers_book() {
   local ref declared missing extra lang other stem
   ref="$HANDBOOK_DIR/content/$MAIN/_quarto.yaml"
@@ -342,17 +338,17 @@ check_manifest_covers_book
 WORK_ROOT="$(mktemp -d)"
 echo "build_all_chapters.sh: workspace root: $WORK_ROOT (removed after a successful build, kept after a failure)"
 
-# --- one fresh workspace per language, ALWAYS from the pristine checkout ----
-# Each language renders into its own copy, so one language's `.quarto/` state
-# can never reach another's render.
+# --- One new workspace for each language, ALWAYS from the clean checkout ---
+# Each language renders into its own copy, so the `.quarto/` state of one
+# language cannot reach the render of another.
 #
-# The excludes are load-bearing. A developer's local checkout can already
-# hold content/<lang>/html_outputs from a previous run. validate_language()
-# below proves this build's own output by looking for exactly those files.
-# A stale tree copied in would satisfy it with no render at all. The
-# same goes for content/<lang>/.quarto (the xref and search state pass 1
-# exists to build) and content/<lang>/<stem>_files (a page's figures). .git
-# is excluded because it is large and no render reads it.
+# The excludes are necessary. A local checkout of a developer can already
+# hold content/<lang>/html_outputs from an earlier run. validate_language()
+# below checks the output of this build by looking for those files. A stale
+# tree copied in would pass that check with no render. The same is true for
+# content/<lang>/.quarto, the xref and search state that pass 1 builds, and
+# for content/<lang>/<stem>_files, the figures of a page. .git is excluded
+# because it is large and no render reads it.
 prepare_workspace() {
   local lang="$1" ws="$WORK_ROOT/$lang"
   rm -rf "$ws"
@@ -369,33 +365,35 @@ prepare_workspace() {
     || fail "lang=$lang: '$ws/content/$lang/html_outputs' survived the workspace copy -- the exclude list is not doing its job"
 }
 
-# --- render every manifest chapter once, for one language ONE pass ---------
-# SEQUENTIAL BY CONSTRUCTION: this is a plain bash `while read` loop with no
-# backgrounding (`&`), so chapter N+1 never starts before chapter N's
-# `docker run` has exited. That is what honours finding 3 (search.json
-# would race under parallel renders within a language).
+# --- Render every manifest chapter once, for one language: ONE pass -------
+# The renders run ONE AFTER ANOTHER. This is a plain bash `while read` loop
+# with no background jobs (`&`). Thus chapter N+1 starts only after the
+# `docker run` of chapter N exits. This meets finding 3: parallel renders in
+# one language would race on search.json.
 #
-# The container's working directory is the language's own project,
-# /book/content/<lang>, and the argument is the bare <stem>.qmd inside it.
-# build_one_chapter.sh's header says why that matters: a render started
-# anywhere else is not a project render, and it exits 0 anyway.
+# The working directory of the container is the project of the language,
+# /book/content/<lang>. The argument is the bare <stem>.qmd in it. The
+# header of build_one_chapter.sh says why: a render started in any other
+# directory is not a project render, and it exits 0 all the same.
 #
 # The container has NO NETWORK (--network none). A chapter that installs a
-# missing package while it renders, or downloads data, fails here. Without
-# it, the render installs the package and exits 0, and the image defect
-# stays hidden. The image holds every package, and the checkout holds the
-# data, so a correct chapter needs no network.
+# missing package during the render, or downloads data, fails here. With a
+# network, the render installs the package and exits 0, and nothing shows
+# the defect in the image. The image holds every package, and the checkout
+# holds the data, so a correct chapter needs no network.
 #
 # R_PROFILE_USER points R at warnings_to_log.R, which common/Dockerfile
-# installs at $R_PROFILE_IN_IMAGE. It writes one EHB-WARNING line to the log
-# for each R warning a chunk raises, whatever the chunk's `warning` option,
-# and one EHB-ERROR line for each error an `error: true` chunk captures. The
-# page does not change. That file's header says how.
+# installs at $R_PROFILE_IN_IMAGE. The profile writes one EHB-WARNING line to
+# the log for each R warning that a chunk raises. This is true for any value
+# of the `warning` option of the chunk. It writes one EHB-ERROR line for each error
+# that an `error: true` chunk captures. The page does not change. The header
+# of warnings_to_log.R says how.
 #
-# An image built before warnings_to_log.R was added does not hold the
-# profile, and its own build_one_chapter.sh does not check for it. R then
-# ignores R_PROFILE_USER and the chapter logs no warnings. So each image is
-# checked for the profile once, before its first render.
+# An image built before warnings_to_log.R existed does not hold the profile,
+# and its build_one_chapter.sh does not check for it. R then ignores
+# R_PROFILE_USER, and the chapter logs no warnings. Thus
+# check_image_has_profile() checks each image for the profile once, before
+# the first render in that image.
 declare -A IMAGE_HAS_PROFILE=()
 check_image_has_profile() {
   local image_ref="$1" stem="$2"
@@ -424,14 +422,15 @@ render_pass() {
   done < "$MANIFEST_FILE"
 }
 
-# --- validate before assembling: exit 0 proves nothing here -----------------
-# Finding 1 measured 24 renders exiting 0 while producing unusable output.
-# These three checks are what a bare exit-code check would have missed, in
-# increasing order of how much they'd have caught: (a) the file was never
-# produced at all; (b) it was produced but never indexed for search; (c) it
-# was produced, indexed, AND still contains a dead same-page link -- this
-# last one is what would have caught finding 6 (the dead-link regression),
-# so it is the important one.
+# --- Validate before the assembly. Exit status 0 is not sufficient --------
+# Finding 1 measured 24 renders that exited 0 and gave unusable output. A
+# check of exit status alone misses each of these three cases. They are in
+# order of how much each would have found:
+#   (a) the render did not make the file.
+#   (b) the render made the file, but did not add it to the search index.
+#   (c) the file exists and is in the index, but it has a dead same-page
+#       link. This check would have found finding 6, the dead-link
+#       regression, so it is the most important.
 validate_language() {
   local lang="$1" ws="$2"
   local outdir="$ws/content/$lang/html_outputs"
@@ -441,10 +440,10 @@ validate_language() {
   [ -d "$outdir" ] || fail "lang=$lang: no '$outdir' -- nothing was rendered"
   [ -f "$search" ] || fail "lang=$lang: '$search' is missing -- no search index was produced"
 
-  # Every chapter of a language sits directly in that language's project, so
-  # <stem>.qmd renders to html_outputs/<stem>.html and search.json's href is
-  # that same "<stem>.html". The href is compared verbatim, quotes included,
-  # so "basics.html" cannot be satisfied by "new_pages/basics.html".
+  # Every chapter of a language is directly in the project of that language.
+  # Thus <stem>.qmd renders to html_outputs/<stem>.html, and the href in
+  # search.json is the same "<stem>.html". The check compares the href with
+  # its quotes, so "new_pages/basics.html" does not match "basics.html".
   while IFS=$'\t' read -r stem image; do
     html="$outdir/$stem.html"
     [ -f "$html" ] || fail "lang=$lang: expected output '$html' (chapter '$stem', via '$image') was never produced"
@@ -452,24 +451,24 @@ validate_language() {
       || fail "lang=$lang: '$search' does not reference '$stem.html' (chapter '$stem')"
   done < "$MANIFEST_FILE"
 
-  # Dead-same-page-link check: every href="#frag" must have a matching
-  # id="frag" IN THE SAME FILE. href="#" (an empty fragment) is excluded
-  # deliberately -- it is a JS-hook placeholder used by dropdown/toggle
-  # controls in the page template, never a same-page anchor, and same-page
-  # anchors are never empty strings.
-  # A dead same-page fragment FAILS the build. So does a count that cannot be
-  # made: the python step failing, or printing something that is not a count.
-  # The failure names every dead fragment as <page>#<fragment>.
+  # Dead same-page link check: every href="#frag" MUST have a matching
+  # id="frag" IN THE SAME FILE. The check skips href="#", an empty fragment.
+  # The dropdown and toggle controls of the page template use it as a
+  # placeholder for JS. It is not a same-page anchor, and a same-page anchor
+  # is never an empty string.
+  # A dead same-page fragment FAILS the build. So does a failed count: the
+  # python step fails, or prints something that is not a count. The failure
+  # message names every dead fragment as <page>#<fragment>.
   #
-  # Before 2026-10-01 the count was only printed, and a failed count printed
-  # "?". The reason given was the 2.7 whole-book render of 49 chapters, which
+  # Before 2026-10-01, the script only printed the count, and a failed count
+  # printed "?". The reason was the 2.7 whole-book render of 49 chapters. It
   # held 106 dead fragments, all content bugs (`#gis` 15 times, `#contact_us`
-  # 7). A printed count that nobody reads guards nothing, so those content
-  # bugs MUST be fixed in the handbook for its build to pass.
+  # 7 times). A printed count that nobody reads protects nothing. Thus the
+  # handbook MUST fix those content bugs before its build can pass.
   #
-  # Percent-decoding matters: an href fragment is URL-encoded
-  # (`#r%C3%A9visions-majeures`) while the matching `id=` is not, so a literal
-  # comparison reports ~40x more "dead" links than really are.
+  # The check decodes percent-encoding. An href fragment is URL-encoded
+  # (`#r%C3%A9visions-majeures`), and the matching `id=` is not. A literal
+  # comparison reports about 40 times more "dead" links than there are.
   local dead n
   if ! dead="$(python3 - "$outdir" <<'PY'
 import re, glob, os, sys, urllib.parse
@@ -493,32 +492,31 @@ PY
   echo "build_all_chapters.sh: lang=$lang: dead same-page fragments: 0"
 }
 
-# This loop is a plain, SEQUENTIAL `for`, one language after another, even
-# though languages use independent workspaces and COULD safely run in
-# parallel (see constraint 1 above): backgrounding it correctly means
-# capturing each subshell's exit status without losing it (a masked
-# background failure is exactly the "fail loudly" hazard this script exists
-# to avoid), and that is untested complexity this change does not need.
-# Nothing here stops a future version from backgrounding it.
+# This loop is a plain `for`, one language after another. The languages use
+# separate workspaces and COULD run in parallel (see constraint 1 above). To
+# run them as background jobs, the script would have to keep the exit status
+# of each subshell. A lost background failure breaks the "fail loudly" rule
+# above. That extra code is not tested and not needed now. A later version
+# MAY run the languages in parallel.
 for lang in "${RENDER_LANGS[@]}"; do
   ws="$WORK_ROOT/$lang"
   prepare_workspace "$lang"
-  # Pass 1: populates .quarto/xref with every chapter's targets.
+  # Pass 1 adds the targets of every chapter to .quarto/xref.
   render_pass "$lang" "$ws" 1
-  # Pass 2 (finding 6 -- NOT redundant, see header comment): re-renders every
-  # chapter now that every OTHER chapter's cross-reference targets are known,
-  # which is what resolves them instead of silently falling back to a
-  # same-page fragment.
+  # Pass 2 is necessary (finding 6, and constraint 2 in the header). It
+  # renders every chapter again, now that the cross-reference targets of
+  # every OTHER chapter are known. The links then resolve, and do not become
+  # same-page fragments.
   render_pass "$lang" "$ws" 2
   validate_language "$lang" "$ws"
 done
 
-# --- assemble one output tree -----------------------------------------------
-# EVERY language lands under its own directory, the main language included:
-# the site is $OUTPUT_DIR/<lang>/..., and $OUTPUT_DIR/index.html is a
-# redirect stub to the main language. No language sits at the root. The
-# root is therefore not one language's site with the others bolted on, and
-# the switcher's hrefs are the same shape on every page.
+# --- Assemble one output tree -----------------------------------------------
+# EVERY language, the main language included, goes in its own directory. The
+# site is $OUTPUT_DIR/<lang>/..., and $OUTPUT_DIR/index.html is a redirect
+# stub to the main language. No language is at the root. Thus the root is not
+# the site of one language with the other languages added to it. Also, the
+# switcher hrefs have the same form on every page.
 rm -rf "$OUTPUT_DIR"
 mkdir -p "$OUTPUT_DIR"
 if [ -n "$ONLY_LANG" ]; then
@@ -529,11 +527,11 @@ else
     mkdir -p "$OUTPUT_DIR/$lang"
     cp -a "$WORK_ROOT/$lang/content/$lang/html_outputs"/. "$OUTPUT_DIR/$lang"/
   done
-  # The pages reference images/ from the site root, and no language's render
-  # copies it, so it is copied once here.
+  # The pages refer to images/ at the site root. No language render copies
+  # it, so the script copies it once here.
   mkdir -p "$OUTPUT_DIR/images"
   cp -a "$HANDBOOK_DIR/images"/. "$OUTPUT_DIR/images"/
-  # The root redirect stub. Four lines, and the only page at the site root.
+  # The root redirect stub: four lines, and the only page at the site root.
   printf '%s\n' \
     '<!DOCTYPE html>' \
     "<html lang=\"$MAIN\"><head><meta charset=\"utf-8\"><title>Redirect to $MAIN/</title>" \
@@ -543,18 +541,18 @@ else
   echo "build_all_chapters.sh: assembled $OUTPUT_DIR (languages=${RENDER_LANGS[*]}, images/ copied, root redirects to $MAIN/)"
 fi
 
-# --- the language-switcher post-pass ----------------------------------------
-# Runs once, over the FULLY ASSEMBLED tree, in the common image (this is a
-# per-book step, not a per-chapter one -- see COMMON_IMAGE above).
-# languages.yml is mounted alongside the site read-only, for the language
-# list and the dropdown's display labels; it is never written to.
+# --- The language-switcher pass ---------------------------------------------
+# This pass runs once, over the FULLY ASSEMBLED tree, in the common image. It
+# is a step for the whole book, not for one chapter (see COMMON_IMAGE above).
+# languages.yml is mounted read-only next to the site. The pass reads the
+# language list and the dropdown labels from it, and does not write to it.
 #
-# --no-inject skips it, and a caller that splits languages across machines
-# MUST use it. inject_language_links.R is NOT idempotent: add_dropdown_links()
-# REUSES an existing <ul id="languages-links"> rather than rebuilding it, so
-# injecting per-language and then again over the assembled site APPENDS a
-# second set of links to every page instead of replacing the first.
-# Inject exactly once, over the complete tree.
+# --no-inject skips this pass. A caller that splits the languages across
+# machines MUST use --no-inject. inject_language_links.R is NOT idempotent:
+# add_dropdown_links() adds to an existing <ul id="languages-links"> and does
+# not make a new one. A pass for each language and then a pass over the
+# assembled site thus ADD a second set of links to every page. Run the pass
+# once only, over the complete tree.
 if [ "$DO_INJECT" -eq 1 ]; then
   if ! docker run --rm \
       -v "$OUTPUT_DIR:/site" \
@@ -567,10 +565,10 @@ else
   echo "build_all_chapters.sh: --no-inject -- skipping the language-switcher pass; the caller must run it once over the assembled site"
 fi
 
-# --- remove the workspace ----------------------------------------------------
-# Only a successful build reaches this point, so a failed build keeps its
+# --- Remove the workspace ----------------------------------------------------
+# Only a successful build gets to this point, so a failed build keeps its
 # workspace for inspection. The render containers run as root and write
-# root-owned files into the workspace, so a container removes them.
+# files that root owns into the workspace, so a container removes them.
 if ! docker run --rm -v "$WORK_ROOT:/w" "$COMMON_IMAGE" find /w -mindepth 1 -delete \
     || ! rmdir "$WORK_ROOT"; then
   fail "could not remove the workspace $WORK_ROOT"

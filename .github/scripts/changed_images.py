@@ -1,76 +1,73 @@
 #!/usr/bin/env python3
-"""changed_images.py -- the ONE mechanism that decides which catalog images
-have CHANGED, for the CI planner (plan.py) to build+publish.
+"""changed_images.py: the one mechanism that decides which catalog images
+changed, so that the CI planner (plan.py) builds and publishes them.
 
-Rule (owner-designed): an image is rebuilt+republished iff its own files
-(its `dir`, the shared build-context inputs, and the .github/ build
-machinery) changed since the commit its CURRENTLY-PUBLISHED image was
-built from, or it was not built FROM the currently published digest of its
-base. Never-published, or published with no revision label -> always
-CHANGED. There is no separate per-image republish guard and no
-"images.yaml/workflow changed -> rebuild everything" special case: a
-.github/ machinery change simply shows up in EVERY image's own diff (see
-files_touch_image below), which is what subsumes that case.
+The rule, set by the owner: CI rebuilds and republishes an image if and only if
+one of these holds:
+  - its own files changed since the commit of its published image. Its own
+    files are its `dir`, the shared build-context inputs and the .github/
+    build machinery.
+  - it was not built FROM the published digest of its base.
+An image that was never published, or has no revision label, is always
+changed. There is no separate per-image republish guard. There is also no
+special case of "images.yaml or a workflow changed, so rebuild everything".
+A change to the .github/ machinery shows in the diff of every image (see
+files_touch_image below), and that covers the case.
 
-The base check is what makes a rerun after a partial publish complete. An
-image that failed to publish keeps its old revision label, and its own
-diff since then can be empty: a change under its base's dir is not one of
-its own files. Only the base-digest label shows that it was built FROM an
-old base (see base_is_changed below).
+The base check lets a rerun complete a partial publish. An image that failed
+to publish keeps its old revision label. Its own diff since then can be
+empty, because a change under its base's dir is not one of its own files.
+Only the base-digest label shows that it was built FROM an old base (see
+base_is_changed below).
 
-Three steps per catalog image, in this order:
-  1. READ the image's published revision: the org.opencontainers.image.
-     revision OCI label on $REGISTRY/$REPO/<name>:<first tag>, via a
-     METADATA-ONLY registry read (`docker buildx imagetools inspect
-     --format ...` fetches the manifest + config, a few KB) -- NEVER
-     `docker pull`, which would fetch the full image (these run 3-5GB
-     each; a pull per catalog image, every run, would be absurd). Missing
-     image, missing label, or any read failure -> None -> CHANGED,
-     without needing a git diff at all.
-  2. Otherwise, a SINGLE `git diff --name-only <published revision>
-     <sha>` -- exactly one diff between two tree snapshots, never a
-     per-commit loop, so a push containing several commits (or a
-     change-then-revert within the same push) nets to the ACTUAL final
-     difference, not one rebuild per intermediate commit. `<sha>` is
-     always the caller-supplied --sha (the tip of the current push /
-     workflow run), never the bare word "HEAD" -- explicit, so the
-     comparison is exactly "published commit -> the commit being built
-     now", matching build.yml's own convention of naming both diff
-     endpoints explicitly. This is a local repo operation (the checkout
-     uses fetch-depth: 0), no network. The resulting file list is then
-     matched against THIS image's own dir / shared-context inputs /
-     CI machinery (files_touch_image) -- a match -> CHANGED.
-  3. For an image with a base: compare its
-     org.opencontainers.image.base.digest label (stamped by
-     build_image.sh) with the digest its base's tag points to now, by a
+Three steps for each catalog image, in this order:
+  1. Read the image's published revision. That is the
+     org.opencontainers.image.revision OCI label on
+     $REGISTRY/$REPO/<name>:<first tag>. The read is metadata-only:
+     `docker buildx imagetools inspect --format ...` fetches the manifest and
+     config, a few KB. It never runs `docker pull`, which would fetch the
+     full image. These images are 3-5GB each, and CI would pull each one on
+     every run. A missing image, a missing label or any read failure gives
+     None, and the image is changed with no git diff.
+  2. Otherwise, run one `git diff --name-only <published revision> <sha>`.
+     This is one diff between two tree snapshots, never a loop over commits.
+     So a push with several commits, or a change and its revert in one push,
+     gives only the final difference. It does not give one rebuild per
+     intermediate commit. `<sha>` is always the --sha from the caller (the
+     tip of the current push or workflow run), never "HEAD". So the diff
+     always runs from the published commit to the commit being built now.
+     build.yml also names both diff endpoints. The diff is local, with no
+     network, because the checkout uses fetch-depth: 0. files_touch_image
+     then matches the file list against this image's own dir, the shared
+     context inputs and the CI machinery. A match means changed.
+  3. For an image with a base, compare two digests. One is its
+     org.opencontainers.image.base.digest label, which build_image.sh
+     stamps. The other is the digest its base's tag points to now, from a
      second metadata-only read. A missing label, an unreadable digest or a
-     difference -> CHANGED. An image with `live: false` skips this step.
+     difference means changed. An image with `live: false` skips this step.
 
-This module is the only part of the build plan that talks to git or the
+This module is the only part of the build plan that uses git or the
 registry. build_image.sh also reads the registry, to resolve the digest of
-an image's base, but it does not decide what to build. plan.py
-stays pure (no subprocess, no network) and only consumes this module's
-OUTPUT: a list of already-decided CHANGED image names, passed to it with
---changed-image.
+an image's base, but it does not decide what to build. plan.py stays pure,
+with no subprocess and no network. It only reads this module's output: a
+list of image names already decided as changed, passed with --changed-image.
 
-Determining the "shared build inputs" for a given image uses the exact
-same rule plan.py's build_plan() used to compute inline (before this
-split): a file living inside an image's build `context` but outside EVERY
-image's own `dir` is a shared input. One example is
-epirhandbook/2.9/pak_install_subset.R, COPYed by all eight Dockerfiles under
-epirhandbook/2.9/, but not itself inside any image's own dir. See
-files_touch_image below -- kept in exactly one place so the two modules can
-never silently drift apart on this rule.
+The rule for the "shared build inputs" of an image is the rule that plan.py's
+build_plan() used inline before this split. A file inside an image's build
+`context` but outside the `dir` of every image is a shared input. One example
+is epirhandbook/2.9/pak_install_subset.R. All eight Dockerfiles under
+epirhandbook/2.9/ COPY it, but it is not inside the dir of any image. The
+rule lives only in files_touch_image (below), so the two modules cannot
+disagree on it.
 
 CLI:
     python3 changed_images.py --images-yaml images.yaml \\
         --images-yaml epirhandbook/2.9/images.yaml \\
         --repo appliedepi/aedockerpublic --sha $GITHUB_SHA
-Prints one CHANGED image NAME per line to stdout (plan.py's
---changed-image consumes this directly, one flag per line). Per-image
-reasoning is printed to stderr for the CI log, never mixed into stdout --
-a consumer piping stdout into `--changed-image` args must never have to
-filter out log noise.
+It prints one changed image name per line to stdout. plan.py's
+--changed-image reads this directly, one flag per line. The reason for each
+image goes to stderr for the CI log, never to stdout. A consumer that pipes
+stdout into `--changed-image` args then has no log lines to filter out.
 """
 import argparse
 import functools
@@ -87,11 +84,11 @@ REVISION_LABEL = "org.opencontainers.image.revision"
 # the exact base image it was built FROM. See base_is_changed below.
 BASE_DIGEST_LABEL = "org.opencontainers.image.base.digest"
 
-# The CI machinery itself: a change here can change how EVERY image is
-# built, so it must show up as a match for every image, unconditionally --
-# this is what subsumes the old is_special_trigger's "workflow/scripts
-# changed -> rebuild everything" case. Deliberately NOT all of `.github/`
-# (e.g. CODEOWNERS is excluded) -- same scope the old mechanism used.
+# The CI machinery. A change here can change how every image is built, so it
+# matches every image with no condition. This replaces the "workflow/scripts
+# changed -> rebuild everything" case of the old is_special_trigger. It is
+# not all of `.github/`: for example, CODEOWNERS is excluded. That is the
+# scope the old mechanism used.
 MACHINERY_DIRS = (".github/scripts", ".github/workflows")
 
 
@@ -99,20 +96,19 @@ def is_machinery_file(f):
     return any(plan.matching_dir(f, d) for d in MACHINERY_DIRS)
 
 
-# The files at a shared build context's root that are genuinely build inputs.
-# An ALLOWLIST, not a denylist of documentation, because a denylist has to be
-# right about every file that might ever appear: a suffix rule that excludes
-# ".md" quietly stops rebuilding an image the day someone writes
-# `COPY . /src` or `ADD notes.md`, and the image goes stale with nothing to
-# show for it. Naming the inputs instead fails the other way -- add a real
-# input and forget to list it here, and it simply does not trigger, which
-# test_every_copied_context_file_is_a_declared_input catches by parsing what
-# the Dockerfiles actually COPY.
+# The files at the root of a shared build context that are build inputs.
+# This is an allowlist, not a denylist of documentation. A denylist must be
+# right about every file that can appear. For example, a suffix rule that
+# excludes ".md" stops rebuilding an image when someone writes `COPY . /src`
+# or `ADD notes.md`. The image then goes stale with no sign. An allowlist
+# fails the other way: a real input that is not listed here does not trigger
+# a rebuild. test_every_copied_context_file_is_a_declared_input finds that
+# case, because it parses what the Dockerfiles COPY.
 #
-# Why this exists: epirhandbook/2.7 was the shared context for common and all
-# 49 chapters. Its root held these inputs beside a README, the change notes,
-# a patch and five measurement TSVs. Matching "anything in the context
-# outside an image's own dir" swept all of those in, so a README edit rebuilt
+# The reason for the list: epirhandbook/2.7 was the shared context for common
+# and all 49 chapters. Its root held these inputs beside a README, the change
+# notes, a patch and five measurement TSVs. The rule "anything in the context
+# outside an image's own dir" matched all of those, so a README edit rebuilt
 # 50 of 51 images.
 #
 # 2.9 keeps that shape. epirhandbook/2.9 is the shared context for
@@ -137,24 +133,25 @@ def is_shared_context_input(f, ctx):
 
 
 def files_touch_image(img, changed_files, all_dirs):
-    """True iff ANY entry of `changed_files` is one of image `img`'s own
-    build inputs. Returns (touched, reason) -- reason is a short
-    human-readable string naming the file and the rule that matched, for
-    the per-image CI log line.
+    """True iff any entry of `changed_files` is one of the build inputs of
+    image `img`. Returns (touched, reason). `reason` is a short string for
+    the per-image CI log line. It names the file and the rule that matched.
 
-    Three ways a file can touch an image, checked in this order:
-      1. it is under the image's own `dir` (unconditional -- a change
-         under an image's own directory always touches it);
-      2. it is a SHARED context input: `img`'s build `context` differs
-         from its `dir` (true for all eight images in
-         epirhandbook/2.9/images.yaml, and for no other), the
-         file is one of the DECLARED inputs at that context's root (see
-         SHARED_CONTEXT_INPUTS), AND it is outside EVERY image's own `dir`
-         in the whole catalog (all_dirs) -- so pak_install_subset.R fans
-         out to every image sharing the context, while some OTHER image's
-         own file does not (which would lose per-image selectivity) and
-         neither does a README sitting beside it;
-      3. it is CI machinery (.github/scripts/, .github/workflows/).
+    A file touches an image in three ways, checked in this order:
+      1. It is under the image's own `dir`. Such a file always touches the
+         image.
+      2. It is a shared context input. Three conditions MUST all hold:
+         - `img`'s build `context` differs from its `dir`. That is true for
+           all eight images in epirhandbook/2.9/images.yaml, and for no
+           other.
+         - The file is one of the declared inputs at that context's root
+           (see SHARED_CONTEXT_INPUTS).
+         - The file is outside the own `dir` of every image in the whole
+           catalog (all_dirs).
+         So pak_install_subset.R touches every image that shares the
+         context. A file in the dir of another image does not, which keeps
+         the selection per image. A README beside the inputs does not.
+      3. It is CI machinery (.github/scripts/, .github/workflows/).
     """
     dir_ = img["dir"]
     ctx = img.get("context", dir_)
@@ -173,16 +170,17 @@ def files_touch_image(img, changed_files, all_dirs):
 
 
 def changed_since(revision, sha, cwd=None):
-    """git diff --name-only <revision> <sha> -- repo-relative changed file
-    paths. Exactly ONE diff between two tree snapshots (never a per-commit
-    loop): a push with several commits, or a change-then-revert within the
-    same push, nets to the actual final difference between `revision` and
-    `sha`, not one rebuild per intermediate commit. Local, no network (the
-    caller's checkout uses fetch-depth: 0).
+    """The changed file paths, relative to the repo, from
+    `git diff --name-only <revision> <sha>`. It runs one diff between two
+    tree snapshots, never a loop over commits. So a push with several
+    commits, or a change and its revert in one push, gives only the final
+    difference between `revision` and `sha`. It does not give one rebuild
+    per intermediate commit. The diff is local, with no network, because
+    the caller's checkout uses fetch-depth: 0.
 
-    Raises RuntimeError if `revision` cannot be diffed (not a valid/
-    reachable commit in this checkout) -- the caller decides what that
-    means; this function does not guess."""
+    Raises RuntimeError if `revision` cannot be diffed, because it is not a
+    valid or reachable commit in this checkout. The caller decides what
+    that means."""
     result = subprocess.run(
         ["git", "diff", "--name-only", revision, sha],
         cwd=cwd, capture_output=True, text=True,
@@ -196,15 +194,17 @@ def changed_since(revision, sha, cwd=None):
 
 
 def _imagetools_inspect(ref, fmt, timeout):
-    """Parsed JSON of `docker buildx imagetools inspect <ref> --format <fmt>`,
-    a METADATA-ONLY registry read (the manifest + config, a few KB, NEVER
-    the image layers; these images run 3-5GB each, so a `docker pull` per
-    catalog image, every run, would be absurd).
+    """Parsed JSON of `docker buildx imagetools inspect <ref> --format <fmt>`.
+    This is a metadata-only registry read: the manifest and config, a few KB,
+    never the image layers. These images are 3-5GB each, so CI must not run
+    a `docker pull` for each catalog image on every run.
 
-    Returns None on ANY of: the image is not published, the registry read
-    fails, or the response cannot be parsed. All of these collapse to the
-    same None, never a hard error: a transient registry hiccup on ONE image
-    must not abort planning every other image too."""
+    Returns None in each of these cases:
+      - the image is not published
+      - the registry read fails
+      - the response cannot be parsed
+    None is never a hard error. A short registry fault on one image MUST NOT
+    stop the plan for all the other images."""
     try:
         result = subprocess.run(
             ["docker", "buildx", "imagetools", "inspect", ref, "--format", fmt],
@@ -237,8 +237,8 @@ def published_labels(registry, repo, name, tag, timeout=120):
 
 def published_revision(registry, repo, name, tag, labels_of=published_labels):
     """The REVISION_LABEL value published on <name>:<tag>, or None when the
-    image is not published, has no such label, or cannot be read. Every one
-    of these means "never-published = changed" to the caller."""
+    image is not published, has no such label, or cannot be read. The caller
+    reads each of these cases as "never published, so changed"."""
     return (labels_of(registry, repo, name, tag) or {}).get(REVISION_LABEL)
 
 
@@ -246,9 +246,9 @@ def published_digest(registry, repo, name, tag, timeout=120):
     """The manifest digest ("sha256:...") that <name>:<tag> currently
     points to, or None when it cannot be read. This is the same digest
     build_image.sh takes from the `Digest:` line of imagetools inspect when
-    it resolves a base, and stamps as BASE_DIGEST_LABEL. `{{json .Manifest}}`
-    and not `{{.Manifest.Digest}}`: buildx 0.11.2 ignores the second and
-    prints its default text."""
+    it resolves a base, and stamps as BASE_DIGEST_LABEL. Use
+    `{{json .Manifest}}`, not `{{.Manifest.Digest}}`: buildx 0.11.2 ignores
+    the second and prints its default text."""
     ref = f"{registry}/{repo}/{name}:{tag}"
     manifest = _imagetools_inspect(ref, "{{json .Manifest}}", timeout)
     if not isinstance(manifest, dict):
@@ -264,17 +264,19 @@ def base_is_changed(img, registry, repo, labels_of, digest_of):
     has a base in this catalog and its BASE_DIGEST_LABEL is missing, the
     base's published digest cannot be read, or the two differ.
 
-    This is the cross-run half of plan.build_plan's cascade. A base rebuilt
-    in THIS run already cascades there. A base published in an EARLIER run
-    does not, and the image's own diff cannot see it: files_touch_image
-    never looks at the base's dir. Two cases need it. A partial publish
-    leaves a dependent on the old base, and a rerun finds both "unchanged".
-    A base republished at the SAME source revision gets a new digest (the
-    created label changes, and the rbase date tag is mutable), which no
-    commit comparison can see.
+    This is the cross-run half of the cascade in plan.build_plan. A base
+    rebuilt in this run already cascades there. A base published in an
+    earlier run does not, and the image's own diff cannot see it, because
+    files_touch_image never looks at the base's dir. Two cases need this
+    check:
+      - A partial publish leaves a dependent on the old base, and a rerun
+        finds both "unchanged".
+      - A base republished at the same source revision gets a new digest,
+        because the created label changes and the rbase date tag is
+        mutable. No commit comparison can see that.
 
-    An image with `live: false` is skipped. A base that moved is exactly
-    the automatic rebuild that `live: false` opts out of."""
+    An image with `live: false` is skipped. A rebuild because the base moved
+    is one of the automatic rebuilds that `live: false` turns off."""
     base_name, base_tag = plan.parse_base(img.get("base"))
     if not base_name or not img.get("live", True):
         return False, "no base, or not live"
@@ -295,9 +297,9 @@ def image_is_changed(img, registry, repo, sha, all_dirs, diff_cache,
                      revision_of=published_revision, labels_of=published_labels,
                      digest_of=published_digest):
     """(changed: bool, reason: str) for one catalog image. `diff_cache`
-    memoizes changed_since() by revision, since several images can share
-    the same published revision (e.g. everything published together in
-    one prior run).
+    memoizes changed_since() by revision, because several images can share
+    one published revision, for example all images published in one earlier
+    run.
 
     `revision_of`, `labels_of` and `digest_of` are the three registry reads,
     each with the signature (registry, repo, name, tag) and the result of
@@ -350,9 +352,9 @@ def main():
     all_dirs = [img["dir"] for img in images if img.get("dir")]
 
     diff_cache = {}
-    # Read each image's labels once: the revision and the base-digest label
-    # come from the same read. Every group image reads the same base: read
-    # each base digest once, so all of them compare against one value.
+    # Read the labels of each image once: the revision and the base-digest
+    # label come from the same read. All the group images have the same base.
+    # Read each base digest once, so all of them compare against one value.
     labels_of = functools.lru_cache(maxsize=None)(published_labels)
     digest_of = functools.lru_cache(maxsize=None)(published_digest)
 

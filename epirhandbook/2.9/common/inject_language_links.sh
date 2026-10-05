@@ -1,11 +1,11 @@
 #!/bin/bash
-# inject_language_links.sh -- thin wrapper around inject_language_links.R,
-# matching the shell-entrypoint convention build_one_chapter.sh already
-# uses (every other invocation in this image is a plain shell command; this
-# keeps the CI call site the same shape rather than a bare `Rscript ...`).
+# inject_language_links.sh: a thin wrapper around inject_language_links.R.
+# It follows the convention of build_one_chapter.sh: a shell entrypoint.
+# Every other command in this image is a plain shell command. With this
+# wrapper, the CI call has the same form, not a bare `Rscript ...`.
 #
-# Usage (with the assembled site mounted at the working directory, and the
-# handbook's `languages.yml` mounted alongside it):
+# Usage, with the assembled site mounted at the working directory and the
+# `languages.yml` of the handbook mounted next to it:
 #   docker run --rm -v <site>:/site -v <languages_yml>:/quarto/languages.yml:ro \
 #     -w /site epirhandbook-common:2.9 \
 #     inject_language_links.sh /site /quarto/languages.yml [<base_url>]

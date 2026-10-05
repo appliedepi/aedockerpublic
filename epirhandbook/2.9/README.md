@@ -1,72 +1,49 @@
 # epiRhandbook 2.9: the group images
 
-2.9 publishes one shared `epirhandbook-common` image, six group images, and a monolith, all on the
-2026 package stack (R 4.6.0). Each image is a package environment. Chapter content is rendered at
-runtime from mounted `.qmd` files, never baked in.
+2.9 publishes one shared `epirhandbook-common` image, six group images and a monolith, all on the 2026 package stack (R 4.6.0). Each image is a package environment. The images do not contain chapter content. They render it at runtime from mounted `.qmd` files.
 
-2.9 carries the same nine images and the same package lists as 2.8. What changed is the handbook
-layout the render scripts drive: every language is now its own Quarto book project, at
-`content/<lang>/`. 2.8 is in git history, not in the working tree.
+2.9 has the same nine images and the same package lists as 2.8. The difference is the handbook layout that the render scripts use: every language is now its own Quarto book project, at `content/<lang>/`. 2.8 is in git history, not in the working tree.
 
-This file covers the mechanics of this directory. The
-[root README](../../README.md) covers the catalogue, the build trigger, and what each image is
-for.
+This file covers how this directory works. The [root README](../../README.md) covers the catalogue, the build trigger, and the purpose of each image.
 
 ## How packages install
 
-Every chapter owns a package list, `groups/<group>/packages_cran_<stem>.txt`: one bare CRAN or
-Bioconductor name per line. There are 50 of them, one per chapter.
-`groups/miscellaneous/packages_cran_errors.txt` is empty, because that chapter runs no R.
+Every chapter has its own package list, `groups/<group>/packages_cran_<stem>.txt`, with one bare CRAN or Bioconductor name per line. There are 50 of these lists, one per chapter. `groups/miscellaneous/packages_cran_errors.txt` is empty, because that chapter runs no R.
 
-The list sits in the directory of the group image that renders the chapter. That location assigns
-the chapter to the group, so no separate assignment file exists. The assignment itself stays an
-editorial decision: `gis` joined `analysis` because it sits in the book's Analysis part.
+The list is in the directory of the group image that renders the chapter. That location assigns the chapter to the group, so there is no separate assignment file. The choice of group is an editorial decision: `gis` is in `analysis` because it is in the Analysis part of the book.
 
-[`generate_groups.py`](generate_groups.py) derives seven lists from those 50: one
-`groups/<group>/packages_cran.txt` per group, and `monolith/packages_cran.txt`. A group's list is
-the plain union of its member chapters' full lists. The monolith's list is the union of the six.
-A group's generated list is the file with no `_<stem>` in its name.
-**Never hand-edit a generated list.** Edit the input and rerun the generator:
+[`generate_groups.py`](generate_groups.py) makes seven lists from those 50:
+
+- one `groups/<group>/packages_cran.txt` per group, which is the union of the full lists of its chapters
+- `monolith/packages_cran.txt`, which is the union of the six group lists
+
+A group's generated list is the file with no `_<stem>` in its name. **Do not edit a generated list by hand.** Edit the input and run the generator again:
 
 ```bash
 python3 epirhandbook/2.9/generate_groups.py           # write the seven lists
 python3 epirhandbook/2.9/generate_groups.py --check   # regenerate in memory, fail on a difference
 ```
 
-Both modes check the layout against [`images.yaml`](images.yaml) first, group by group. Every
-chapter a group image lists under `renders` must own a package list in that image's own directory.
-Every package list in that directory must belong to a chapter that image renders. A chapter filed
-under the wrong group therefore fails the check, even when its list is empty and no generated list
-moves.
+Both modes first check the layout against [`images.yaml`](images.yaml), one group at a time:
 
-CI runs `--check` twice: in `checks.yml` on every pull request and push, and in `build.yml`'s plan
-job before any image builds. A stale list fails both.
+- Every chapter in a group image's `renders` list MUST have a package list in that image's own directory.
+- Every package list in that directory MUST belong to a chapter that the image renders.
 
-[`packages_github.json`](packages_github.json) holds the 7 GitHub-pinned packages, each with a
-commit SHA. `epirhandbook-common` installs all 7, so every group image inherits them. A
-transitively pulled GitHub package then resolves to its pinned commit instead of coming from
-CRAN.
+So a chapter in the wrong group fails the check, even when its list is empty and no generated list changes.
 
-[`pak_install_subset.R`](pak_install_subset.R) does every install. It reads a CRAN list and, for
-`epirhandbook-common` only, the pin file, then runs `pak::pkg_install(refs, dependencies = NA)`.
-There is no hand-computed dependency closure.
+CI runs `--check` in two places: in `checks.yml` on every pull request and push, and in the plan job of `build.yml` before any image builds. A stale list fails both.
 
-A group image is FROM `epirhandbook-common` and installs its group's **full** list on top, not a
-pre-subtracted delta. pak skips what common already holds, so the image is a superset of every
-member chapter's footprint by construction. Every group Dockerfile ends with a build-time
-invariant: every package in its own `packages_cran.txt` must load, or the build fails.
+[`packages_github.json`](packages_github.json) holds the 7 GitHub-pinned packages, each with a commit SHA. `epirhandbook-common` installs all 7, so every group image inherits them. When a package pulls in one of them as a dependency, pak uses the pinned commit and not the CRAN version.
 
-The per-chapter lists were derived once, from an instrumented render that recorded
-`loadedNamespaces()` for each chapter. 48 of them were captured for 2.7 and copied here unchanged
-on 2026-09-02, and `gis` was captured the same way in 2.8. The `errors` chapter needed no capture,
-which accounts for all 50. That derivation is finished, and its
-generator was removed with the rest of the archived lines. Read it out of git history if you need it. **Do not run it.**
+[`pak_install_subset.R`](pak_install_subset.R) does every install. It reads a CRAN list, and, for `epirhandbook-common` only, the pin file. Then it runs `pak::pkg_install(refs, dependencies = NA)`. There is no hand-computed dependency closure.
+
+A group image is FROM `epirhandbook-common`. It installs the **full** list of its group on top, not only the packages that common does not have. pak skips what common already holds. So the image is always a superset of the package footprint of each of its chapters. Every group Dockerfile ends with a build-time check: every package in its own `packages_cran.txt` MUST load, or the build fails.
+
+The per-chapter lists came from one instrumented render that recorded `loadedNamespaces()` for each chapter. 48 lists were captured for 2.7 and copied here unchanged on 2026-09-02. `gis` was captured the same way in 2.8. The `errors` chapter needed no capture, which makes 50. This derivation is complete. Its generator was removed with the rest of the archived lines, and you can read it in git history. **Do not run it.**
 
 ## Rendering one chapter
 
-`common/build_one_chapter.sh` is installed onto `PATH` in `epirhandbook-common`, so every group
-image inherits it. It renders ONE `.qmd`, passed as an argument, with the book content mounted and
-that chapter's own language project as the working directory:
+`common/build_one_chapter.sh` is installed on `PATH` in `epirhandbook-common`, so every group image inherits it. It renders ONE `.qmd`, given as an argument. The book content is mounted, and the working directory is the chapter's own language project:
 
 ```bash
 docker run --rm -v <book>:/book -w /book/content/<lang> \
@@ -74,91 +51,49 @@ docker run --rm -v <book>:/book -w /book/content/<lang> \
   build_one_chapter.sh <stem>.qmd
 ```
 
-Every language is its own Quarto book project. Its `content/<lang>/_quarto.yaml` carries the
-language, the title, the chapter list, the navbar and the cross-links. A single-chapter render
-therefore produces a page with complete navigation, **provided the render runs inside that
-project.**
+Every language is its own Quarto book project. Its `content/<lang>/_quarto.yaml` holds the language, the title, the chapter list, the navbar and the cross-links. So a single-chapter render produces a page with full navigation, **but only when the render runs inside that project.**
 
-That proviso is the caller's job. The output directory `html_outputs/`, the sidebar and the
-cross-links are all project-level settings, so a render started anywhere else gets none of them.
-`quarto render` exits 0 and writes a standalone page beside its source, with no book navigation
-and its own duplicated asset tree. An exit code is not evidence here.
+The caller MUST start the render inside the project. The output directory `html_outputs/`, the sidebar and the cross-links are all project-level settings. A render started in a different directory gets none of them. `quarto render` then exits 0 and writes a standalone page next to its source. That page has no book navigation and its own copy of the asset tree. So an exit code of 0 does not prove a correct render.
 
-**A chapter MUST render without network access.** `build_all_chapters.sh` starts every chapter
-container with `--network none`. A chapter that fetches something while it renders, such as map
-tiles, fails the build. So does a chapter that installs a missing package while it renders, for
-example with `pacman::p_load()`. Add that package to the chapter's package list instead. The GIS
-chapter is the precedent for data. It reads a saved basemap from the handbook's `data/gis/`, and
-it shows the code that fetched the basemap without running it.
+**A chapter MUST render without network access.** `build_all_chapters.sh` starts every chapter container with `--network none`. A chapter that fetches something during the render, such as map tiles, fails the build. A chapter that installs a missing package during the render also fails, for example with `pacman::p_load()`. Add that package to the chapter's package list instead. The GIS chapter shows how to handle data. It reads a saved basemap from the handbook's `data/gis/`, and it shows the code that fetched the basemap without running it.
 
-**Every chunk warning reaches the build log.** `build_all_chapters.sh` also sets
-`R_PROFILE_USER=/usr/local/lib/ehb/warnings_to_log.R`, where `epirhandbook-common` installs
-[`common/warnings_to_log.R`](common/warnings_to_log.R). Each R warning that a chunk raises writes
-one line, `EHB-WARNING<TAB><input file><TAB><chunk label><TAB><message>`. That holds for `warning`
-set to true, false or NA, in the chunk or for the whole document. Each error that an `error: true`
-chunk captures writes an `EHB-ERROR` line. The lines are a report and do not fail the build. The
-header of that file lists what it does not cover, such as a chunk served from the knitr cache. The
-profile also reads a `.Rprofile` in the working directory, as R does without `R_PROFILE_USER`.
+**Every chunk warning goes to the build log.** `build_all_chapters.sh` also sets `R_PROFILE_USER=/usr/local/lib/ehb/warnings_to_log.R`. `epirhandbook-common` installs [`common/warnings_to_log.R`](common/warnings_to_log.R) at that path. Each R warning that a chunk raises writes one line, `EHB-WARNING<TAB><input file><TAB><chunk label><TAB><message>`. This is true when `warning` is true, false or NA, in the chunk or for the whole document. Each error that an `error: true` chunk captures writes an `EHB-ERROR` line. These lines are a report, and they do not fail the build. The header of that file lists the cases it does not cover, such as a chunk from the knitr cache. The profile also reads a `.Rprofile` in the working directory, as R does without `R_PROFILE_USER`.
 
 ## Assembling the book
 
-`common/build_all_chapters.sh` orchestrates the whole book. It runs on the CI runner, not inside a
-container, because it starts one container per chapter render. It is nonetheless stored in
-`epirhandbook-common`, so there is one source of truth for it, and CI extracts it first:
+`common/build_all_chapters.sh` controls the render of the whole book. It runs on the CI runner, not inside a container, because it starts one container for each chapter render. But it is stored in `epirhandbook-common`, so that it has one source of truth. CI extracts it first:
 
 ```bash
 docker run --rm <common-image> cat /usr/local/bin/build_all_chapters.sh > build_all.sh
 ```
 
-It reads the language list from the handbook's `languages.yml` (`main`, and a `code` per entry of
-`languages`) and the chapter-to-image mapping from the handbook's `docker-images.yml`. A book
-chapter with no manifest row fails the build. So does a language whose `_quarto.yaml` declares a
-different chapter list, or a different chapter order, from the main language's.
+It reads the language list from the handbook's `languages.yml`: `main`, and a `code` for each entry of `languages`. It reads the mapping from chapter to image from the handbook's `docker-images.yml`. These cases fail the build:
 
-### Four rules the build must obey
+- a book chapter with no manifest row
+- a language whose `_quarto.yaml` has a different chapter list from the main language's
+- a language whose `_quarto.yaml` has a different chapter order from the main language's
 
-Each was established by experiment. Breaking any of them produces a broken site in which **every
-render still exits zero**.
+### Four rules the build MUST follow
 
-1. **Render each chapter from inside its own language project.** See the silent failure described
-   above.
-2. **Render every chapter twice.** A chapter rendered before its cross-reference target registers
-   in `.quarto/xref` emits a dead same-page anchor. It is never re-rendered. The second pass
-   resolves them.
-3. **Render sequentially within a language, into one shared directory.** That is what lets Quarto
-   accumulate the search index across separate container runs. It is also why there is no
-   `merge_search.sh`. Parallel renders would race on `search.json`. Different languages are
-   independent and may run in parallel.
-4. **Inject the language switcher afterwards.** Rendering never produces it.
-   `common/inject_language_links.R` adds the dropdown, as a post-pass over the assembled site.
+Experiments found each rule. If the build breaks any of them, the site is broken, but **every render still exits zero**.
 
-Each language renders in its own copy of the checkout, and that copy excludes any `html_outputs/`,
-`.quarto/` and `*_files/` the source already holds. A stale local render then cannot satisfy the
-validation below without a single container ever starting.
+1. **Render each chapter from inside its own language project.** See "Rendering one chapter" for the failure that otherwise occurs.
+2. **Render every chapter twice.** A chapter rendered before its cross-reference target registers in `.quarto/xref` gets a dead same-page anchor. Without a second pass, nothing renders it again. The second pass resolves these anchors.
+3. **Render one chapter at a time within a language, into one shared directory.** This lets Quarto build the search index across separate container runs. For this reason there is no `merge_search.sh`. Parallel renders would race on `search.json`. Different languages are independent and MAY run in parallel.
+4. **Add the language switcher after the render.** The render does not produce it. `common/inject_language_links.R` adds the dropdown in a separate pass over the assembled site.
 
-Every language assembles to its own `<lang>/` directory, the main language included. The site root
-holds `images/` and a four-line redirect stub to the main language, and nothing else.
+Each language renders in its own copy of the checkout. That copy excludes any `html_outputs/`, `.quarto/` and `*_files/` that the source already holds. So a stale local render cannot pass the validation below when no container has started.
 
-`build_all_chapters.sh` validates its own output rather than trusting exit codes: every expected
-page exists, and the search index references each one. It also **fails** on a dead same-page
-fragment, an `href="#x"` with no `id="x"` on the same page, and names each one as
-`<page>#<fragment>`. It fails when it cannot count them, too. The 2.7 whole-book render of 49
-chapters held 106 dead fragments, all content bugs. A handbook that still holds such bugs fails
-here until they are fixed.
+Every language assembles to its own `<lang>/` directory, the main language included. The site root holds only `images/` and a four-line redirect stub to the main language.
 
-[`common/test_fixture/`](common/test_fixture/) is a two-chapter handbook that the script accepts.
-Its README lists the variants that test the network rule, the warning log and the fragment check.
+`build_all_chapters.sh` validates its own output and does not rely on exit codes. It checks that every expected page exists, and that the search index refers to each page. It **fails** on a dead same-page fragment: an `href="#x"` with no `id="x"` on the same page. It names each one as `<page>#<fragment>`. It also fails when it cannot count them. The 2.7 render of the whole book, 49 chapters, had 106 dead fragments, and all were content bugs. A handbook that still has such bugs fails here until they are fixed.
 
-`--only-lang <code>` renders one language, for one leg of a CI matrix. That language's site lands
-at the root of the output directory, with no `<lang>/` nesting, no `images/` copy and no stub. It
-requires `--no-inject`, and refuses to run without it. The switcher is defined over the assembled
-site, so it runs once, after the legs are joined.
+[`common/test_fixture/`](common/test_fixture/) is a two-chapter handbook that the script accepts. Its README lists the variants that test the network rule, the warning log and the fragment check.
+
+`--only-lang <code>` renders one language, for one leg of a CI matrix. The site of that language goes to the root of the output directory, with no `<lang>/` directory, no `images/` copy and no stub. It needs `--no-inject`, and does not run without it. The switcher works on the assembled site, so it runs once, after the legs are joined.
 
 ## What is not here
 
-- **No chapter content.** The `.qmd` files, the data and `docker-images.yml` live in
-  [`appliedepi/epirhandbook`](https://github.com/appliedepi/epirhandbook).
-- **No older line.** 2.5, 2.6, 2.7 and 2.8 are frozen under
-  git history and nothing builds them.
-- **No package version.** Versions come from the dated CRAN snapshot that `rbase`'s tag owns. See
-  the root README's "How dependencies resolve".
+- **No chapter content.** The `.qmd` files, the data and `docker-images.yml` live in [`appliedepi/epirhandbook`](https://github.com/appliedepi/epirhandbook).
+- **No older line.** 2.5, 2.6, 2.7 and 2.8 are frozen in git history, and nothing builds them.
+- **No package version.** Versions come from the dated CRAN snapshot that the `rbase` tag sets. See "How dependencies resolve" in the root README.

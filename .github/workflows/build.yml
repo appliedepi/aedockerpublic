@@ -1,46 +1,48 @@
 name: Build images
 
-# Selective + cascade build, per-image OCI-revision diff: for each catalog
-# image, .github/scripts/changed_images.py reads that image's CURRENTLY-
-# PUBLISHED org.opencontainers.image.revision label (a metadata-only
-# registry read, never a `docker pull`) and diffs its own dir + the shared
-# build inputs + the .github/ machinery since that commit. Never-published,
-# or no revision label, is always CHANGED. .github/scripts/plan.py (pure,
-# no registry/git calls of its own) then takes that resolved list of
-# changed image NAMES, applies the cascade (a changed image rebuilds
-# everything FROM it, transitively -- but a cascade respects `live: false`
-# while a direct edit to a not-live image's own files still does not; see
-# plan.py's build_plan()), and builds the result as a matrix in dependency
-# order. A change under .github/scripts/ or .github/workflows/ shows up in
-# EVERY image's own diff (see changed_images.py), so it rebuilds everything
-# without a separate special case.
+# Selective cascade build, driven by a per-image OCI-revision diff. For each
+# catalog image, .github/scripts/changed_images.py reads the
+# org.opencontainers.image.revision label of the currently published image.
+# This is a metadata-only registry read, never a `docker pull`. The script
+# then diffs, since that commit, the image's own dir, the shared build inputs
+# and the .github/ machinery. An image that was never published, or that has
+# no revision label, is always CHANGED.
 #
-# This same mechanism is also the RESUME path for a partial publish: after
-# a run where some images published and others failed, a rerun (a new push,
-# or a plain workflow_dispatch with no new commit at all) re-reads each
-# image's published revision -- the ones that succeeded now carry the
-# current commit and are skipped; the one(s) that failed still carry an
-# older (or no) revision and are rebuilt. There is nothing else to
-# reconcile: content-change-rebuild and clean resume are the SAME check.
+# .github/scripts/plan.py makes no registry or git calls of its own. It takes
+# the resolved list of changed image NAMES and applies the cascade: a changed
+# image rebuilds everything FROM it, transitively. A cascade respects
+# `live: false`, while a direct edit to a not-live image's own files still
+# does not (see build_plan() in plan.py). The planner then builds the result
+# as a matrix in dependency order. A change under .github/scripts/ or
+# .github/workflows/ shows up in EVERY image's own diff (see
+# changed_images.py), so it rebuilds everything with no separate special case.
 #
-# This is the ONLY workflow in this repo that can publish. Every other
-# safeguard in this file exists to keep that true:
-#   - guard-main-ref (blocker 1): publishing may only ever happen from
-#     refs/heads/main, enforced HERE, in the workflow, as a hard job-level
-#     gate -- never only via this file's own `on: push: branches: [main]`
-#     filter or any repo setting, both of which are themselves config that
-#     could be edited or bypassed. See that job for exactly how it fails.
-#     Applies equally to workflow_dispatch (below).
-#   - `workflow_dispatch` takes NO inputs -- it exists only as a manual
-#     "run this again" trigger (e.g. to resume a partial publish without
-#     waiting for a new commit), never a general escape hatch, and
-#     guard-main-ref applies to it exactly the same as to a pushed run.
-#   - `packages: write` is scoped to ONLY the build-layer-N jobs, which are
-#     the only ones that call `docker push`. plan and guard-main-ref get the
-#     workflow-level `contents: read` default and nothing else.
-#   - Every build-layer-N job runs under the `publish` GitHub Environment,
-#     so a required-reviewer rule CAN be configured in repo settings (see
-#     CHANGELOG.md for how to turn that on -- it is not assumed to be on).
+# The same mechanism is the RESUME path after a partial publish. Suppose some
+# images published and others failed. A rerun (a new push, or a plain
+# workflow_dispatch with no new commit) reads each image's published revision
+# again. The images that succeeded now carry the current commit and are
+# skipped. The images that failed still carry an older revision, or none, and
+# are rebuilt. Nothing else needs to be reconciled: a rebuild after a content
+# change and a clean resume use the SAME check.
+#
+# This is the ONLY workflow in this repo that can publish. The other
+# safeguards in this file keep that true:
+#   - guard-main-ref (blocker 1): publishing can only happen from
+#     refs/heads/main. A hard job-level gate in this workflow enforces it.
+#     The `on: push: branches: [main]` filter and the repo settings are not
+#     enough. Both are config that someone can edit or bypass. See that job
+#     for how it fails. The gate applies to
+#     workflow_dispatch (below) in the same way.
+#   - `workflow_dispatch` takes NO inputs. It is only a manual "run this
+#     again" trigger, for example to resume a partial publish without a new
+#     commit. It is not a general escape hatch, and guard-main-ref applies to
+#     it as it does to a pushed run.
+#   - Only the build-layer-N jobs get `packages: write`, because only they
+#     call `docker push`. plan and guard-main-ref get the workflow-level
+#     `contents: read` default and nothing else.
+#   - Every build-layer-N job runs under the `publish` GitHub Environment, so
+#     a required-reviewer rule CAN be configured in repo settings. See
+#     CHANGELOG.md for how to turn it on. Do not assume that it is on.
 #
 # NO REPOSITORY SECRETS ARE REQUIRED. This workflow uses only the automatic
 # `secrets.GITHUB_TOKEN`, so nothing here depends on an individual's personal
@@ -64,14 +66,14 @@ name: Build images
 # or leaving the slot empty and accepting the anonymous rate limit. See
 # CHANGELOG.md's phase 4 log.
 #
-# This file deliberately duplicates the plan + build-layer-N jobs rather
-# than sharing them via a reusable (workflow_call) workflow. That would
-# remove the duplication, but it introduces GitHub-Actions-specific
-# mechanics (cross-workflow permission inheritance, JSON-array string
-# inputs feeding a matrix) that cannot be exercised or verified without an
-# actual push -- which this phase's brief explicitly forbids. A single
-# plain, statically-lintable file is the safer choice given that
-# constraint. Revisit if that constraint ever lifts.
+# This file repeats the plan and build-layer-N jobs instead of sharing them
+# through a reusable (workflow_call) workflow. A reusable workflow would
+# remove the repetition. It would also add GitHub-Actions-specific mechanics:
+# cross-workflow permission inheritance, and JSON-array string inputs that
+# feed a matrix. Only a real push can exercise or verify those. This phase's
+# brief forbids a push. Under that constraint, a single plain file that a
+# static lint can check is the safer choice. Revisit this if the constraint
+# lifts.
 
 on:
   push:
@@ -79,32 +81,29 @@ on:
   workflow_dispatch: {}
 
 concurrency:
-  # Deliberately NOT parameterized by ${{ github.ref }} (finding 8): a
-  # manual dispatch off a branch would otherwise get a DIFFERENT group than
-  # a push to main, so the two would NOT serialize against each other, even
-  # though both are capable of pushing the SAME tags. One fixed name means
-  # every run of this file -- push or dispatch, on any ref -- shares one
-  # queue. (guard-main-ref also means a non-main run never gets far enough
-  # to race anything, but the group is ref-independent regardless, as
-  # defense in depth.)
+  # The group name does NOT use ${{ github.ref }} (finding 8). With the ref
+  # in the name, a manual dispatch off a branch would get a DIFFERENT group
+  # from a push to main. The two runs would then not serialize, although both
+  # can push the SAME tags. With one fixed name, every run of this file
+  # shares one queue, for a push or a dispatch on any ref. guard-main-ref
+  # already stops a non-main run before it can race anything. The fixed group
+  # is a second layer of defense.
   group: aedockerpublic-ghcr-builds
   cancel-in-progress: false
 
-# Workflow-level default: read-only. Only the jobs that actually push
-# (build-layer-0..3, below) elevate to packages: write, and each does so in
-# its OWN job-level permissions block -- never at this top level.
+# Workflow-level default: read-only. Only the jobs that push
+# (build-layer-0..3, below) get packages: write. Each one gets it in its OWN
+# job-level permissions block, never at this top level.
 permissions:
   contents: read
 
 jobs:
-  # Blocker 1: publishing may only ever happen from refs/heads/main. A
-  # job-level `if:` that gates the ENTIRE pipeline is used instead of a
-  # later fail-fast step, so a misdispatched run never even checks out
-  # branch content -- nothing downstream runs at all (plan `needs:` this
-  # job, and every build-layer-N job's existing `needs.plan.result ==
-  # 'success'` check already turns a skipped plan into a skipped build).
-  # Fails LOUD (a red X, not a quiet grey skip) so a bad dispatch is
-  # unmissable in the Actions UI, not just silently absent.
+  # Blocker 1: publishing can only happen from refs/heads/main. This job
+  # gates the ENTIRE pipeline, so a misdispatched run never checks out branch
+  # content and nothing downstream runs. plan `needs:` this job. Each
+  # build-layer-N job checks `needs.plan.result == 'success'`, which turns a
+  # skipped plan into a skipped build. The job fails with a red X, not a grey
+  # skip, so a bad dispatch is easy to see in the Actions UI.
   guard-main-ref:
     runs-on: ubuntu-latest
     steps:
@@ -136,11 +135,10 @@ jobs:
         with:
           python-version: "3.x"
 
-      # Hash-pinned: refuses to install anything whose downloaded artifact
-      # does not match one of requirements.txt's recorded sha256 hashes. See
-      # that file's header for why PyYAML is hash-pinned rather than either
-      # left unpinned (Phase 4 round 1 finding) or vendored (the four
-      # semantic-divergence blockers that decision then drew -- CHANGELOG.md
+      # Hash-pinned: pip refuses any downloaded artifact that does not match
+      # one of the sha256 hashes in requirements.txt. That file's header says
+      # why PyYAML is hash-pinned. Unpinned was a Phase 4 round 1 finding.
+      # Vendored drew four semantic-divergence blockers (CHANGELOG.md
       # section 8).
       - name: Install pinned Python dependencies for the planner
         run: python3 -m pip install --require-hashes --force-reinstall -r .github/scripts/requirements.txt
@@ -151,30 +149,30 @@ jobs:
       - name: Run change-detection unit tests (fail loud before planning a real build)
         run: python3 .github/scripts/test_changed_images.py -v
 
-      # The seven generated package lists (six groups + monolith) MUST equal
-      # what generate_groups.py derives from the per-chapter lists in each
-      # group image's own directory. A stale list would ship an image missing
-      # a chapter's packages while every other check stayed green. This
-      # regenerates in memory and fails on any byte of difference. Nothing is
-      # written.
+      # The seven generated package lists (six groups and the monolith) MUST
+      # equal what generate_groups.py derives from the per-chapter lists in
+      # each group image's own directory. A stale list would ship an image
+      # without a chapter's packages, and every other check would stay green.
+      # This step regenerates the lists in memory and fails on any byte of
+      # difference. It writes nothing.
       - name: Check the generated group and monolith package lists are current
         run: python3 epirhandbook/2.9/generate_groups.py --check
 
-      # Structural lint of the workflow files, run HERE and not only in
-      # checks.yml because this is the job every build layer `needs:`. A red
-      # lint therefore blocks publication. checks.yml fires on the same push
-      # and runs concurrently, so its copy gates nothing on main; it catches
-      # the fault at pull-request time instead.
+      # Structural lint of the workflow files. It runs HERE, and not only in
+      # checks.yml, because every build layer `needs:` this job. A red lint
+      # therefore blocks publication. checks.yml runs at the same time on the
+      # same push, so its copy gates nothing on main. That copy catches the
+      # fault at pull-request time.
       - name: Lint the workflow files (fail loud before planning a real build)
         run: bash .github/scripts/lint_workflows.sh
 
       - name: Set lowercase repository name
         run: echo "REPO_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
 
-      # Per-image OCI-revision diff: a metadata-only registry read per
+      # Per-image OCI-revision diff: one metadata-only registry read per
       # catalog image (docker buildx imagetools inspect), plus a local git
-      # diff -- no docker login needed (reads of public images), wrapped in
-      # retry for the same reason the registry reads below are.
+      # diff. The images are public, so no docker login is needed. The step
+      # runs inside retry for the same reason as the registry reads below.
       - name: Compute changed images (per-image OCI-revision diff)
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
@@ -193,19 +191,18 @@ jobs:
           while IFS= read -r name; do
             [ -n "$name" ] && ARGS+=(--changed-image "$name")
           done < /tmp/changed_images.txt
-          # BOTH halves of the catalog: the hand-maintained root and the
-          # current product line's. Base edges cross them (epirhandbook-common
-          # is FROM rbase), so passing only one makes the base look like a typo
-          # and the plan dies. See plan.py's load_catalogs.
+          # Pass BOTH halves of the catalog: the hand-maintained root and the
+          # current product line. Base edges cross them (epirhandbook-common
+          # is FROM rbase). With only one half, the base looks like a typo and
+          # the plan fails. See load_catalogs in plan.py.
           #
-          # EXACTLY ONE epirhandbook catalog is ever loaded. Product lines are
-          # mutually exclusive by construction, not by accident: every line
-          # names its images `epirhandbook-common`, `epirhandbook-analysis`
-          # and so on, with the version in `tags:`, and load_catalogs refuses
-          # a name defined in two catalog files. Cutting over means SWAPPING
-          # this path, never appending. 2.5 to 2.8 are historical and live
-          # in git history only. 2.6's catalog no longer even validates
-          # against the current schema.
+          # Load ONE epirhandbook catalog only. Every product line names its
+          # images `epirhandbook-common`, `epirhandbook-analysis` and so on,
+          # with the version in `tags:`. load_catalogs refuses a name that two
+          # catalog files define, so two product lines cannot load together.
+          # To cut over, SWAP this path. Do not append a second one. 2.5 to
+          # 2.8 are historical and exist in git history only. The 2.6 catalog
+          # no longer validates against the current schema.
           python3 .github/scripts/plan.py \
             --images-yaml images.yaml \
             --images-yaml epirhandbook/2.9/images.yaml \
@@ -231,31 +228,27 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   # --- Layered build, base-most first ----------------------------------------
-  # Static ceiling of 4 layers (0-3): one more than today's catalog. Today's
-  # catalog is 3 layers: rbase -> epirhandbook-common -> the six group images
-  # and the monolith. plan.py itself now HARD-FAILS (raises, before any build
-  # starts) if a catalog needs a 5th layer -- see plan.py's
-  # MAX_SUPPORTED_LAYERS -- so exceeding this ceiling is a loud planning
-  # error, never a silent partial publish. If the catalog ever needs a 5th
-  # layer, add a `build-layer-4` job below following the exact same pattern
-  # AND bump MAX_SUPPORTED_LAYERS in plan.py.
+  # The static ceiling is 4 layers (0-3), one more than the current catalog.
+  # The current catalog has 3 layers: rbase -> epirhandbook-common -> the six
+  # group images and the monolith. plan.py raises before any build starts if
+  # a catalog needs a 5th layer (see MAX_SUPPORTED_LAYERS in plan.py). So a
+  # catalog that is too deep gives a planning error, never a partial publish.
+  # To support a 5th layer, add a `build-layer-4` job below with the same
+  # pattern AND increase MAX_SUPPORTED_LAYERS in plan.py.
   #
   # Each matrix entry is a full image record from plan.py (name, dir, tags,
-  # base_name/base_tag/base_freshly_built/context) --
-  # build_image.sh consumes it directly, so there is exactly one place (the
-  # planner, then this one script) that knows how to resolve a base image,
-  # not one copy per layer.
+  # base_name/base_tag/base_freshly_built/context). build_image.sh uses it
+  # directly. So only the planner and that one script know how to resolve a
+  # base image. There is no copy per layer.
   #
-  # `always()` plus explicit needs.*.result checks (rather than bare
-  # success()): a job's default implicit condition treats an upstream SKIPPED
-  # job the same as a blocker, which would wrongly skip build-layer-1 purely
-  # because build-layer-0 had nothing to do in a run that never touches it
-  # (or because guard-main-ref failed and plan was skipped entirely --
-  # needs.plan.result would be 'skipped', which already fails the
-  # `== 'success'` check below without any extra wiring). plan.py's layer
-  # output is always dense (no gaps), so the "nothing to do" case never
-  # actually arises in practice, but the condition is written to not depend
-  # on that invariant either.
+  # The conditions use `always()` plus explicit needs.*.result checks, not
+  # bare success(). The default implicit condition treats an upstream SKIPPED
+  # job as a failure. build-layer-1 would then skip whenever build-layer-0 had
+  # nothing to do. If guard-main-ref fails, plan is skipped, and
+  # needs.plan.result is 'skipped'. The `== 'success'` check below already
+  # fails on that, with no extra wiring. The layer output of plan.py has no
+  # gaps, so a layer with nothing to do does not occur in practice. The
+  # condition does not depend on that invariant.
   build-layer-0:
     needs: [guard-main-ref, plan]
     if: >-

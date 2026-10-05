@@ -1,33 +1,35 @@
 #!/usr/bin/env bash
 # Structural lint of this repository's workflow files, with actionlint.
 #
-# Called from TWO places, on purpose: the `checks` job of checks.yml, which
-# runs on every pull request, and the `plan` job of build.yml, which every
-# build layer `needs:`. The second is what makes it a publication gate. A
-# lint that only runs in checks.yml gates nothing on a push to main, because
-# both workflows fire on `push` and run at the same time, so a red lint there
-# does not stop an image reaching GHCR.
+# Two jobs call this script:
+#   - the `checks` job of checks.yml, which runs on every pull request
+#   - the `plan` job of build.yml, which every build layer `needs:`
+# The second call makes the lint a publication gate. On a push to main, both
+# workflows start at the same time. So a failed lint in checks.yml alone does
+# not stop an image from reaching GHCR.
 #
-# It lives in a script rather than being pasted into both workflows because
-# the pinned version and its hash are ONE fact. Two copies of one fact can
-# disagree, and this repository has already removed one instance of that
-# shape (groups.yaml, CHANGELOG.md 2.9 addendum of 2026-09-17).
+# The lint is a script, not a copy in each workflow, because the pinned
+# version and its hash are one fact. Two copies of one fact can disagree. This
+# repository already removed one case of that (groups.yaml, CHANGELOG.md 2.9
+# addendum of 2026-09-17).
 #
-# What actionlint covers: a malformed `uses:` reference, a `needs:` edge to a
-# job that does not exist, an expression that cannot resolve, and the shell
-# faults shellcheck's static rules catch inside a `run:` block. What it does
-# NOT cover: whether a `uses:` repository actually exists (it checks the
-# reference format only), anything outside .github/workflows, and any runtime
-# behaviour at all. It reads; it never runs.
+# actionlint finds these faults:
+#   - a malformed `uses:` reference
+#   - a `needs:` edge to a job that does not exist
+#   - an expression that cannot resolve
+#   - shell faults that shellcheck's static rules find in a `run:` block
+# It does not check whether a `uses:` repository exists, only the reference
+# format. It does not read files outside .github/workflows. It reads the files
+# and never runs them, so it finds no runtime faults.
 set -euo pipefail
 
 ACTIONLINT_VERSION=1.7.7
 ACTIONLINT_SHA256=023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757
 
-# actionlint DISABLES its shellcheck rule when the binary is missing, and
-# still exits 0. Without this assertion the step would keep passing while
-# silently covering less, which reads exactly like a pass. shellcheck itself
-# comes from the runner image and stays unpinned, by fleet policy.
+# When the shellcheck binary is missing, actionlint turns off its shellcheck
+# rule and still exits 0. Without this check, the step would pass while it
+# covers less, and the log would look the same as a full pass. shellcheck
+# comes from the runner image and is not pinned, by fleet policy.
 if ! command -v shellcheck > /dev/null 2>&1; then
   echo "lint_workflows.sh: shellcheck not found on PATH." >&2
   echo "actionlint would silently skip every shell rule. Refusing to run." >&2
@@ -35,9 +37,9 @@ if ! command -v shellcheck > /dev/null 2>&1; then
 fi
 shellcheck --version
 
-# Download outside the working directory: a lint step must not leave files at
-# the repository root for a later step, or a future cleanliness check, to
-# trip over.
+# Download outside the working directory. A lint step must not leave files at
+# the repository root, where a later step or a cleanliness check could fail
+# on them.
 workdir="${RUNNER_TEMP:-$(mktemp -d)}"
 url="https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
 curl -sSfL -o "${workdir}/actionlint.tar.gz" "$url"

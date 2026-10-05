@@ -1,18 +1,19 @@
 # syntax=docker/dockerfile:1
-# epirhandbook-reports:2.9 -- v2.9 group image (4 chapters, 72
-# CRAN/Bioc package names -- see the packages_cran_<stem>.txt files here for
-# chapter membership and epirhandbook/2.9/generate_groups.py for how
-# packages_cran.txt below was derived).
+# epirhandbook-reports:2.9: a v2.9 group image for 4 chapters, with 72
+# CRAN/Bioc package names. The packages_cran_<stem>.txt files in this
+# directory give the chapter membership. epirhandbook/2.9/generate_groups.py
+# derives packages_cran.txt from them.
 #
-# FROM the shared common image (BiocManager, pak, and all GitHub pins
-# already present there -- no re-bootstrap here). Installs THIS GROUP's own
-# FULL package list (groups/reports/packages_cran.txt, the plain union of
-# its member chapters' own full lists -- see generate_groups.py) on top
-# of common, not a pre-subtracted delta: pak sees common's packages already
-# present and skips them (dependencies = NA only resolves what's missing),
-# so installing the full list here is what makes the final image a strict
-# superset of the group's footprint BY CONSTRUCTION, with no hand-computed
-# closure anywhere in this build.
+# The image is FROM the shared common image. BiocManager, pak and all GitHub
+# pins are already in common, so this file does not bootstrap them again. It
+# installs the FULL package list of this group on top of common:
+# groups/reports/packages_cran.txt. That list is the plain union of the
+# full lists of the member chapters (see generate_groups.py). It is not a
+# delta with the common packages subtracted. pak finds the packages of
+# common already installed and skips them. It resolves only the missing
+# hard dependencies (dependencies = NA). Because the full list is
+# installed, the final image always holds every package of the group's
+# footprint. No step in this build computes a dependency closure by hand.
 ARG BASE_IMAGE=epirhandbook-common:2.9
 FROM ${BASE_IMAGE}
 
@@ -26,5 +27,5 @@ RUN --mount=type=cache,target=/root/.cache/R --mount=type=secret,id=github_pat \
     Rscript pak_install_subset.R packages_cran.txt \
     && rm -rf /tmp/*
 
-# --- Build-time invariant, restricted to this group's own target list ------
+# --- Build-time check: every package in the target list of this group loads.
 RUN R -e "targets <- readLines('packages_cran.txt'); targets <- targets[nzchar(targets)]; bad <- targets[!vapply(targets, requireNamespace, logical(1), quietly = TRUE)]; if (length(bad)) { message('LOAD CHECK FAILED (', length(bad), '): ', paste(bad, collapse = ', ')); quit(status = 1L) }; message('LOAD CHECK OK: all ', length(targets), ' target packages load')"

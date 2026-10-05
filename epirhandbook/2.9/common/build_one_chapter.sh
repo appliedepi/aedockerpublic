@@ -1,47 +1,47 @@
 #!/bin/bash
-# build_one_chapter.sh -- render ONE handbook chapter to HTML from inside a
-# group image or the monolith. Installed in epirhandbook-common:2.9 and
-# inherited by the six group images and the monolith, which are all FROM
-# common. The render command is the same for every one of them.
+# build_one_chapter.sh: render ONE handbook chapter to HTML inside a group
+# image or the monolith. It is installed in epirhandbook-common:2.9. The six
+# group images and the monolith are all FROM common, so they inherit it. The
+# render command is the same in each of them.
 #
-# The chapter's .qmd is PASSED IN as an argument, not baked into the image:
-# the image is a package environment, content-agnostic. Every language is
-# its own Quarto book project, at content/<lang>/ in the handbook checkout.
-# That project's own _quarto.yaml carries the language, the title, the
-# chapter list, the navbar, the sidebar and the cross-links. A
-# single-chapter render therefore produces a page that drops straight into
-# the assembled site, with correct navigation. That holds only while the
-# caller runs this script with the language project as the WORKING
-# DIRECTORY.
+# The caller PASSES the .qmd of the chapter as an argument. The image does
+# not hold it: the image is a package environment and holds no content. Each
+# language is its own Quarto book project, at content/<lang>/ in the
+# handbook checkout. The _quarto.yaml of that project gives the language, the
+# title, the chapter list, the navbar, the sidebar and the cross-links. Thus
+# a render of one chapter makes a page that fits into the assembled site,
+# with correct navigation. This is true only when the caller runs this
+# script with the language project as the WORKING DIRECTORY.
 #
-# That is the caller's job, not this script's. The output directory
-# (html_outputs/), the sidebar and the cross-links are project-level
-# settings, so quarto applies them only to a render that runs inside the
-# project. Run from anywhere else, quarto renders the file as a standalone
-# document. It exits 0, and the page lands beside its source with no book
-# navigation and its own duplicated copy of the site's JS/CSS assets. The
-# 2.8 line measured that failure on a translated .qmd rendered against the
-# wrong project config, and the cause is the same one. Exit status alone
-# does not prove this render is correct. build_all_chapters.sh avoids it by
-# setting the container's working directory to /book/content/<lang>.
+# The caller MUST set that working directory. This script does not. The
+# output directory (html_outputs/), the sidebar and the cross-links are
+# project settings. Quarto applies them only to a render that runs inside the
+# project. From any other directory, Quarto renders the file as a standalone
+# document. It exits 0, and the page goes next to its source. That page has
+# no book navigation, and it has its own copy of the JS/CSS assets of the
+# site. The 2.8 line
+# measured this failure on a translated .qmd that rendered against the wrong
+# project config, from the same cause. Exit status alone does not show that
+# the render is correct. build_all_chapters.sh prevents the failure: it sets
+# the working directory of the container to /book/content/<lang>.
 #
 # THIS SCRIPT RENDERS ONE CHAPTER. It does not assemble the book, and it
-# does not touch search.json: Quarto accumulates the project search index
-# across separate per-file render invocations on its own, via the `.quarto/`
-# state directory persisted on the mount, so there is nothing here to copy
-# aside or merge. Assembling every language's output into one site, and
-# adding the language-switcher links, is build_all_chapters.sh and
-# inject_language_links.R (both in this same directory) -- see
-# epirhandbook/2.9/README.md "Assembling the book".
+# does not touch search.json. Quarto adds each separate render to the
+# project search index itself, through the `.quarto/` state directory that
+# stays on the mount. Thus there is nothing here to copy or merge.
+# build_all_chapters.sh and inject_language_links.R, both in this directory,
+# assemble the output of every language into one site and add the
+# language-switcher links. See "Assembling the book" in
+# epirhandbook/2.9/README.md.
 #
-# Usage (with the book content mounted, and the language project as the
-# working directory). These are the flags build_all_chapters.sh uses:
+# Usage, with the book content mounted and the language project as the
+# working directory. build_all_chapters.sh uses these flags:
 #   docker run --rm --network none \
 #     -e R_PROFILE_USER=/usr/local/lib/ehb/warnings_to_log.R \
 #     -v <book>:/book -w /book/content/<lang> \
 #     epirhandbook-<group>:2.9 build_one_chapter.sh <stem>.qmd
-# A render by hand MAY leave out --network none and R_PROFILE_USER.
-# warnings_to_log.R says what the profile writes to the log.
+# A render by hand MAY leave out --network none and R_PROFILE_USER. The
+# header of warnings_to_log.R says what the profile writes to the log.
 set -euo pipefail
 
 if [ "$#" -ne 1 ]; then
@@ -53,8 +53,8 @@ if [ ! -f "$qmd" ]; then
   echo "build_one_chapter.sh: file not found: $qmd (is the book content mounted at the working directory?)" >&2
   exit 2
 fi
-# R ignores an R_PROFILE_USER that names a missing file, and says nothing.
-# The render would then log no warnings, and nothing would show it.
+# R ignores an R_PROFILE_USER that names a missing file, and gives no
+# message. The render would then log no warnings, and nothing would show it.
 if [ -n "${R_PROFILE_USER:-}" ] && [ ! -r "$R_PROFILE_USER" ]; then
   echo "build_one_chapter.sh: R_PROFILE_USER is '$R_PROFILE_USER', and this image holds no readable file there" >&2
   exit 2

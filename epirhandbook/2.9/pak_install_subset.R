@@ -1,31 +1,36 @@
 #!/usr/bin/env Rscript
-# Phase 5b installer: installs an image's MAIN packages and lets pak resolve
-# the full dependency tree from the pinned sources. Two inputs, split by how
-# each package is pinned:
+# Phase 5b installer. It installs the MAIN packages of an image, and pak
+# resolves the full dependency tree from the pinned sources. There are two
+# inputs, split by how each package is pinned:
 #
-#   packages_cran.txt   -- one package NAME per line. CRAN and Bioconductor
-#                          packages, installed by bare name. Required.
-#   packages_github.json -- the GitHub packages, each with a commit SHA.
-#                          Optional: only `common` carries it (it installs all
-#                          the GitHub pins once, so every chapter FROM common
-#                          inherits them and a transitive pull honours the pin
-#                          rather than resolving the package from CRAN).
+#   packages_cran.txt    One package NAME per line. These are CRAN and
+#                        Bioconductor packages, installed by bare name.
+#                        Required.
+#   packages_github.json The GitHub packages, each with a commit SHA.
+#                        Optional. Only the `common` Dockerfile passes it.
+#                        common installs all the GitHub pins once, so every
+#                        image FROM common inherits them. A transitive
+#                        dependency then uses the pin, and pak does not
+#                        resolve that package from CRAN.
 #
-# ONE SOURCE OF TRUTH, NO HAND-COMPUTED DEPENDENCY GRAPH:
-#   CRAN   -- versions come from the dated PPM snapshot, owned by rbase's tag
-#             and INHERITED here via getOption("repos"). Not asserted here.
-#   Bioc   -- the R-paired release (BiocManager::version()), derived from the R
-#             version, so not stored anywhere as a second source.
-#   GitHub -- a commit SHA per package (packages_github.json). A commit is the
-#             one thing NOT recoverable from a dated CRAN snapshot.
-# pak resolves HARD dependencies (dependencies = NA -- Depends/Imports/
-# LinkingTo, NOT Suggests) against the immutable snapshot -- deterministic
-# because the snapshot never moves. Suggests are deliberately excluded: a
-# Suggests package a chapter actually USES is already in its footprint (it
-# loaded), so it is installed explicitly; pulling in ALL Suggests instead
-# drags in dev-only soft deps (testthat, covr, ...) whose version constraints
-# conflict on an incremental install onto common. No pre-computed closure:
-# each list holds only the packages actually loaded; pak adds their hard deps.
+# Each source has one place that pins it. No dependency graph is computed by
+# hand:
+#   CRAN    The dated PPM snapshot gives the versions. The rbase tag owns the
+#           snapshot, and this script INHERITS it via getOption("repos").
+#           This script does not assert a version.
+#   Bioc    The release paired with R (BiocManager::version()). It comes from
+#           the R version, so no second file stores it.
+#   GitHub  A commit SHA for each package (packages_github.json). A dated
+#           CRAN snapshot cannot give a commit.
+# pak resolves HARD dependencies (dependencies = NA: Depends, Imports and
+# LinkingTo, NOT Suggests) against the snapshot. The snapshot never changes,
+# so the result is deterministic. Suggests are excluded on purpose. A
+# chapter that USES a Suggests package loaded it, so that package is in the
+# footprint and is installed by name. To install ALL Suggests would add
+# soft dependencies for development (testthat, covr, ...). Their version
+# constraints conflict when pak installs on top of common. No closure is
+# computed in advance. Each list holds only the packages that the chapters
+# loaded, and pak adds their hard dependencies.
 #
 # Usage: Rscript pak_install_subset.R <packages_cran.txt> [packages_github.json]
 
@@ -54,7 +59,7 @@ if (!is.null(gh_file)) {
   )
 }
 
-# --- Repos: CRAN inherited from rbase; Bioconductor from the R-paired release
+# --- Repos: CRAN comes from rbase. Bioconductor is the release paired with R.
 cran_repo <- getOption("repos")[["CRAN"]]
 stopifnot(
   is.character(cran_repo),

@@ -1,4 +1,4 @@
-# warnings_to_log.R -- the R_PROFILE_USER of every chapter render.
+# warnings_to_log.R: the R_PROFILE_USER of every chapter render.
 #
 # build_all_chapters.sh starts each chapter container with
 #   -e R_PROFILE_USER=/usr/local/lib/ehb/warnings_to_log.R
@@ -11,28 +11,28 @@
 #   EHB-WARNING<TAB><input file><TAB><chunk label><TAB><message>
 #   EHB-ERROR<TAB><input file><TAB><chunk label><TAB><message>
 # Newlines in the message become spaces, so one condition is one line.
-# message() output is never logged. Quarto puts an ANSI colour code in front
-# of the line, so strip those before you match '^EHB-'.
+# The profile does not log message() output. Quarto puts an ANSI colour code
+# before the line, so remove those codes before you match '^EHB-'.
 #
 # WHY. A chunk with `warning: false` drops its warnings, and so does a page
-# with `execute: warning: false`. R's own console report batches more than 10
-# warnings into "There were 12 warnings". The build log then cannot say which
-# chapter or chunk raised what.
+# with `execute: warning: false`. The console report of R puts more than 10
+# warnings into one line, such as "There were 12 warnings". The build log
+# then cannot show which chapter or chunk raised which warning.
 #
-# HOW. A knitr option hook, run at the start of every chunk, wraps knitr's
-# `evaluate` hook. The wrap happens at chunk time because Quarto and
-# rmarkdown set their own knitr hooks after knitr loads. The wrapper does
+# HOW. A knitr option hook runs at the start of every chunk. It wraps the
+# `evaluate` hook of knitr. The wrap happens at chunk time, because Quarto
+# and rmarkdown set their own knitr hooks after knitr loads. The wrapper does
 # three things:
-#   1. It logs each warning and error that evaluate() captured. That covers
+#   1. It logs each warning and error that evaluate() captured. This covers
 #      `warning: true`, the default, and `error: true`.
 #   2. It passes keep_warning = NA where the chunk asked for FALSE. evaluate()
 #      captures nothing for both values, so the captured output and the page
-#      do not change. The only difference is that a warning under NA reaches
-#      the calling handler around evaluate() instead of being dropped.
+#      do not change. The only difference: under NA, a warning goes to the
+#      calling handler around evaluate(), and evaluate() does not drop it.
 #   3. That calling handler logs each warning that evaluate() did not capture,
 #      which covers `warning: false` and `warning: NA`. It then drops the
 #      warning when the chunk asked for FALSE, as evaluate() would have.
-# Each warning therefore reaches exactly one of (1) and (3).
+# Thus each warning goes to one of (1) and (3), never to both.
 #
 # NOT COVERED:
 #   - a chunk served from the knitr cache, because evaluate() does not run

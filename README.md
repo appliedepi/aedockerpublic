@@ -1,339 +1,213 @@
 # aedockerpublic
 
-The image factory for Applied Epi products. It builds and publishes the Docker images that render
-the [epiRhandbook](https://github.com/appliedepi/epirhandbook), and it owns the scripts that
-assemble the book from them.
+This repository builds and publishes the Docker images that render the [epiRhandbook](https://github.com/appliedepi/epirhandbook) for Applied Epi. It also holds the scripts that assemble the book from those images.
 
 ## What this repository is
 
 ### Purpose
 
-The live product line is **2.9**: nine images, published to `ghcr.io/appliedepi/aedockerpublic`.
-Each image is a package environment. Chapter content is never baked into one: the `.qmd` is
-mounted at render time.
+The live product line is **2.9**. It has nine images, published to `ghcr.io/appliedepi/aedockerpublic`. Each image is a package environment. No image contains chapter content: the build mounts the `.qmd` at render time.
 
-The content lives in a separate repository,
-[`appliedepi/epirhandbook`](https://github.com/appliedepi/epirhandbook). It owns the `.qmd` files
-in every language, and a manifest (`docker-images.yml`) that says which image renders which
-chapter. This repository owns packages, images and the render scripts. Neither repository fetches
-from the other at build time.
+The content lives in a separate repository, [`appliedepi/epirhandbook`](https://github.com/appliedepi/epirhandbook). That repository holds the `.qmd` files in every language. It also holds a manifest, `docker-images.yml`, that says which image renders which chapter. This repository holds the packages, the images and the render scripts. Neither repository fetches from the other at build time.
 
-Everything the 2.9 line builds from sits in `epirhandbook/2.9/`. Its own
-[README](epirhandbook/2.9/README.md) covers how packages install, how one chapter renders, and how
-the book is assembled. [`CHANGELOG.md`](CHANGELOG.md) is the historical record.
+All 2.9 build inputs are in `epirhandbook/2.9/`. Its own [README](epirhandbook/2.9/README.md) covers how packages install, how one chapter renders, and how the book is assembled. [`CHANGELOG.md`](CHANGELOG.md) is the historical record.
 
-2.5, 2.6, 2.7 and 2.8 are gone from the working tree. They remain in git history: `git log --diff-filter=D -- archive/` finds the commit that removed them, and `git show <sha>^:archive/<path>` reads any file back.
+The lines 2.5, 2.6, 2.7 and 2.8 are not in the working tree. They are in git history. `git log --diff-filter=D -- archive/` finds the commit that removed them. `git show <sha>^:archive/<path>` reads any file back.
 
 ### The catalogue
 
-Two files, read together as one catalogue: `images.yaml` at the repository root holds `rbase`, and
-`epirhandbook/2.9/images.yaml` holds the other eight images. Base edges cross the two files:
-`epirhandbook-common` is FROM `rbase`. Both files are hand-maintained, and `images.yaml`'s own
-header comment carries the authoritative field rules.
+The catalogue is two files. `images.yaml` at the repository root holds `rbase`. `epirhandbook/2.9/images.yaml` holds the other eight images. Base edges cross the two files: `epirhandbook-common` is FROM `rbase`. Both files are maintained by hand. The header comment of `images.yaml` holds the authoritative field rules.
 
-Each record names the image (`name`), one line about it (`description`), and the tags to publish
-(`tags`). It also names the image in this catalogue it is FROM (`base`, or `null`). The `base`
-edge drives the cascade. All four are required. An image with no `description` publishes its base
-image's description, so the planner rejects a record without one. Four fields need more than their
-name:
+Each record has four required fields:
+
+- `name`: the image name.
+- `description`: one line about the image. The planner rejects a record without one, because an image with no `description` publishes its base image's description.
+- `tags`: the tags to publish.
+- `base`: the image in this catalogue that this image is FROM, or `null`. The `base` edge drives the cascade.
+
+These fields need more explanation:
 
 | Field | Meaning |
 |---|---|
 | `dir` | This image's own files: where its Dockerfile lives, and its change-detection scope. |
-| `context` | The `docker build` context, when it differs from `dir`. A group's Dockerfile sits in `groups/<group>/` but COPYs shared files from `epirhandbook/2.9/`, so the context is the shared root while change detection stays per group. |
+| `context` | The `docker build` context, when it differs from `dir`. A group's Dockerfile is in `groups/<group>/` but COPYs shared files from `epirhandbook/2.9/`. So the context is the shared root, and change detection stays per group. |
 | `renders` | The `.qmd` files this image renders, relative to the handbook source root. A list, for a group image. Required for any image whose `dir` has a `groups` path segment. |
-| `live` | `true` means a rebuild of `base` cascades to this image. `false` opts out of that automatic cascade only. A direct edit to the image's own `dir` still builds it. |
+| `live` | `true` means a rebuild of `base` cascades to this image. `false` stops only that automatic cascade. A direct edit to the image's own `dir` still builds it. |
 
-The validator ties a group's `renders` list to the group that `dir` and `name` identify, and
-refuses a `.qmd` claimed by two images. A record cannot drift into describing another group, and a
-chapter cannot be rendered twice.
+The validator checks that a group's `renders` list matches the group that `dir` and `name` identify. It also rejects a `.qmd` that two images claim. So a record cannot describe another group, and no chapter renders twice.
 
 ### Trigger and change detection
 
-**Push to `main` only.** There is no nightly build and no scheduled run.
+**CI builds on a push to `main` only.** There is no nightly build and no scheduled run.
 
-`.github/scripts/changed_images.py` decides what to rebuild. For each catalogue image it reads the
-`org.opencontainers.image.revision` OCI label of the **currently published** image. That is a
-metadata-only `docker buildx imagetools inspect`, never a `docker pull`. It then diffs, since that
-commit: the image's own `dir`, the shared build-context inputs, and the CI machinery
-(`.github/scripts/`, `.github/workflows/`). Anything changed means rebuild. Never published, or no
-readable label, also means rebuild, which is fail-closed.
+`.github/scripts/changed_images.py` decides what to rebuild. For each catalogue image, it reads the `org.opencontainers.image.revision` OCI label of the **currently published** image. It reads the label with `docker buildx imagetools inspect`, which reads metadata only and does not run `docker pull`. Then it diffs these paths from that commit to the pushed commit:
 
-An image with a `base` has a second check. `build_image.sh` stamps it with the
-`org.opencontainers.image.base.digest` label: the digest of the exact base image it was built FROM.
-`changed_images.py` compares that label with the digest that the base's tag points to now. A
-missing label, an unreadable base digest or a different digest means rebuild. An image with
-`live: false` skips this check, because a moved base is the cascade it opts out of.
+- the image's own `dir`
+- the shared build-context inputs
+- the CI scripts and workflows, `.github/scripts/` and `.github/workflows/`
 
-**Each image renders a smoke document before it is pushed.** After `docker build`, in both modes,
-`build_image.sh` renders `epirhandbook/2.9/common/smoke.qmd` with the image's own
-`build_one_chapter.sh`. The container has no network and the `R_PROFILE_USER` that
-`build_all_chapters.sh` sets. A failed render stops the script before any push, and verify mode
-exits 1. An image without `/usr/local/bin/build_one_chapter.sh` gets no render, and the log names
-it. Today that is `rbase` alone. A pass shows that R, knitr, ggplot2 and Quarto render together in
-the image. It does not show that the image holds every package its chapters need.
+A change in any of them means rebuild. An image that was never published, or that has no readable label, also gets a rebuild. The check fails closed.
 
-Know this before you push:
+An image with a `base` gets a second check. `build_image.sh` adds the `org.opencontainers.image.base.digest` label to it. That label is the digest of the base image it was built FROM. `changed_images.py` compares that label with the digest that the base's tag points to now. A missing label, an unreadable base digest or a different digest means rebuild. An image with `live: false` skips this check, because a moved base is the cascade it opts out of.
 
-- The diff runs from each image's published revision to the pushed commit. Several commits in one
-  push produce **one** build of the final state.
-- **A change anywhere under `.github/scripts/` or `.github/workflows/` rebuilds all nine images**,
-  because it lands in every image's own diff. That includes editing a *test*: `test_plan.py` lives
-  under `.github/scripts/`. Batch CI changes rather than pushing them one at a time.
-- **Resume is automatic.** After a partial publish, rerun. The images that published are skipped.
-  An image that failed is rebuilt, because its own diff shows the change or its base digest label
-  names the old base. The revision label alone cannot show the second case: a change under the
-  base's `dir` is not in the dependent image's own diff.
-- **The base check compares digests, not commits.** A base rebuilt from the same commit still gets
-  a new digest, because its `created` label changes. A live image FROM that base that did not
-  rebuild in the same run then rebuilds on the next run.
+**Each image renders a smoke document before CI pushes it.** After `docker build`, in both modes, `build_image.sh` renders `epirhandbook/2.9/common/smoke.qmd` with the image's own `build_one_chapter.sh`. The container has no network, and it has the `R_PROFILE_USER` that `build_all_chapters.sh` sets. A failed render stops the script before any push, and verify mode exits 1. An image without `/usr/local/bin/build_one_chapter.sh` gets no render, and the log names it. Today only `rbase` has no render. A pass shows that R, knitr, ggplot2 and Quarto work together in the image. It does not show that the image holds every package its chapters need.
+
+Know these points before you push:
+
+- The diff runs from each image's published revision to the pushed commit. A push of several commits produces **one** build of the final state.
+- **A change anywhere under `.github/scripts/` or `.github/workflows/` rebuilds all nine images**, because the change is in every image's own diff. This includes a change to a *test*, because `test_plan.py` is under `.github/scripts/`. Push CI changes together in one push, not one at a time.
+- **Resume is automatic.** After a partial publish, run the workflow again. CI skips the images that published. It rebuilds an image that failed, because its own diff shows the change, or its base digest label names the old base. The revision label alone cannot show the second case: a change under the base's `dir` is not in the dependent image's own diff.
+- **The base check compares digests, not commits.** A base rebuilt from the same commit still gets a new digest, because its `created` label changes. If a live image FROM that base did not rebuild in the same run, it rebuilds on the next run.
 
 ### How dependencies resolve
 
-One source of truth per axis, and **no package version is asserted anywhere**.
+Each source of packages has one source of truth. **No file states a package version.**
 
-- **CRAN**: a dated [Posit Package Manager](https://packagemanager.posit.co) snapshot. The date
-  lives in exactly one place, the `rbase` image **tag**. `build_image.sh` matches a trailing
-  `-YYYY-MM-DD` on the first tag and passes it as `--build-arg CRAN_SNAPSHOT_DATE`. The rule is
-  generic: a tag without a date suffix, such as a group's `2.9`, does not match, and no build
-  argument is passed.
-- **Bioconductor**: the release paired with R, from `BiocManager::version()`. Derived, never
-  stored.
-- **GitHub**: the one thing a dated CRAN snapshot cannot pin.
-  `epirhandbook/2.9/packages_github.json` holds 7 packages with a commit SHA each.
-- **Resolution**: `pak_install_subset.R` runs `pak::pkg_install(refs, dependencies = NA)`. That is
-  hard dependencies only (Depends, Imports, LinkingTo), with **Suggests deliberately excluded**.
-  There is no hand-computed dependency closure. pak resolves the tree against a snapshot that
-  never moves, so the result is deterministic.
+- **CRAN**: a dated [Posit Package Manager](https://packagemanager.posit.co) snapshot. The date is in one place only, the `rbase` image **tag**. `build_image.sh` matches a trailing `-YYYY-MM-DD` on the first tag and passes it as `--build-arg CRAN_SNAPSHOT_DATE`. The rule applies to every image. A tag without a date suffix, such as a group's `2.9`, does not match, and the script passes no build argument.
+- **Bioconductor**: the release that pairs with R, from `BiocManager::version()`. The build derives it and no file stores it.
+- **GitHub**: a dated CRAN snapshot cannot pin these packages. `epirhandbook/2.9/packages_github.json` holds 7 packages, each with a commit SHA.
+- **Resolution**: `pak_install_subset.R` runs `pak::pkg_install(refs, dependencies = NA)`. This installs hard dependencies only (Depends, Imports, LinkingTo), and **excludes Suggests**. There is no hand-computed dependency closure. pak resolves the tree against a snapshot that does not change, so the result is deterministic.
 
-`epirhandbook/2.9/README.md` covers what each image installs and why every group image is a
-superset of its chapters' package footprints.
+`epirhandbook/2.9/README.md` covers what each image installs. It also explains why every group image is a superset of the package footprints of its chapters.
 
 ### Routine changes
 
-**Add a package to a chapter.** Add the bare name, one per line, to that chapter's
-`packages_cran_<stem>.txt`. Run `python3 epirhandbook/2.9/generate_groups.py`. The generator
-rewrites that group's `packages_cran.txt` and `monolith/packages_cran.txt`. Commit all three
-changed files and push. The chapter's group image and the monolith rebuild.
+**Add a package to a chapter.** Add the bare name, one per line, to that chapter's `packages_cran_<stem>.txt`. Run `python3 epirhandbook/2.9/generate_groups.py`. The generator rewrites that group's `packages_cran.txt` and `monolith/packages_cran.txt`. Commit all three changed files and push. CI rebuilds the chapter's group image and the monolith.
 
 **Add a chapter.**
 
-1. Capture its package list. Render the chapter once with a knitr `document` hook that writes
-   `sort(loadedNamespaces())`. Drop the base R packages: `base`, `compiler`, `datasets`,
-   `grDevices`, `graphics`, `grid`, `methods`, `stats`, `tools`, `utils`. Use one name per line,
-   with no comments and no blank lines. Save it as
-   `epirhandbook/2.9/groups/<group>/packages_cran_<stem>.txt`. That location is what assigns the
-   chapter to the group.
-2. Add `content/en/<stem>.qmd` to that group's `renders` list in `epirhandbook/2.9/images.yaml`.
-   That file is a shared build input, so an edit to it rebuilds all eight 2.9 images.
-3. Run `python3 epirhandbook/2.9/generate_groups.py` and commit everything. Push, then watch all
-   eight publish: `epirhandbook-common`, the six group images and the monolith.
-4. In the handbook repository, add the chapter to every language's `content/<lang>/_quarto.yaml`,
-   and add its row to `docker-images.yml`, naming the group image. `build_all_chapters.sh` fails
-   a book whose chapter has no manifest row, and a language whose chapter list differs from the
-   main language's.
+1. Capture its package list. Render the chapter once with a knitr `document` hook that writes `sort(loadedNamespaces())`. Remove the base R packages: `base`, `compiler`, `datasets`, `grDevices`, `graphics`, `grid`, `methods`, `stats`, `tools`, `utils`. Write one name per line, with no comments and no blank lines. Save the list as `epirhandbook/2.9/groups/<group>/packages_cran_<stem>.txt`. That location assigns the chapter to the group.
+2. Add `content/en/<stem>.qmd` to that group's `renders` list in `epirhandbook/2.9/images.yaml`. That file is a shared build input, so a change to it rebuilds all eight 2.9 images.
+3. Run `python3 epirhandbook/2.9/generate_groups.py` and commit all changes. Push. Then watch all eight images publish: `epirhandbook-common`, the six group images and the monolith.
+4. In the handbook repository, add the chapter to `content/<lang>/_quarto.yaml` for every language. Add its row to `docker-images.yml`, with the group image name. `build_all_chapters.sh` fails a book that has a chapter with no manifest row. It also fails a language whose chapter list differs from the main language's.
 
 `gis`, restored on 2026-09-02, is the worked example of steps 1 to 3.
 
-**Update the R version or the CRAN snapshot.** Change the date in rbase's tag in `images.yaml`
-(`rbase:4.6.0-<YYYY-MM-DD>`). **Never write a date anywhere else.** The tag is the single source of
-truth, and the build derives the snapshot URL from it. This rebuilds `rbase` and cascades to
-everything.
+**Update the R version or the CRAN snapshot.** Change the date in the rbase tag in `images.yaml` (`rbase:4.6.0-<YYYY-MM-DD>`). **Do not write the date anywhere else.** The tag is the single source of truth, and the build derives the snapshot URL from it. This change rebuilds `rbase` and cascades to all images.
 
-**That tag is mutable, deliberately.** It is overwritten in the registry on every rbase rebuild,
-and has been rewritten at least eight times. The date names the CRAN snapshot the image was built
-against. It is not a promise that the bytes are frozen. Reviewers read "date-pinned" as
-"immutable" and file it as a supply-chain defect; it was filed once already, as box F27 of
-appliedepi/epirhandbook#455, and declined. For byte-immutability in a particular build, pin the
-digest at the point of use.
+**The rbase tag is mutable.** Each rbase rebuild overwrites it in the registry, and it has been overwritten at least eight times. The date names the CRAN snapshot that the image was built against. It does not mean that the image bytes are frozen. Reviewers can read "date-pinned" as "immutable" and report a supply-chain defect. This was reported once, as box F27 of appliedepi/epirhandbook#455, and declined. For byte-immutability in a particular build, pin the digest at the point of use.
 
-**Pin a GitHub package to a new commit.** Edit its `RemoteSha` in
-`epirhandbook/2.9/packages_github.json`. This rebuilds `epirhandbook-common`, the six group
-images and the monolith.
+**Pin a GitHub package to a new commit.** Change its `RemoteSha` in `epirhandbook/2.9/packages_github.json`. This rebuilds `epirhandbook-common`, the six group images and the monolith.
 
 ### Visibility
 
-**All nine packages are public.** Verified on 2026-09-08: the GitHub packages API reports
-`visibility: public` for each, and reports no private container package in the `appliedepi`
-organization. Nothing that consumes these images needs `docker login ghcr.io`.
+**All nine packages are public.** We verified this on 2026-09-08. The GitHub packages API reports `visibility: public` for each package. It reports no private container package in the `appliedepi` organization. A consumer of these images does not need `docker login ghcr.io`.
 
-**Making a GHCR package public cannot be automated.** There is no REST endpoint and no GraphQL
-mutation for package visibility. It is done one package at a time in the web UI. Go to the
-package page, then the gear icon, then Danger Zone, then Change visibility, then Public. Confirm
-by typing the package name. In the `appliedepi` organization this needs an **org admin**. Making
-a package public is **irreversible**.
+**You cannot automate a change of GHCR package visibility to public.** There is no REST endpoint and no GraphQL mutation for package visibility. Change it in the web UI, one package at a time:
 
-So a **new image name** starts private the first time CI publishes it, and stays private until an
-admin does the step above. Adding a chapter to an existing group creates no new image, so it needs
-no visibility change. Adding a new group does.
+1. Open the package page.
+2. Select the gear icon.
+3. Go to Danger Zone, then Change visibility, then Public.
+4. Type the package name to confirm.
 
-The names of those nine packages are exactly the nine names of the catalogue, which 2.9 keeps
-unchanged from 2.8. Every tag published up to 2026-09-08 is `2.8`, apart from
-`4.6.0-2026-07-01` on `rbase` and one survivor:
-`epirhandbook-common:2.7`, a distinct digest inside the `epirhandbook-common` package, dated
-2026-07-24. Nothing builds or consumes that tag.
+In the `appliedepi` organization, this step needs an **org admin**. You **cannot reverse** it.
+
+A **new image name** is private when CI first publishes it. It stays private until an admin does the steps above. A new chapter in an existing group creates no new image, so it needs no visibility change. A new group needs one.
+
+The names of the nine packages are the nine names in the catalogue. 2.9 uses the same names as 2.8. Up to 2026-09-08, every published tag is `2.8`, with two exceptions:
+
+- `4.6.0-2026-07-01` on `rbase`.
+- `epirhandbook-common:2.7`, a separate digest in the `epirhandbook-common` package, dated 2026-07-24. Nothing builds or uses that tag.
 
 ### Known limitations
 
-- **apt packages are not individually version-pinned.** The `ubuntu` base is digest-pinned.
-  Packages installed on top of it are not. Accepted.
+- **apt packages do not have individual version pins.** The `ubuntu` base has a digest pin. The packages installed on top of it do not. This is accepted.
 - **Rendered figures are not byte-reproducible.** Several chapters use unseeded RNG.
-- **A pin whose package declares `Remotes:` can drift into a conflict.** Until 2026-09-02
-  `epirhandbook-common` pinned babeldown, whose DESCRIPTION declares
-  `Remotes: ropensci-review-tools/babelquarto`. pak resolves that to the repository HEAD. Once
-  babelquarto's HEAD moved past the pinned babelquarto SHA, the two refs conflicted and
-  `epirhandbook-common` could not build (run 33626696019). Neither package was used at render
-  time, so both pins were removed, with `tinkr`, which only babeldown needed. `brio`, `fs` and
-  `xml2`, which the render scripts import and which those pins had supplied by accident, are now
-  explicit in `common/packages_cran.txt`. Before you add a pin, read the package's `Remotes:`
-  field. Before you remove one, check what the render scripts import.
-- **A base tag moved out of band is followed, not checked.** The build resolves the digest of a
-  non-rebuilt base live from whatever its published tag currently points at. A manual retag or a
-  force-push moves that digest, so every live image FROM the base rebuilds on the next run, FROM
-  the moved tag. Nothing checks the moved base itself. This is an accepted trust boundary.
+- **A pinned package that declares `Remotes:` can cause a conflict later.** Until 2026-09-02, `epirhandbook-common` pinned babeldown. The babeldown DESCRIPTION declares `Remotes: ropensci-review-tools/babelquarto`, and pak resolves that to the repository HEAD. When the babelquarto HEAD moved past the pinned babelquarto SHA, the two refs conflicted. Then `epirhandbook-common` could not build (run 33626696019). The render did not use either package, so we removed both pins, and also `tinkr`, which only babeldown needed. The render scripts import `brio`, `fs` and `xml2`, which those pins supplied by accident. These three are now explicit in `common/packages_cran.txt`. Before you add a pin, read the package's `Remotes:` field. Before you remove a pin, check what the render scripts import.
+- **The build follows a base tag that moved outside CI, and does not check it.** For a base that did not rebuild, the build reads the digest that its published tag points to now. A manual retag or a force-push moves that digest. Every live image FROM that base then rebuilds on the next run, FROM the moved tag. Nothing checks the moved base itself. This is an accepted trust boundary.
 
 ## The images
 
-One section per catalogue image. Every tag, base and chapter stem below comes from the two
-catalogue files. A stem is a `renders` entry without the `content/en/` prefix and the `.qmd`
-suffix. The six group images follow the parts of the book's navbar.
+This section has one entry per catalogue image. Every tag, base and chapter stem below comes from the two catalogue files. A stem is a `renders` entry without the `content/en/` prefix and the `.qmd` suffix. The six group images follow the parts of the book's navbar.
 
 ### rbase
 
-R 4.6.0 on a digest-pinned Ubuntu, with a dated CRAN snapshot and no R packages at all. It carries
-the system libraries the packages need, including GDAL, GEOS, PROJ and a JDK for **rJava**. Tag
-`4.6.0-2026-07-01`. It is FROM an external base, so it has no base in this catalogue, and it
-renders nothing.
+R 4.6.0 on a digest-pinned Ubuntu, with a dated CRAN snapshot and no R packages. It holds the system libraries that the packages need, including GDAL, GEOS, PROJ and a JDK for **rJava**. Tag `4.6.0-2026-07-01`. It is FROM an external image, so it has no base in this catalogue. It renders nothing.
 
 ### epirhandbook-common
 
-The shared package environment. It holds 58 CRAN and Bioconductor names, all 7 GitHub pins, and
-the render scripts on `PATH`. The 58 are the names most chapters share, plus the ones the render
-scripts import. Tag `2.9`. Base `rbase`. It renders no chapter, so it declares no `renders` list.
+The shared package environment. It holds 58 CRAN and Bioconductor names, all 7 GitHub pins, and the render scripts on `PATH`. The 58 names are the packages that most chapters share, plus the packages that the render scripts import. Tag `2.9`. Base `rbase`. It renders no chapter, so it has no `renders` list.
 
 ### epirhandbook-basics
 
-The `basics` group, 8 chapters. Tag `2.9`. Base `epirhandbook-common`. Renders `index`,
-`editorial_style`, `data_used`, `basics`, `transition_to_r`, `packages_suggested`, `r_projects`
-and `importing`.
+The `basics` group, 8 chapters. Tag `2.9`. Base `epirhandbook-common`. Renders `index`, `editorial_style`, `data_used`, `basics`, `transition_to_r`, `packages_suggested`, `r_projects` and `importing`.
 
 ### epirhandbook-data-management
 
-The `data-management` group, 9 chapters. Tag `2.9`. Base `epirhandbook-common`. Renders `cleaning`,
-`dates`, `characters_strings`, `factors`, `pivoting`, `grouping`, `joining_matching`,
-`deduplication` and `iteration`.
+The `data-management` group, 9 chapters. Tag `2.9`. Base `epirhandbook-common`. Renders `cleaning`, `dates`, `characters_strings`, `factors`, `pivoting`, `grouping`, `joining_matching`, `deduplication` and `iteration`.
 
 ### epirhandbook-analysis
 
-The `analysis` group, 11 chapters. Tag `2.9`. Base `epirhandbook-common`. Renders
-`tables_descriptive`, `stat_tests`, `regression`, `missing_data`, `standardization`,
-`moving_average`, `time_series`, `contact_tracing`, `survey_analysis`, `survival_analysis` and
-`gis`.
+The `analysis` group, 11 chapters. Tag `2.9`. Base `epirhandbook-common`. Renders `tables_descriptive`, `stat_tests`, `regression`, `missing_data`, `standardization`, `moving_average`, `time_series`, `contact_tracing`, `survey_analysis`, `survival_analysis` and `gis`.
 
 ### epirhandbook-data-viz
 
-The `data-viz` group, 11 chapters. Tag `2.9`. Base `epirhandbook-common`. Renders
-`tables_presentation`, `ggplot_basics`, `ggplot_tips`, `epicurves`, `age_pyramid`, `heatmaps`,
-`diagrams`, `combination_analysis`, `transmission_chains`, `phylogenetic_trees` and
-`interactive_plots`.
+The `data-viz` group, 11 chapters. Tag `2.9`. Base `epirhandbook-common`. Renders `tables_presentation`, `ggplot_basics`, `ggplot_tips`, `epicurves`, `age_pyramid`, `heatmaps`, `diagrams`, `combination_analysis`, `transmission_chains`, `phylogenetic_trees` and `interactive_plots`.
 
 ### epirhandbook-reports
 
-The `reports` group, 4 chapters. Tag `2.9`. Base `epirhandbook-common`. Renders `rmarkdown`,
-`reportfactory`, `flexdashboard` and `shiny_basics`.
+The `reports` group, 4 chapters. Tag `2.9`. Base `epirhandbook-common`. Renders `rmarkdown`, `reportfactory`, `flexdashboard` and `shiny_basics`.
 
 ### epirhandbook-miscellaneous
 
-The `miscellaneous` group, 7 chapters. Tag `2.9`. Base `epirhandbook-common`. Renders
-`writing_functions`, `directories`, `collaboration`, `errors`, `help`, `network_drives` and
-`data_table`.
+The `miscellaneous` group, 7 chapters. Tag `2.9`. Base `epirhandbook-common`. Renders `writing_functions`, `directories`, `collaboration`, `errors`, `help`, `network_drives` and `data_table`.
 
 ### epirhandbook-monolith
 
-Every package of all six groups in one image. Tag `2.9`. Base `epirhandbook-common`. It renders
-nothing in CI. It is the dev-container image for contributors, named in the handbook's
-`.devcontainer.json`, and it can render any chapter.
+All packages of the six groups in one image. Tag `2.9`. Base `epirhandbook-common`. It renders nothing in CI. It is the dev-container image for contributors, named in the handbook's `.devcontainer.json`, and it can render any chapter.
 
 ---
 
 # Maintaining this repository
 
-Everything below is for whoever maintains the image lines. A contributor using the images
-does not need it.
+This part is for the maintainer of the image lines. A contributor who uses the images does not need it.
 
 ### Which content, and which reference
 
-Two different versions of the handbook content exist. Do not mix them.
+Two versions of the handbook content exist. Do not mix them.
 
 | Content | Where | Role |
 |---|---|---|
-| **Sep-18-2024** (`epiRhandbook_eng` commit `c3cbc76`) | live at `https://www.epirhandbook.com/en/` | **The frozen baseline. This is what we reproduce.** |
-| **Jan-2025 drift** (branch `richard` @ `e121efa`, and `deploy-preview`) | published nowhere | **Parked.** A 52-chapter unpublished content update. Reviewed only at the very end to salvage anything useful. |
+| **Sep-18-2024** (`epiRhandbook_eng` commit `c3cbc76`) | live at `https://www.epirhandbook.com/en/` | **The frozen baseline. This is the version we reproduce.** |
+| **Jan-2025 drift** (branch `richard` @ `e121efa`, and `deploy-preview`) | not published | **Parked.** An unpublished content update of 52 chapters. We review it only at the end, to keep any useful parts. |
 
-The reproduction target is a **fresh crawl of the live site**, not the `html_outputs/` committed in
-the repo. The committed output is stale, so it is not a valid reference.
+The reproduction target is a **new crawl of the live site**. Do not use the `html_outputs/` committed in the repo: it is stale, so it is not a valid reference.
 
 - Live crawls on compute: `~/ae/live_crawl` (English) and `~/ae/live_crawl_ml/<lang>` (7 languages).
 - Sep-18 render source on compute: `~/ae/render_sep18`.
-- The regression bar is `epirhandbook/2.5/verify/manifest.tsv` — per-page text similarity plus a
-  `sha16` content hash. Regenerate it with `epirhandbook/2.5/verify/make_manifest.py`.
+- The regression bar is `epirhandbook/2.5/verify/manifest.tsv`. It holds a per-page text similarity and a `sha16` content hash. Regenerate it with `epirhandbook/2.5/verify/make_manifest.py`.
 
-**The manifest means "same output" only when package versions match.** It is the bar for Phase 2
-and Phase 3. It is **not** the bar for Phase 5, where newer packages legitimately render differently.
+**The manifest means "same output" only when package versions match.** It is the bar for Phase 2 and Phase 3. It is **not** the bar for Phase 5, where newer packages can render differently for valid reasons.
 
 ### Design decisions, and why
 
-- **`rbase`, not `base`.** The name leaves room for a separate `pythonbase` later, and it matches
-  the existing `ghcr.io/niphr/cs/rbase`.
-- **`rbase:4.3.2` is fully self-owned.** `FROM ubuntu:jammy` (digest-pinned) + R 4.3.2 from **Posit
-  r-builds**, with **no rocker**. Control and consistency over lower maintenance.
-- **openblas 0.3.20 is installed deliberately.** It is the exact BLAS that rocker links. Matching it
-  is why dropping rocker moved no computed numbers. A different BLAS would have shifted values
-  across many chapters.
-- **pak is driven by the lock, and chooses nothing.** `renv.lock` stays the single source of truth.
-  The installed version is always the pin; the *ref form* only changes how each package is fetched.
-- **CRAN is `cloud.r-project.org` source, not PPM.** Phase 2 restores a lock whose pins span many
-  dates, so no single PPM snapshot contains them all. Only cloud carries every archived version.
-- **`GITHUB_PAT` is a BuildKit secret.** Never `--build-arg` + `ENV`, which would bake the token
-  into the image's `Config.Env` and leak it on `docker inspect` or push.
+- **`rbase`, not `base`.** The name leaves room for a separate `pythonbase` later. It also matches the existing `ghcr.io/niphr/cs/rbase`.
+- **We own all of `rbase:4.3.2`.** It is `FROM ubuntu:jammy` (digest-pinned) plus R 4.3.2 from **Posit r-builds**, with **no rocker**. We chose control and consistency over lower maintenance.
+- **The image installs openblas 0.3.20 on purpose.** It is the BLAS that rocker links. Because it matches, the removal of rocker changed no computed numbers. A different BLAS would change values in many chapters.
+- **The lock controls pak, and pak chooses nothing.** `renv.lock` stays the single source of truth. The installed version is always the pin. The *ref form* changes only how pak fetches each package.
+- **CRAN is `cloud.r-project.org` source, not PPM.** Phase 2 restores a lock whose pins span many dates, so no single PPM snapshot contains all of them. Only cloud has every archived version.
+- **`GITHUB_PAT` is a BuildKit secret.** Do not use `--build-arg` with `ENV`. That puts the token into the image's `Config.Env`, and `docker inspect` or a push exposes it.
 
-### Traps already found (do not re-derive)
+### Traps already found
 
-- **pak's SAT solver versus R 4.4.** A naive `pkg@version` ref fails for 15 packages. pak evaluates
-  the *current* release's R constraint even when an *older* version is pinned, and reports a spurious
-  dependency conflict. The fix is `url::` refs pointing straight at the CRAN Archive tarball, which
-  bypasses the solver. renv never hits this, because renv does not solve — it just installs the pin.
-- **pak install ordering.** `dependencies = FALSE` resolves cleanly but drops build-order edges, so
-  a source package races its own build dependency (RcppRoll built before Rcpp). `dependencies = NA`
-  restores order but re-activates the solver. The fix is a **topological layer install**: build the
-  graph from the lock's own `Requirements`, Kahn-sort into 15 layers, install each layer with
-  `dependencies = FALSE`.
-- **Bioconductor drift.** The lock pins `ggtree` 3.10.0, but Bioc 3.18's live contrib directory now
-  serves 3.10.1. Only the Bioc Archive still has 3.10.0.
-- **pak leaves about 4 GB of build scratch in `/tmp`.** Delete it in the *same* `RUN` layer, or the
-  image doubles in size (9.5 GB → 5.1 GB).
-- **Docker tag races.** Two builds tagging the same image name: last to finish wins, so a bad build
-  can clobber a good one. Serialize builds that share a tag.
-- **Two render failures are not the image's fault.** `plot_continuous` never calls
-  `library(tidyr)`, and it is an unused `.qmd`. `gis` fetches live OpenStreetMap tiles at render
-  time, which aborts the whole book, so it is commented out of `_quarto.yml` for rendering.
+Use these findings. Do not derive them again.
+
+- **pak's SAT solver and R 4.4.** A plain `pkg@version` ref fails for 15 packages. pak checks the R constraint of the *current* release, even when an *older* version is pinned, and reports a false dependency conflict. The fix is `url::` refs that point to the CRAN Archive tarball, which bypass the solver. renv does not have this problem, because renv does not solve: it installs the pin.
+- **pak install order.** `dependencies = FALSE` resolves correctly but drops build-order edges. A source package can then build before its own build dependency (RcppRoll before Rcpp). `dependencies = NA` restores the order but turns the solver back on. The fix is a **topological layer install**:
+  1. Build the graph from the lock's own `Requirements`.
+  2. Kahn-sort it into 15 layers.
+  3. Install each layer with `dependencies = FALSE`.
+- **Bioconductor drift.** The lock pins `ggtree` 3.10.0, but the live contrib directory of Bioc 3.18 now serves 3.10.1. Only the Bioc Archive still has 3.10.0.
+- **pak leaves about 4 GB of build scratch in `/tmp`.** Delete it in the *same* `RUN` layer. If you do not, the image doubles in size (9.5 GB against 5.1 GB).
+- **Docker tag races.** When two builds tag the same image name, the last to finish wins, so a bad build can overwrite a good one. Run builds that share a tag one after the other.
+- **Two render failures are not caused by the image.** `plot_continuous` does not call `library(tidyr)`, and it is an unused `.qmd`. `gis` fetches live OpenStreetMap tiles at render time, which stops the whole book. So `gis` is commented out of `_quarto.yml` for rendering.
 - **Render into a writable copy.** `render_book()` deletes `html_outputs` first.
-- **Linux needs the filename-case shim.** Run `python3 fix_image_case.py <source>` before rendering.
+- **Linux needs the filename-case shim.** Run `python3 fix_image_case.py <source>` before you render.
 
 ### How we work on this
 
-- **Build on compute.** bench has no Docker. Rsync the build context to `compute:~/ae/ehb_build`,
-  then `docker build` over SSH.
-- **Verify the built image, not the Dockerfile.** After every build, run
-  `docker inspect <img> --format '{{.Config.Env}}'` to confirm no token was baked in. A
-  source-only review, codex included, does not catch a baked-in secret.
-- **Execution model:** opus orchestrates and writes the brief, sonnet implements, a *fresh* sonnet
-  re-runs the objective check and returns raw evidence, opus makes the call.
-- **codex is the phase gate.** A phase is done only on codex sign-off. codex attacks soundness
-  ("what is not really pinned"), not the render, which is objective and already measured.
-- **The gate is per phase, not per build iteration** — Claude owns the tight loop, and the codex
-  quota is spent deliberately.
-
----
-
----
+- **Build on compute.** bench has no Docker. Rsync the build context to `compute:~/ae/ehb_build`, then run `docker build` over SSH.
+- **Check the built image, not only the Dockerfile.** After every build, run `docker inspect <img> --format '{{.Config.Env}}'` to confirm that the image holds no token. A review of the source alone, codex included, does not find a secret in the image.
+- **Execution model:** opus orchestrates and writes the brief. sonnet implements. A *new* sonnet runs the objective check again and returns raw evidence. opus makes the decision.
+- **codex is the phase gate.** A phase is done only when codex signs off. codex examines soundness ("what is not really pinned"). It does not examine the render, because the render check is objective and already measured.
+- **The gate is per phase, not per build iteration.** Claude runs the short build loop, and we spend the codex quota with care.

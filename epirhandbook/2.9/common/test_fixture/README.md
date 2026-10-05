@@ -1,11 +1,8 @@
 # Test fixture for `build_all_chapters.sh`
 
-This directory is a one-language handbook that `build_all_chapters.sh` accepts. Its book has two
-chapters, `index` and `scenario`. As committed, `scenario` is clean: the build exits 0 and logs no
-`EHB-` line.
+This directory is a one-language handbook that `build_all_chapters.sh` accepts. Its book has two chapters, `index` and `scenario`. As committed, `scenario` is clean: the build exits 0 and logs no `EHB-` line.
 
-Each directory under `variants/` holds a replacement for `content/en/scenario.qmd`, and
-sometimes a `.Rprofile`. Copy the fixture, then copy one variant over `content/en/`:
+Each directory under `variants/` holds a replacement for `content/en/scenario.qmd`, and sometimes a `.Rprofile`. Copy the fixture, then copy one variant over `content/en/`:
 
 ```bash
 cp -a test_fixture /tmp/fx
@@ -25,12 +22,10 @@ cp -a test_fixture/variants/warning_false/. /tmp/fx/content/en/
 | `dead_fragment` | exit non-zero, and name `scenario.html#nope` |
 | `rprofile` | show `RPROFILE-SOURCED` on the page |
 
-The build renders every chapter twice, so the log holds each `EHB-` line once per pass. Quarto
-puts an ANSI colour code in front of the line. Count after you strip it:
+The build renders every chapter twice, so the log holds each `EHB-` line once per pass. Quarto puts an ANSI colour code before the line. Remove it before you count:
 
 ```bash
 sed 's/\x1b\[[0-9;]*m//g' build.log | grep -c '^EHB-WARNING'
 ```
 
-`docker-images.yml` names `epirhandbook-common:2.9` for both chapters. To test a local image, edit
-the `image:` lines in your copy, and pass a registry prefix that matches the local tag.
+`docker-images.yml` names `epirhandbook-common:2.9` for both chapters. To test a local image, edit the `image:` lines in your copy. Then pass a registry prefix that matches the local tag.

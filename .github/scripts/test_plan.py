@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Unit tests for plan.py -- the CI planner. Run directly:
+"""Unit tests for plan.py, the CI planner. Run directly:
     python3 .github/scripts/test_plan.py
-Wired into build.yml as a guard step that runs BEFORE the real plan is
-computed, so a broken planner fails loudly instead of silently misplanning
-a real build.
+build.yml runs these tests as a guard step before it computes the real plan.
+So a broken planner fails with an error and cannot plan a real build wrong.
 """
 import os
 import sys
@@ -15,10 +14,10 @@ import yaml
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import plan  # noqa: E402
 
-# A 2-image, 1-edge fixture in the shape of the original catalog. Kept as
-# a literal here (not loaded from the file) so these tests exercise
-# plan.py's logic in isolation -- see TestAgainstRealCatalog below for the
-# canary on the real 9-image catalog.
+# A fixture with 2 images and 1 edge, in the shape of the original catalog.
+# It is a literal here, not loaded from the file, so these tests check the
+# logic of plan.py alone. See TestAgainstRealCatalog below for the canary on
+# the real 9-image catalog.
 CATALOG = [
     {"name": "rbase", "dir": "rbase/4.3.2", "tags": ["4.3.2"], "base": None,
      "live": True},
@@ -26,8 +25,9 @@ CATALOG = [
      "base": "rbase:4.3.2", "live": True},
 ]
 
-# A synthetic 3-image chain with a not-live (live: false) leaf, used for the
-# cascade-exclusion tests the 2-image fixture can't exercise on its own.
+# A synthetic 3-image chain with a not-live (live: false) leaf. The
+# cascade-exclusion tests use it, because the 2-image fixture cannot test
+# that case.
 CHAIN = [
     {"name": "rbase", "dir": "rbase/4.3.2", "tags": ["4.3.2"], "base": None,
      "live": True},
@@ -43,12 +43,12 @@ def names(result):
 
 
 class ChangedImageAndCascadeCases(unittest.TestCase):
-    """Core selective-build + cascade behavior. plan.py no longer matches
-    raw file paths at all -- it is fed an already-resolved list of changed
-    image NAMES (--changed-image, one per name; the output of
-    changed_images.py in production) and only ever does two pure things
-    with it: seed direct selection, then cascade. See build_plan()'s
-    docstring."""
+    """The core selective-build and cascade behaviour. plan.py does not
+    match raw file paths. It gets a resolved list of changed image names
+    (--changed-image, one per name), which in production is the output of
+    changed_images.py. It does two pure things with the list: it fills the
+    direct selection, then it cascades. See the docstring of
+    build_plan()."""
 
     def test_changed_base_cascades_to_its_dependent(self):
         r = plan.build_plan(CATALOG, changed_images=["rbase"])
@@ -56,7 +56,7 @@ class ChangedImageAndCascadeCases(unittest.TestCase):
         self.assertEqual(r["trigger"], "selective")
         self.assertEqual(r["layers"][0][0]["name"], "rbase")
         self.assertEqual(r["layers"][1][0]["name"], "epirhandbook")
-        # base was rebuilt in this same run -> re-resolve its digest live
+        # This run rebuilt the base -> resolve its digest from the registry
         self.assertTrue(r["layers"][1][0]["base_freshly_built"])
 
     def test_changed_dependent_does_not_rebuild_its_base(self):
@@ -64,8 +64,8 @@ class ChangedImageAndCascadeCases(unittest.TestCase):
         self.assertEqual(names(r), {"epirhandbook"})
         self.assertNotIn("rbase", names(r))
         self.assertEqual(r["trigger"], "selective")
-        # base was NOT rebuilt this run -> the published base tag is resolved
-        # LIVE from the registry (no recorded pin is consulted; there is none)
+        # This run did not rebuild the base -> resolve the published base tag
+        # from the registry. No recorded pin exists, so none is read.
         self.assertFalse(r["layers"][0][0]["base_freshly_built"])
 
     def test_no_changed_images_selects_nothing(self):
@@ -80,9 +80,9 @@ class ChangedImageAndCascadeCases(unittest.TestCase):
         self.assertEqual(r["trigger"], "none")
 
     def test_unknown_changed_image_name_is_a_hard_error(self):
-        # changed_images.py should never emit a name outside the catalog,
-        # but if it (or a hand-typed --changed-image) ever does, this must
-        # be a loud failure -- the same class of mistake as a typo'd
+        # changed_images.py should never give a name outside the catalog.
+        # If it does, or a hand-typed --changed-image does, this MUST fail
+        # with an error. It is the same kind of mistake as a typo in a
         # `base:` reference (test_unknown_base_name_is_a_hard_error below).
         with self.assertRaises(ValueError) as ctx:
             plan.build_plan(CATALOG, changed_images=["nonexistent-image"])
@@ -93,17 +93,17 @@ class ChangedImageAndCascadeCases(unittest.TestCase):
         self.assertEqual(names(r), {"rbase", "epirhandbook"})
 
     def test_not_live_image_is_not_swept_in_by_a_base_cascade(self):
-        # epirhandbook_old is live:false. rbase changing must NOT drag it in
-        # via cascade -- live:false means "nothing rebuilds you
-        # automatically via cascade", and a cascade IS automatic.
+        # epirhandbook_old is live:false. A change to rbase MUST NOT add
+        # it by cascade. live:false means "no cascade rebuilds this image",
+        # and a cascade is automatic.
         r = plan.build_plan(CHAIN, changed_images=["rbase"])
         self.assertEqual(names(r), {"rbase", "epirhandbook"})
         self.assertNotIn("epirhandbook_old", names(r))
 
     def test_not_live_image_still_builds_on_a_direct_edit_to_its_own_files(self):
-        # A not-live image explicitly named in --changed-image (a direct
-        # edit to its own files, as changed_images.py would report) is not
-        # an automatic cascade -- it must still build.
+        # A not-live image named in --changed-image is not an automatic
+        # cascade: it is a direct edit to its own files, as
+        # changed_images.py reports it. So it MUST still build.
         r = plan.build_plan(CHAIN, changed_images=["epirhandbook_old"])
         self.assertIn("epirhandbook_old", names(r))
         self.assertNotIn("rbase", names(r))  # no edge points from rbase to it
@@ -117,12 +117,12 @@ class ChangedImageAndCascadeCases(unittest.TestCase):
             plan.build_plan(cyclic)
 
     def test_unknown_base_name_is_a_hard_error(self):
-        # A typo in `base:` ("rbse" instead of "rbase") must be a loud
-        # failure, not a silently-dropped cascade edge (finding 6). Before
-        # the fix, plan.py's Kahn's-algorithm loop cannot tell "my base was
-        # already placed in an earlier layer" apart from "my base was never
-        # a real image at all" -- both look like "not in `remaining`" -- so
-        # the typo'd image would silently build as if it had no base.
+        # A typo in `base:` ("rbse" instead of "rbase") MUST fail with an
+        # error. It MUST NOT drop the cascade edge without one (finding 6).
+        # Before the fix, the Kahn's-algorithm loop in plan.py could not
+        # tell "an earlier layer holds my base" from "my base is not an
+        # image". Both look like "not in `remaining`". So the image with
+        # the typo built as if it had no base, with no error.
         typo_catalog = [
             {"name": "rbase", "dir": "rbase/4.3.2", "tags": ["4.3.2"], "base": None,
              "live": True},
@@ -131,19 +131,19 @@ class ChangedImageAndCascadeCases(unittest.TestCase):
         ]
         with self.assertRaises(ValueError) as ctx:
             plan.build_plan(typo_catalog)
-        # The error must name both the offending image and the bad base, so
-        # an operator can find and fix the typo without re-deriving it.
+        # The error MUST name both the image and the bad base, so that an
+        # operator can find and fix the typo directly.
         self.assertIn("epirhandbook", str(ctx.exception))
         self.assertIn("rbse", str(ctx.exception))
 
     def test_catalog_deeper_than_max_layers_is_a_hard_error(self):
-        # build.yml only wires up build-layer-0..3 (4 layers). A catalog
-        # needing a 5th layer must fail loudly, not silently publish only
-        # its first 4 layers (finding 7). The catalog holds 9 images today
-        # in 3 layers, so the 4-layer ceiling leaves one spare. This check
-        # fires inside topological_order(), which build_plan() calls
-        # unconditionally before it ever looks at changed_images -- so no
-        # selection is needed to trigger it.
+        # build.yml has jobs only for build-layer-0..3 (4 layers). A
+        # catalog that needs a 5th layer MUST fail with an error. It MUST
+        # NOT publish only its first 4 layers (finding 7). The catalog
+        # holds 9 images today in 3 layers, so the 4-layer limit leaves one
+        # spare. The check is in topological_order(). build_plan() always
+        # calls it before it reads changed_images, so the test needs no
+        # selection.
         deep_chain = []
         prev = None
         for i in range(plan.MAX_SUPPORTED_LAYERS + 1):  # 5 layers when the ceiling is 4
@@ -162,10 +162,9 @@ class ChangedImageAndCascadeCases(unittest.TestCase):
 
 
 class TestMatchingDir(unittest.TestCase):
-    """plan.matching_dir() directly -- plan.py still owns this function
-    (changed_images.py imports and reuses it rather than re-deriving it;
-    see that module's header), so its own invariants are pinned here
-    independent of any consumer."""
+    """plan.matching_dir(), tested directly. plan.py owns this function, and
+    changed_images.py imports it (see the header of that module). So these
+    tests pin its invariants without any consumer."""
 
     def test_exact_dir_match(self):
         self.assertTrue(plan.matching_dir("rbase/4.3.2", "rbase/4.3.2"))
@@ -182,19 +181,17 @@ class TestMatchingDir(unittest.TestCase):
 
 
 class TestValidateCatalog(unittest.TestCase):
-    """Direct unit coverage of plan.validate_catalog() -- the strict
-    allowlist schema that now sits on top of real, hash-pinned PyYAML
-    (Phase 4: minimal_yaml.py deleted after three further rounds of
-    adversarial-review blockers for silently diverging from real YAML
-    semantics -- four rounds total spent on this question, counting the
-    original decision to vendor it. See plan.py's module docstring and
-    CHANGELOG.md, phase 4 log, 8.9). Each test drives a real YAML string through
-    yaml.safe_load() and then the validator, exactly as plan.load_images()
-    does -- never the schema function in isolation on a hand-built dict."""
+    """Unit tests for plan.validate_catalog(), the strict allowlist schema
+    over real, hash-pinned PyYAML. Phase 4 deleted minimal_yaml.py after
+    three more review rounds found blockers where it differed from real
+    YAML. Counting the first decision to vendor it, that was four rounds on
+    one question. See the module docstring of plan.py and CHANGELOG.md,
+    phase 4 log, 8.9. Each test sends a real YAML string through
+    yaml.safe_load() and then the validator, as plan.load_images() does. No
+    test calls the schema function alone on a hand-built dict."""
 
-    # An otherwise-valid one-image catalog. Each test below changes exactly
-    # ONE line of it, so a failure can only be attributed to the one field
-    # the test means to break.
+    # A valid one-image catalog. Each test below changes one line of it.
+    # So a failure can only come from the field that the test breaks.
     VALID = (
         "images:\n"
         "  - name: x\n"
@@ -221,19 +218,19 @@ class TestValidateCatalog(unittest.TestCase):
         self.assertIn("nonexistent_key", str(ctx.exception))
 
     def test_frozen_key_is_now_rejected_as_unknown(self):
-        # `frozen:` was a real catalog field; it no longer exists. Using it
-        # must now be a hard "unknown key" error, the same as any other
-        # unrecognized field -- this pins the removal itself.
+        # `frozen:` was a real catalog field, and it no longer exists. It
+        # MUST now give a hard "unknown key" error, like any other unknown
+        # field. This pins the removal.
         with self.assertRaises(ValueError) as ctx:
             self._validate(self.VALID + "    frozen: true\n")
         self.assertIn("frozen", str(ctx.exception))
         self.assertNotIn("frozen", sorted(plan.ALLOWED_IMAGE_KEYS))
 
     def test_base_digest_key_is_now_rejected_as_unknown(self):
-        # `base_digest:` was a real catalog field (an optional cross-check on
-        # the base's digest); it no longer exists (§8.10). Using it must now
-        # be a hard "unknown key" error, the same as any other unrecognized
-        # field -- this pins the removal itself.
+        # `base_digest:` was a real catalog field, an optional cross-check on
+        # the base's digest. It no longer exists (§8.10). It MUST now give a
+        # hard "unknown key" error, like any other unknown field. This pins
+        # the removal.
         with self.assertRaises(ValueError) as ctx:
             self._validate(self.VALID + "    base_digest: null\n")
         self.assertIn("base_digest", str(ctx.exception))
@@ -256,11 +253,12 @@ class TestValidateCatalog(unittest.TestCase):
     # --- description: REQUIRED, and a non-empty string --------------------
     #
     # build_image.sh stamps this field as the image's
-    # org.opencontainers.image.description OCI label. Before it existed every
-    # published image carried the label it inherited from ubuntu, so
+    # org.opencontainers.image.description OCI label. Before the field existed,
+    # every published image had the label it inherited from ubuntu. So
     # `docker inspect` showed Canonical's text for this project's images.
-    # The key is REQUIRED for that reason: an optional one would let a record
-    # that forgot it publish the inherited description with nothing failing.
+    # For that reason the key is REQUIRED. If it were optional, a record
+    # without it would publish the inherited description, and nothing would
+    # fail.
 
     def test_description_is_accepted_and_returned_unchanged(self):
         text = self.VALID.replace(
@@ -273,8 +271,8 @@ class TestValidateCatalog(unittest.TestCase):
         )
 
     def test_missing_description_is_rejected(self):
-        # The case that makes the key REQUIRED rather than optional. A record
-        # with no description must not validate.
+        # This case is why the key is REQUIRED. A record with no description
+        # MUST NOT validate.
         text = self.VALID.replace("    description: a test image\n", "")
         with self.assertRaises(ValueError) as ctx:
             self._validate(text)
@@ -287,16 +285,16 @@ class TestValidateCatalog(unittest.TestCase):
         self.assertIn("description", str(ctx.exception))
 
     def test_whitespace_only_description_is_rejected(self):
-        # A label of three spaces is an empty label with extra steps.
+        # A label of three spaces is an empty label.
         text = self.VALID.replace("description: a test image", 'description: "   "')
         with self.assertRaises(ValueError) as ctx:
             self._validate(text)
         self.assertIn("description", str(ctx.exception))
 
     def test_multi_line_description_is_rejected(self):
-        # The catalog header promises "One line about the image", and a LABEL
-        # is a single line. A YAML block scalar is the way this gets written
-        # by accident: it appends a trailing newline that no author sees.
+        # The catalog header states "One line about the image", and a label
+        # is one line. A YAML block scalar is the usual accidental cause: it
+        # adds a trailing newline that the author does not see.
         text = self.VALID.replace(
             "    description: a test image\n",
             "    description: |\n      a test image\n      with a second line\n",
@@ -306,16 +304,16 @@ class TestValidateCatalog(unittest.TestCase):
         self.assertIn("ONE line", str(ctx.exception))
 
     def test_single_line_description_with_no_trailing_newline_is_accepted(self):
-        # The passing direction. A gate proved only against a bad input has
-        # never run its accepting branch.
+        # The passing direction. A gate tested only with a bad input never
+        # runs its accepting branch.
         images = self._validate(self.VALID)
         self.assertEqual(images[0]["description"], "a test image")
 
     def test_exotic_line_separators_in_description_are_rejected(self):
-        # A newline test that looks for "\n" and "\r" misses five separators
-        # that ordinary double-quoted YAML escapes produce and that Python
-        # counts as line boundaries. Each one would reach the registry as a
-        # broken description. Found by an adversarial review, 2026-09-22.
+        # A newline test for "\n" and "\r" misses five separators. Ordinary
+        # double-quoted YAML escapes give them, and Python counts them as
+        # line boundaries. Each would reach the registry as a broken
+        # description. An adversarial review found this on 2026-09-22.
         for name, escape in (
             ("vertical tab", "\\v"),
             ("form feed", "\\f"),
@@ -346,10 +344,10 @@ class TestValidateCatalog(unittest.TestCase):
         self.assertIn("description", plan.REQUIRED_IMAGE_KEYS)
         self.assertNotIn("description", plan.OPTIONAL_IMAGE_KEYS)
 
-    # --- live: must be a REAL bool, not a string that looks like one -----
+    # --- live: MUST be a real bool, not a string that looks like one -----
 
     def test_quoted_true_string_is_rejected_for_live(self):
-        # live: "true" loads as the STRING "true", not a bool.
+        # live: "true" loads as the string "true", not a bool.
         text = self.VALID.replace("live: true", 'live: "true"')
         with self.assertRaises(ValueError) as ctx:
             self._validate(text)
@@ -360,8 +358,8 @@ class TestValidateCatalog(unittest.TestCase):
         self.assertIs(images[0]["live"], True)
 
     def test_bare_no_is_accepted_as_real_bool(self):
-        # PyYAML's SafeLoader already turns the bare YAML boolean alias `no`
-        # into real Python False -- that is correct YAML and must pass.
+        # PyYAML's SafeLoader turns the bare YAML boolean alias `no` into
+        # Python False. That is correct YAML, and it MUST pass.
         text = self.VALID.replace("live: true", "live: no")
         images = self._validate(text)
         self.assertIs(images[0]["live"], False)
@@ -369,10 +367,9 @@ class TestValidateCatalog(unittest.TestCase):
     # --- tags: every element must be a non-empty string ------------------
 
     def test_unquoted_date_tag_is_rejected(self):
-        # tags: [2024-01-01] -- PyYAML resolves the unquoted scalar to a
-        # datetime.date, not a string. This is exactly what a hand-rolled
-        # reader would have to special-case; the schema catches it for free
-        # by simply requiring str.
+        # tags: [2024-01-01]: PyYAML resolves the unquoted scalar to a
+        # datetime.date, not a string. A hand-written reader would need a
+        # special case for this. The schema finds it because it needs str.
         text = self.VALID.replace('tags: ["1"]', "tags: [2024-01-01]")
         with self.assertRaises(ValueError) as ctx:
             self._validate(text)
@@ -384,7 +381,7 @@ class TestValidateCatalog(unittest.TestCase):
         self.assertEqual(images[0]["tags"], ["2.5"])
 
     def test_unquoted_float_tag_is_rejected(self):
-        # tags: [2.5] -- PyYAML resolves this to the float 2.5, not a string.
+        # tags: [2.5]: PyYAML resolves this to the float 2.5, not a string.
         text = self.VALID.replace('tags: ["1"]', "tags: [2.5]")
         with self.assertRaises(ValueError) as ctx:
             self._validate(text)
@@ -405,10 +402,10 @@ class TestValidateCatalog(unittest.TestCase):
         self.assertIn("dir", str(ctx.exception))
 
     def test_dir_with_leading_dotslash_is_rejected(self):
-        # The round-7 case: `./rbase/4.3.2` is relative and has no '..', so the
-        # old check passed it -- but matching_dir compares raw strings, so a
-        # changed file `rbase/4.3.2/Dockerfile` would NEVER match it, silently
-        # skipping the rebuild. The canonical-form check rejects it.
+        # The round 7 case: `./rbase/4.3.2` is relative and has no '..', so the
+        # old check passed it. But matching_dir compares raw strings, so the
+        # changed file `rbase/4.3.2/Dockerfile` never matches it, and CI skips
+        # the rebuild with no error. The canonical-form check rejects it.
         text = self.VALID.replace("dir: x", "dir: ./x")
         with self.assertRaises(ValueError) as ctx:
             self._validate(text)
@@ -425,8 +422,8 @@ class TestValidateCatalog(unittest.TestCase):
             self._validate(text)
 
     def test_canonical_nested_dir_is_accepted_and_matches(self):
-        # A canonical dir validates AND matching_dir finds a file under it --
-        # the two must agree, which is the whole point of the canonical rule.
+        # A canonical dir validates, and matching_dir finds a file under it.
+        # The canonical rule exists so that these two agree.
         text = self.VALID.replace("dir: x", "dir: rbase/4.3.2")
         images = self._validate(text)
         self.assertEqual(images[0]["dir"], "rbase/4.3.2")
@@ -440,11 +437,12 @@ class TestValidateCatalog(unittest.TestCase):
             self._validate(text)
         self.assertIn("images", str(ctx.exception))
 
-    # --- round-6 review: malformed field values reaching the publish plan --
+    # --- round 6 review: malformed field values that reach the publish plan --
 
     def test_tag_with_a_comma_is_rejected(self):
-        # tags are join(',')'d and split(',') back downstream, so a comma in a
-        # tag would silently become TWO published tags. Must be rejected here.
+        # Later steps join tags with ',' and split them again on ','. So a
+        # comma in a tag would become two published tags with no error. The
+        # validator MUST reject it here.
         text = self.VALID.replace('tags: ["1"]', 'tags: ["prod,latest"]')
         with self.assertRaises(ValueError) as ctx:
             self._validate(text)
@@ -456,7 +454,7 @@ class TestValidateCatalog(unittest.TestCase):
             self._validate(text)
 
     def test_base_with_empty_tag_is_rejected(self):
-        # base: "rbase:" -- a bare name with no tag would reach the build with
+        # base: "rbase:": a bare name with no tag would reach the build with
         # an empty base tag.
         text = self.VALID.replace("base: null", 'base: "rbase:"')
         with self.assertRaises(ValueError) as ctx:
@@ -469,11 +467,11 @@ class TestValidateCatalog(unittest.TestCase):
         self.assertEqual(images[0]["base"], "rbase:4.3.2")
 
     def test_renders_qmd_is_accepted_and_stem_must_match_dir_basename(self):
-        # The string form of `renders` STATES the one .qmd an image renders.
-        # The stem is validated against the dir basename so the stated source
-        # cannot drift from the build context it belongs to. No live 2.9 image
-        # uses this form; the fixture below is a synthetic per-chapter record.
-        # Note the image name is lowercased (Docker) while the source keeps
+        # The string form of `renders` states the one .qmd that an image
+        # renders. The validator checks the stem against the dir basename, so
+        # the stated source cannot disagree with its build context. No live 2.9
+        # image uses this form. The fixture below is a synthetic per-chapter
+        # record. The image name is lowercase (Docker), and the source keeps
         # its real case.
         text = (
             "images:\n"
@@ -488,8 +486,8 @@ class TestValidateCatalog(unittest.TestCase):
         self.assertEqual(images[0]["renders"], "new_pages/transition_to_R.qmd")
 
     def test_index_renders_root_qmd_not_new_pages(self):
-        # index.qmd lives at the source ROOT, not under new_pages/ -- the very
-        # exception that makes `source` worth stating rather than deriving.
+        # index.qmd is at the source root, not under new_pages/. This exception
+        # is why `source` is stated and not derived.
         text = (
             "images:\n"
             "  - name: epirhandbook-index\n"
@@ -518,8 +516,8 @@ class TestValidateCatalog(unittest.TestCase):
 
     def test_name_must_identify_the_chapter_it_renders(self):
         # A row that renders basics.qmd but publishes as epirhandbook-cleaning
-        # would put a LYING name on a public registry. source-vs-dir agreement
-        # alone does not catch it.
+        # would put a false name on a public registry. A check of source
+        # against dir alone does not find it.
         text = (
             "images:\n"
             "  - name: epirhandbook-cleaning\n"
@@ -534,7 +532,7 @@ class TestValidateCatalog(unittest.TestCase):
         self.assertIn("name", str(ctx.exception))
 
     def test_lowercased_name_for_uppercase_chapter_is_accepted(self):
-        # Docker forces lowercase; the name still has to identify the chapter.
+        # Docker needs lowercase. The name MUST still identify the chapter.
         text = (
             "images:\n"
             "  - name: epirhandbook-transition_to_r\n"
@@ -559,13 +557,13 @@ class TestValidateCatalog(unittest.TestCase):
         with self.assertRaises(ValueError):
             self._validate(text)
 
-    # --- Unit F: group images -- `renders` as a list of .qmd files ------
+    # --- Unit F: group images, with `renders` as a list of .qmd files ------
     #
-    # Phase 5b's 49 single-chapter images collapse into 6 group images, each
-    # rendering several chapters. `renders` must therefore accept EITHER a
-    # single .qmd string (unchanged) OR a non-empty list of .qmd strings.
-    # These fixtures are synthetic by design. TestAgainstRealCatalog covers
-    # the live 2.9 catalog.
+    # Phase 5b merged the 49 single-chapter images into 6 group images. Each
+    # group image renders several chapters. So `renders` MUST accept a
+    # single .qmd string (unchanged) or a non-empty list of .qmd strings.
+    # These fixtures are synthetic. TestAgainstRealCatalog covers the live
+    # 2.9 catalog.
 
     def test_list_form_renders_record_is_accepted(self):
         # Pins acceptance of the list form: validate_catalog returns the
@@ -590,8 +588,9 @@ class TestValidateCatalog(unittest.TestCase):
         )
 
     def test_list_form_renders_rejects_duplicate_qmd_within_one_record(self):
-        # Stage 2: the same .qmd listed twice in one record's `renders` is
-        # nonsensical (which build owns rendering it?) and must be rejected.
+        # Stage 2: the same .qmd twice in one record's `renders` has no
+        # meaning, because no single build owns it. The validator MUST reject
+        # it.
         text = (
             "images:\n"
             "  - name: epirhandbook-analysis\n"
@@ -608,9 +607,9 @@ class TestValidateCatalog(unittest.TestCase):
         self.assertIn("regression.qmd", str(ctx.exception))
 
     def test_list_form_renders_requires_name_to_identify_the_group(self):
-        # Stage 2: the list form's `name` must identify the GROUP (the dir
-        # basename), the list-form counterpart of the string-form chapter
-        # check above -- it still cannot misrepresent its own content.
+        # Stage 2: in the list form, `name` MUST identify the group (the dir
+        # basename). This matches the string-form chapter check above, so
+        # the name cannot give a false account of the content.
         text = (
             "images:\n"
             "  - name: epirhandbook-wrong-group\n"
@@ -627,9 +626,9 @@ class TestValidateCatalog(unittest.TestCase):
         self.assertIn("name", str(ctx.exception))
 
     def test_list_form_renders_rejects_non_qmd_element(self):
-        # Stage 2: every element of the list must itself be a non-empty
-        # .qmd string -- a stray non-string or wrong-suffix entry must not
-        # silently slip through just because the list itself is non-empty.
+        # Stage 2: every element of the list MUST be a non-empty .qmd
+        # string. A non-string entry, or an entry with the wrong suffix,
+        # MUST NOT pass because the list is non-empty.
         text = (
             "images:\n"
             "  - name: epirhandbook-analysis\n"
@@ -646,9 +645,9 @@ class TestValidateCatalog(unittest.TestCase):
         self.assertIn("renders", str(ctx.exception))
 
     def test_group_image_without_renders_is_rejected(self):
-        # Requirement 4: a record whose dir has a 'groups' path segment must
-        # declare renders, the same rule that already applies to 'chapters'
-        # -- driven with a string-form record so it has no false-red risk.
+        # Requirement 4: a record whose dir has a 'groups' path segment MUST
+        # declare renders. The same rule applies to 'chapters'. The test uses
+        # a string-form record, so it cannot fail for a different reason.
         text = (
             "images:\n"
             "  - name: epirhandbook-analysis\n"
@@ -662,8 +661,9 @@ class TestValidateCatalog(unittest.TestCase):
         self.assertIn("renders", str(ctx.exception))
 
     def test_duplicate_image_names_are_rejected(self):
-        # Every downstream structure keys by name and would keep only the last
-        # duplicate; a change under the first would plan the second's dir/tags.
+        # Every later structure uses the name as key and would keep only the
+        # last duplicate. A change under the first would plan the dir and tags
+        # of the second.
         text = (
             "images:\n"
             '  - name: dup\n    description: a test image\n    dir: a\n    tags: ["1"]\n    base: null\n'
@@ -675,13 +675,13 @@ class TestValidateCatalog(unittest.TestCase):
 
 
 class TestMergedCatalogs(unittest.TestCase):
-    """The catalog is split across two hand-maintained files. The root
-    images.yaml holds rbase; epirhandbook/2.9/images.yaml holds the 2.9 line.
-    Base edges cross that split: epirhandbook-common is FROM rbase. The
-    planner must see the two files merged, or `rbase` looks like a typo and
-    the whole plan dies. This is the failure an earlier schema-only check
-    missed: validate_catalog passes on the SPLIT fixture alone, while the
-    real planner (build_plan) raises."""
+    """The catalog is in two hand-maintained files. The root images.yaml
+    holds rbase, and epirhandbook/2.9/images.yaml holds the 2.9 line. Base
+    edges cross the two files: epirhandbook-common is FROM rbase. The
+    planner MUST see the two files merged. Otherwise `rbase` looks like a
+    typo, and the whole plan fails. An earlier check of the schema alone
+    missed this: validate_catalog passes on the split fixture alone, but
+    the real planner (build_plan) raises."""
 
     def _write(self, text):
         f = tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False)
@@ -705,17 +705,17 @@ class TestMergedCatalogs(unittest.TestCase):
         root, split = self._write(self.ROOT), self._write(self.SPLIT)
         images = plan.load_catalogs([root, split])
         self.assertEqual(len(images), 2)
-        # The real boundary: build_plan (not just the schema check) must
-        # work, AND the cascade must cross the file boundary: rbase changing
-        # must reach epirhandbook-common, defined in the OTHER file.
+        # The real boundary: build_plan MUST work, not only the schema
+        # check. The cascade MUST also cross the file boundary: a change to
+        # rbase MUST reach epirhandbook-common, in the other file.
         r = plan.build_plan(images, changed_images=["rbase"])
         self.assertEqual(names(r), {"rbase", "epirhandbook-common"})
         self.assertEqual(r["layers"][0][0]["name"], "rbase")
 
     def test_split_catalog_alone_is_rejected_by_the_planner(self):
-        # Loading only the SPLIT fixture leaves the base dangling. This
-        # fires inside topological_order(), before build_plan() ever looks
-        # at changed_images, so no selection argument is needed to trigger it.
+        # The split fixture alone leaves the base with no definition. The
+        # error comes from topological_order(), before build_plan() reads
+        # changed_images, so the test needs no selection argument.
         split = self._write(self.SPLIT)
         with self.assertRaises(ValueError) as ctx:
             plan.build_plan(plan.load_catalogs([split]))
@@ -727,10 +727,10 @@ class TestMergedCatalogs(unittest.TestCase):
             plan.load_catalogs([a, b])
         self.assertIn("already defined", str(ctx.exception))
 
-    # --- Unit F: no .qmd rendered by more than one image, across the WHOLE
-    # combined set of --images-yaml inputs (not per file) -- driven with
-    # plain string-form records, so it has no false-red risk from the
-    # list-form type check; still shown red first.
+    # --- Unit F: no .qmd rendered by more than one image, across the whole
+    # combined set of --images-yaml inputs, not per file. The tests use
+    # plain string-form records, so the list-form type check cannot make
+    # them fail. They were still shown to fail first.
 
     CHAPTER_A = (
         "images:\n"
@@ -740,15 +740,14 @@ class TestMergedCatalogs(unittest.TestCase):
         "    dir: epirhandbook/2.8/chapters/basics\n"
         '    tags: ["2.8"]\n    base: null\n'
     )
-    # NOTE: dir basename must still be 'basics' here (a DIFFERENT parent
-    # path, same last segment) and name must still end '-basics' -- both
-    # images must independently pass the pre-existing stem/dir/name checks
-    # (rule (i)/(ii)) on their own, so the only remaining failure this
-    # fixture can trigger is the cross-image duplicate-.qmd rule under test.
-    # An earlier version of this fixture gave B a DIFFERENT dir basename
-    # ('basics-again'), which made the test pass for the WRONG reason (the
-    # pre-existing stem-vs-dir-basename check fired first) -- caught by
-    # actually inspecting the raised message before trusting the green.
+    # The dir basename MUST still be 'basics' here (a different parent
+    # path, the same last segment), and the name MUST still end in
+    # '-basics'. Each image MUST pass the stem/dir/name checks
+    # (rule (i)/(ii)) alone. Then the only failure this fixture can cause
+    # is the cross-image duplicate-.qmd rule under test. An earlier version
+    # gave B a different dir basename ('basics-again'). The test then
+    # passed for the wrong reason, because the stem-vs-dir-basename check
+    # failed first. A read of the raised message found this.
     CHAPTER_B_SAME_QMD = (
         "images:\n"
         "  - name: epirhandbook-other-basics\n"
@@ -769,9 +768,8 @@ class TestMergedCatalogs(unittest.TestCase):
         self.assertIn("epirhandbook-other-basics", msg)
 
     def test_qmd_rendered_by_two_images_in_the_same_file_is_rejected(self):
-        # The combined-set rule also catches a duplicate within ONE file --
-        # load_catalogs sees the whole merged set regardless of how many
-        # files it came from.
+        # The combined-set rule also finds a duplicate within one file.
+        # load_catalogs sees the whole merged set, from any number of files.
         text = (
             "images:\n"
             "  - name: epirhandbook-basics\n"
@@ -792,16 +790,16 @@ class TestMergedCatalogs(unittest.TestCase):
 
 
 class TestAgainstRealCatalog(unittest.TestCase):
-    """Canary: the real catalogs still have the shape the tests above assume.
-    The public deliverable is the 2.9 catalog only. 2.5 to 2.8 are in git
-    history only, and the CI planner never loaded them:
-    the root images.yaml holds just the base image (rbase:4.6.0-2026-07-01),
-    and epirhandbook-common, the six group images and the monolith live in
-    epirhandbook/2.9/images.yaml, FROM this rbase across the file boundary.
+    """Canary: the real catalogs still have the shape that the tests above
+    use. The only public deliverable is the 2.9 catalog. 2.5 to 2.8 are only
+    in git history, and the CI planner never loaded them. The root
+    images.yaml holds only the base image (rbase:4.6.0-2026-07-01).
+    epirhandbook/2.9/images.yaml holds epirhandbook-common, the six group
+    images and the monolith, FROM this rbase across the file boundary.
 
-    A missing catalog file FAILS every test here. These tests read the two
-    files build.yml itself passes, so a catalog that moved or was deleted is
-    a defect, not a reason to skip."""
+    A missing catalog file fails every test here. These tests read the two
+    files that build.yml passes. So a catalog that moved or was deleted is a
+    defect, not a reason to skip."""
 
     def _real_catalog_paths(self):
         repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -820,13 +818,13 @@ class TestAgainstRealCatalog(unittest.TestCase):
         self.assertTrue(by_name["rbase"]["live"])
 
     def test_real_catalogs_merge_and_plan_2_9_only(self):
-        # Exercises the actual production planner invocation (build.yml
-        # passes exactly these two real files): confirms the cross-file base
-        # edge (epirhandbook-common:2.9 FROM rbase:4.6.0-2026-07-01) resolves
-        # without error, and that no 2.5/2.6/2.7/2.8/4.3.2 artifact survives in
-        # the merged plan. `changed_images` lists every real name directly (no
-        # nightly/"select everything" mode exists any more) to force full
-        # selection for this shape check.
+        # Runs the planner as production does: build.yml passes these two
+        # real files. The test checks that the cross-file base edge
+        # (epirhandbook-common:2.9 FROM rbase:4.6.0-2026-07-01) resolves with
+        # no error. It also checks that no 2.5/2.6/2.7/2.8/4.3.2 artifact is
+        # in the merged plan. `changed_images` lists every real name, to
+        # select all images for this shape check. No nightly or "select
+        # everything" mode exists now.
         root_yaml, split_yaml = self._real_catalog_paths()
         images = plan.load_catalogs([root_yaml, split_yaml])
         r = plan.build_plan(images, changed_images=[img["name"] for img in images])
@@ -858,9 +856,9 @@ class TestAgainstRealCatalog(unittest.TestCase):
             self.assertTrue(img["description"].strip(), img["name"])
 
     def test_common_change_cascades_to_every_group_but_not_rbase(self):
-        # Discriminator (a): a change to common's dir must plan common, the
-        # six group images and the monolith (the cascade), but NOT rbase --
-        # the cascade only flows base -> dependent, never upstream.
+        # Discriminator (a): a change to common's dir MUST plan common, the
+        # six group images and the monolith (the cascade), but not rbase.
+        # The cascade only goes from base to dependent, never back.
         root_yaml, split_yaml = self._real_catalog_paths()
         images = plan.load_catalogs([root_yaml, split_yaml])
         r = plan.build_plan(images, changed_images=["epirhandbook-common"])
@@ -872,9 +870,9 @@ class TestAgainstRealCatalog(unittest.TestCase):
         self.assertNotIn("rbase", image_names)
 
     def test_single_group_change_selects_only_that_group(self):
-        # Discriminator (b): a change to one group image selects ONLY that
-        # image -- no cascade (nothing in this catalog is FROM a group), and
-        # no fan-out to common or rbase.
+        # Discriminator (b): a change to one group image selects only that
+        # image. There is no cascade, because no image in this catalog is
+        # FROM a group. Nothing goes to common or rbase.
         root_yaml, split_yaml = self._real_catalog_paths()
         images = plan.load_catalogs([root_yaml, split_yaml])
         r = plan.build_plan(images, changed_images=["epirhandbook-basics"])
@@ -882,8 +880,8 @@ class TestAgainstRealCatalog(unittest.TestCase):
 
     def test_unchanged_real_catalog_selects_nothing(self):
         # Discriminator (d), the plan.py half: an empty --changed-image list
-        # (every image unchanged since its published revision, as
-        # changed_images.py would report) plans nothing at all.
+        # plans nothing. changed_images.py gives that list when every image is
+        # unchanged since its published revision.
         root_yaml, split_yaml = self._real_catalog_paths()
         images = plan.load_catalogs([root_yaml, split_yaml])
         r = plan.build_plan(images, changed_images=[])
@@ -892,12 +890,13 @@ class TestAgainstRealCatalog(unittest.TestCase):
 
 
 class TestBuildContextAndChapterRenders(unittest.TestCase):
-    """Round-2 review: `dir` was used as the docker build CONTEXT, but a 2.6
-    chapter's Dockerfile COPYs from epirhandbook/2.6, not from the chapter
-    directory -- so CI planned the images then died at `docker build`
-    ('/pak_install_subset.R': not found). `context` separates the two facts:
-    dir = this image's own files (change scope + Dockerfile location),
-    context = the root COPY resolves against."""
+    """From the round 2 review. CI used `dir` as the docker build context.
+    But a 2.6 chapter's Dockerfile COPYs from epirhandbook/2.6, not from the
+    chapter directory. So CI planned the images and then failed at
+    `docker build` ('/pak_install_subset.R': not found). `context` keeps the
+    two facts apart:
+    dir = this image's own files (change scope and Dockerfile location),
+    context = the root that COPY paths resolve against."""
 
     def _validate(self, text):
         return plan.validate_catalog(yaml.safe_load(text), "<test>")
@@ -920,8 +919,8 @@ class TestBuildContextAndChapterRenders(unittest.TestCase):
         self.assertEqual(r["layers"][0][0]["context"], "epirhandbook/2.6")
 
     def test_context_defaults_to_dir_when_absent(self):
-        # rbase, the one live image that omits `context`: its Dockerfile
-        # sits in its own context.
+        # rbase, the one live image that omits `context`: its Dockerfile is
+        # in its own context.
         text = (
             "images:\n  - name: rbase\n    description: a test image\n    dir: rbase/4.3.2\n"
             '    tags: ["4.3.2"]\n    base: null\n'
@@ -942,10 +941,9 @@ class TestBuildContextAndChapterRenders(unittest.TestCase):
         self.assertIn("renders", str(ctx.exception))
 
     def test_group_image_under_groups_segment_without_renders_is_rejected(self):
-        # Requirement 4's other half, driven through the same DIR_RE-shaped
-        # fixture style as this class already uses: 'groups' as a path
-        # segment (not a substring of some other word) must trip the same
-        # rule 'chapters' already does.
+        # The other half of requirement 4, with the DIR_RE-shaped fixtures
+        # of this class. 'groups' as a path segment, not as part of another
+        # word, MUST cause the same error as 'chapters'.
         text = (
             "images:\n"
             "  - name: epirhandbook-analysis\n"
@@ -959,11 +957,11 @@ class TestBuildContextAndChapterRenders(unittest.TestCase):
         self.assertIn("renders", str(ctx.exception))
 
     def test_groups_as_a_word_fragment_not_a_segment_does_not_require_renders(self):
-        # Segment matching, not substring: a dir like 'epirhandbook/subgroups'
-        # contains the substring 'groups' but has no 'groups' PATH SEGMENT,
-        # so it must NOT be forced to declare renders. Proves rule 4 is
-        # implemented by splitting on '/', as decided, not by 'in' on the
-        # raw string.
+        # A segment match, not a substring match. A dir like
+        # 'epirhandbook/subgroups' contains the substring 'groups' but has no
+        # 'groups' path segment. So it MUST NOT need to declare renders. This
+        # shows that rule 4 splits on '/', and does not use 'in' on the raw
+        # string.
         text = (
             "images:\n"
             "  - name: epirhandbook-subgroups\n"
@@ -977,10 +975,10 @@ class TestBuildContextAndChapterRenders(unittest.TestCase):
 
 
 class TestChapterImageRows(unittest.TestCase):
-    """plan.chapter_image_rows() -- the pure function behind --chapter-images.
-    One row per rendered .qmd for BOTH the string and list forms of
-    `renders`, chapter id from each .qmd's own stem, catalog order and
-    (within a list-form record) list order preserved -- never sorted."""
+    """plan.chapter_image_rows(), the pure function behind --chapter-images.
+    It gives one row per rendered .qmd, for both the string and list forms
+    of `renders`. The chapter id is the stem of each .qmd. It keeps catalog
+    order, and list order within a list-form record. It never sorts."""
 
     def test_string_form_yields_one_row(self):
         images = [
@@ -1007,9 +1005,9 @@ class TestChapterImageRows(unittest.TestCase):
         )
 
     def test_chapter_id_comes_from_the_qmd_stem_not_the_group_dir_basename(self):
-        # The discriminating case a naive dir-basename-based implementation
-        # gets wrong: dir basename is the GROUP name ('analysis'), not any
-        # one chapter's -- the chapter id must come from the .qmd itself.
+        # A simple implementation based on the dir basename gets this case
+        # wrong. The dir basename is the group name ('analysis'), not the
+        # name of one chapter. The chapter id MUST come from the .qmd.
         images = [
             {"name": "epirhandbook-analysis", "renders": ["chapters/regression.qmd"],
              "dir": "epirhandbook/2.8/groups/analysis", "tags": ["2.8"], "base": None},
