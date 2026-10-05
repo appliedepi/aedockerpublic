@@ -10,7 +10,7 @@ The live product line is **2.9**. It has nine images, published to `ghcr.io/appl
 
 The content lives in a separate repository, [`appliedepi/epirhandbook`](https://github.com/appliedepi/epirhandbook). That repository holds the `.qmd` files in every language. It also holds a manifest, `docker-images.yml`, that says which image renders which chapter. This repository holds the packages, the images and the render scripts. Neither repository fetches from the other at build time.
 
-All 2.9 build inputs are in `epirhandbook/2.9/`. Its own [README](epirhandbook/2.9/README.md) covers how packages install, how one chapter renders, and how the book is assembled. [`CHANGELOG.md`](CHANGELOG.md) is the historical record.
+The 2.9 Dockerfiles, package lists and render scripts are in `epirhandbook/2.9/`. Its own [README](epirhandbook/2.9/README.md) covers how packages install, how one chapter renders, and how the book is assembled. [`CHANGELOG.md`](CHANGELOG.md) is the historical record.
 
 The lines 2.5, 2.6, 2.7 and 2.8 are not in the working tree. They are in git history. `git log --diff-filter=D -- archive/` finds the commit that removed them. `git show <sha>^:archive/<path>` reads any file back.
 
@@ -38,7 +38,7 @@ The validator checks that a group's `renders` list matches the group that `dir` 
 
 ### Trigger and change detection
 
-**CI builds on a push to `main` only.** There is no nightly build and no scheduled run.
+**CI builds on a push to `main`, or on a manual rerun (`workflow_dispatch`) from `main`.** There is no nightly build and no scheduled run.
 
 `.github/scripts/changed_images.py` decides what to rebuild. For each catalogue image, it reads the `org.opencontainers.image.revision` OCI label of the **currently published** image. It reads the label with `docker buildx imagetools inspect`, which reads metadata only and does not run `docker pull`. Then it diffs these paths from that commit to the pushed commit:
 
@@ -61,7 +61,7 @@ Know these points before you push:
 
 ### How dependencies resolve
 
-Each source of packages has one source of truth. **No file states a package version.**
+Each source of packages has one source of truth. **No file pins an R package version.**
 
 - **CRAN**: a dated [Posit Package Manager](https://packagemanager.posit.co) snapshot. The date is in one place only, the `rbase` image **tag**. `build_image.sh` matches a trailing `-YYYY-MM-DD` on the first tag and passes it as `--build-arg CRAN_SNAPSHOT_DATE`. The rule applies to every image. A tag without a date suffix, such as a group's `2.9`, does not match, and the script passes no build argument.
 - **Bioconductor**: the release that pairs with R, from `BiocManager::version()`. The build derives it and no file stores it.

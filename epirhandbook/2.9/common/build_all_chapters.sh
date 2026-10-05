@@ -397,8 +397,14 @@ declare -A IMAGE_HAS_PROFILE=()
 check_image_has_profile() {
   local image_ref="$1" stem="$2"
   [ -z "${IMAGE_HAS_PROFILE[$image_ref]:-}" ] || return 0
-  if ! docker run --rm --network none "$image_ref" test -r "$R_PROFILE_IN_IMAGE"; then
+  # `test -r` exits 1 when the file is missing. Any other non-zero exit is
+  # a docker failure, such as an image that cannot be pulled.
+  local rc=0
+  docker run --rm --network none "$image_ref" test -r "$R_PROFILE_IN_IMAGE" || rc=$?
+  if [ "$rc" -eq 1 ]; then
     fail "chapter '$stem' renders in '$image_ref', which holds no '$R_PROFILE_IN_IMAGE'. The image is older than warnings_to_log.R, so the render would log no warnings. Move the chapter to a newer image in docker-images.yml."
+  elif [ "$rc" -ne 0 ]; then
+    fail "chapter '$stem': could not run '$image_ref' to check for '$R_PROFILE_IN_IMAGE' (docker exit $rc)"
   fi
   IMAGE_HAS_PROFILE[$image_ref]=1
 }
@@ -567,10 +573,11 @@ fi
 # --- Remove the workspace ----------------------------------------------------
 # Only a successful build gets to this point, so a failed build keeps its
 # workspace for inspection. The render containers run as root and write
-# files that root owns into the workspace, so a container removes them.
+# files that root owns into the workspace, so a container removes them. The
+# output is complete by now, so a failed removal is a warning, not a failure.
 if ! docker run --rm -v "$WORK_ROOT:/w" "$COMMON_IMAGE" find /w -mindepth 1 -delete \
     || ! rmdir "$WORK_ROOT"; then
-  fail "could not remove the workspace $WORK_ROOT"
+  echo "::warning::build_all_chapters.sh: could not remove the workspace $WORK_ROOT" >&2
 fi
 rm -f "$MANIFEST_FILE"
 

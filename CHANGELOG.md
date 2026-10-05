@@ -8,7 +8,7 @@ This file was split out of `PROJECT.md` on 2026-09-17, and `PROJECT.md` was then
 
 ## 2.9 addendum (2026-10-05): plain prose, and stale comments corrected
 
-- [ ] **Comments, docstrings and Markdown are rewritten in plain prose.** No code changed. The Markdown files have no hard line wraps.
+- [ ] **Comments, docstrings and Markdown are rewritten in plain prose.** No code changed, except two error messages: the unknown-base error in `plan.py` says "the catalog", not "images.yaml", and the missing-rsync error in `build_all_chapters.sh` gives the right reason. The Markdown files have no hard line wraps.
 - [ ] **Stale comments are corrected.** The group and monolith Dockerfile headers give the current package counts (254 and 321). The `rbase/4.6.0` SSH comments describe Ubuntu 26.04, not jammy. `checks.yml`, `build.yml`, `plan.py`, `build_all_chapters.sh` and `CODEOWNERS` no longer describe steps, fields or references that do not exist.
 - [ ] **README.md lost its 2.5-era maintenance notes.** They described the renv-locked build on `rbase:4.3.2`. They are kept at the end of this file. The visibility section lists the tags the registry held on 2026-10-05.
 
@@ -17,8 +17,8 @@ This file was split out of `PROJECT.md` on 2026-09-17, and `PROJECT.md` was then
 ## 2.9 addendum (2026-10-05): fixes from issue #7
 
 - [ ] **The common package count is 58 everywhere.** `README.md` and the install comment in `common/Dockerfile` said 59. `common/packages_cran.txt` holds 58 names.
-- [ ] **`build_all_chapters.sh` removes its workspace after a successful build.** It also removes its manifest temp file. A failed build keeps the workspace for inspection. The render containers write root-owned files, so a container in the common image deletes them.
-- [ ] **`build_all_chapters.sh` checks each chapter image for `warnings_to_log.R` before the image's first render.** An image built before the profile was added does not hold it, and its own `build_one_chapter.sh` does not check. The render then logged no warnings, and the handbook's check 17 failed without naming the cause. Now the build stops and names the chapter, the image and the missing file.
+- [ ] **`build_all_chapters.sh` removes its workspace after a successful build.** It also removes its manifest temp file. A failed build keeps the workspace for inspection. A failed removal logs a warning and does not fail the build, because the output is already complete. The render containers write root-owned files, so a container in the common image deletes them.
+- [ ] **`build_all_chapters.sh` checks each chapter image for `warnings_to_log.R` before the image's first render.** An image built before the profile was added does not hold it, and its own `build_one_chapter.sh` does not check. The render then logged no warnings, and the handbook's check 17 failed without naming the cause. Now the build stops and names the chapter, the image and the missing file. A docker failure, such as an image that cannot be pulled, stops the build with its own message.
 - [ ] **The `changed_images.py` docstring no longer says it is the only CI code that reads the registry.** `build_image.sh` reads it too, to resolve the digest of an image's base.
 - [ ] **Verified with a stub `docker` on `PATH`**, because bench has no docker. On `common/test_fixture`, a green run exited 0 and left no new directory under `/tmp`. A run with a chapter on an image that lacks the profile exited 1 with the new error, and kept its workspace.
 
