@@ -112,9 +112,9 @@ def is_machinery_file(f):
 # 50 of 51 images.
 #
 # 2.9 keeps that shape. epirhandbook/2.9 is the shared context for
-# epirhandbook-common, the six group images and the monolith. Its root holds
-# a README beside these inputs. The same broad rule would rebuild eight of
-# the merged catalog's nine images on one README edit.
+# epirhandbook-common, the six group images and the monolith. Any file
+# added beside these inputs, such as a README, would rebuild eight of the
+# merged catalog's nine images under the same broad rule.
 #
 # Paths are relative to the context directory.
 SHARED_CONTEXT_INPUTS = (

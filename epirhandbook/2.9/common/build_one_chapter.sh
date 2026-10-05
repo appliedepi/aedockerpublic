@@ -32,7 +32,7 @@
 # build_all_chapters.sh and inject_language_links.R, both in this directory,
 # assemble the output of every language into one site and add the
 # language-switcher links. See "Assembling the book" in
-# epirhandbook/2.9/README.md.
+# epirhandbook/README.md.
 #
 # Usage, with the book content mounted and the language project as the
 # working directory. build_all_chapters.sh uses these flags:

@@ -6,6 +6,13 @@ This file was split out of `PROJECT.md` on 2026-09-17, and `PROJECT.md` was then
 
 ---
 
+## 2026-10-05: one handbook README
+
+- [ ] **`epirhandbook/2.9/README.md` is merged into `epirhandbook/README.md` and deleted.** Its sections "How packages install", "Rendering one chapter" and "Assembling the book" are now in the project README, with links rewritten to `2.9/` paths. The handbook project has one README, at the project level.
+- [ ] **Two code comments follow the move.** `common/build_one_chapter.sh` points to `epirhandbook/README.md`. A comment in `changed_images.py` no longer says that `epirhandbook/2.9/` holds a README. Both edits rebuild images: all nine, because `changed_images.py` is CI machinery.
+
+---
+
 ## 2026-10-05: the README is split into the shared system and the handbook project
 
 - [ ] **`README.md` now describes only what every project shares.** That is `rbase`, the catalogue, change detection, dependency resolution, visibility and the maintenance notes. It gains a projects table, a layout table, a "Project hooks" section and an "Add a project" procedure.
