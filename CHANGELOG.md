@@ -6,6 +6,13 @@ This file was split out of `PROJECT.md` on 2026-09-17, and `PROJECT.md` was then
 
 ---
 
+## 2.9 addendum (2026-10-05): rbase/4.3.2 is deleted
+
+- [ ] **`rbase/4.3.2/` is deleted.** No catalogue record used it: the `rbase` record has `dir: rbase/4.6.0`. Git history keeps the three files. `git show <sha>^:rbase/4.3.2/Dockerfile` reads one back, where `<sha>` is the commit that deleted it.
+- [ ] **No image rebuilds.** The directory is outside every image's `dir`. The comparison comments in `rbase/4.6.0/Dockerfile` stay as they are, because an edit there would rebuild all nine images. The `rbase:4.3.2` strings in `plan.py` and `test_plan.py` are test data and examples, not paths.
+
+---
+
 ## 2.9 addendum (2026-10-05): plain prose, and stale comments corrected
 
 - [ ] **Comments, docstrings and Markdown are rewritten in plain prose.** No code changed, except two error messages: the unknown-base error in `plan.py` says "the catalog", not "images.yaml", and the missing-rsync error in `build_all_chapters.sh` gives the right reason. The Markdown files have no hard line wraps.

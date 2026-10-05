@@ -12,7 +12,7 @@ The content lives in a separate repository, [`appliedepi/epirhandbook`](https://
 
 The 2.9 Dockerfiles, package lists and render scripts are in `epirhandbook/2.9/`. Its own [README](epirhandbook/2.9/README.md) covers how packages install, how one chapter renders, and how the book is assembled. [`CHANGELOG.md`](CHANGELOG.md) is the historical record.
 
-The lines 2.5, 2.6, 2.7 and 2.8 are not in the working tree. They are in git history. `git log --diff-filter=D -- archive/` finds the commit that removed them. `git show <sha>^:archive/<path>` reads any file back.
+The lines 2.5, 2.6, 2.7 and 2.8 are not in the working tree. They are in git history. `git log --diff-filter=D -- archive/` finds the commit that removed them. `git show <sha>^:archive/<path>` reads any file back. `rbase/4.3.2/` is in history too, and comments in `rbase/4.6.0/Dockerfile` compare with it. `git log --diff-filter=D -- rbase/4.3.2/` finds the commit that removed it.
 
 ### The catalogue
 
