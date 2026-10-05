@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# epirhandbook-analysis:2.9: a v2.9 group image for 11 chapters, with 254
+# epirhandbook-analysis:2.9: a v2.9 group image for 12 chapters, with 293
 # CRAN/Bioc package names. The packages_cran_<stem>.txt files in this
 # directory give the chapter membership. epirhandbook/2.9/generate_groups.py
 # derives packages_cran.txt from them.

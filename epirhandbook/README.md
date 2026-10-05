@@ -2,7 +2,7 @@
 
 These images render the [Epi R Handbook](https://github.com/appliedepi/epirhandbook). Each image is a package environment. No image contains chapter content: the build mounts the `.qmd` at render time.
 
-The live line is **2.9**, in [`2.9/`](2.9/). It runs on the 2026 package stack (R 4.6.0). It has the same nine images and the same package lists as 2.8. The difference is the handbook layout that the render scripts use: every language is now its own Quarto book project, at `content/<lang>/`. The [root README](../README.md) covers what every project shares: `rbase`, the catalogue, the build trigger and visibility.
+The live line is **2.9**, in [`2.9/`](2.9/). It runs on the 2026 package stack (R 4.6.0). It has the same nine images as 2.8. [`CHANGELOG.md`](../CHANGELOG.md) records each later change to a package list. The main difference is the handbook layout that the render scripts use: every language is now its own Quarto book project, at `content/<lang>/`. The [root README](../README.md) covers what every project shares: `rbase`, the catalogue, the build trigger and visibility.
 
 ## The two repositories
 
@@ -19,7 +19,7 @@ The catalogue is [`2.9/images.yaml`](2.9/images.yaml). A stem below is a `render
 | `epirhandbook-common` | `rbase` | Nothing. The shared package environment: 58 CRAN and Bioconductor names, all 7 GitHub pins, and the render scripts on `PATH`. The 58 names are the packages that most chapters share, plus the packages that the render scripts import. |
 | `epirhandbook-basics` | `epirhandbook-common` | 8 chapters: `index`, `editorial_style`, `data_used`, `basics`, `transition_to_r`, `packages_suggested`, `r_projects`, `importing` |
 | `epirhandbook-data-management` | `epirhandbook-common` | 9 chapters: `cleaning`, `dates`, `characters_strings`, `factors`, `pivoting`, `grouping`, `joining_matching`, `deduplication`, `iteration` |
-| `epirhandbook-analysis` | `epirhandbook-common` | 11 chapters: `tables_descriptive`, `stat_tests`, `regression`, `missing_data`, `standardization`, `moving_average`, `time_series`, `contact_tracing`, `survey_analysis`, `survival_analysis`, `gis` |
+| `epirhandbook-analysis` | `epirhandbook-common` | 12 chapters: `tables_descriptive`, `stat_tests`, `regression`, `missing_data`, `standardization`, `moving_average`, `time_series`, `epidemic_models`, `contact_tracing`, `survey_analysis`, `survival_analysis`, `gis` |
 | `epirhandbook-data-viz` | `epirhandbook-common` | 11 chapters: `tables_presentation`, `ggplot_basics`, `ggplot_tips`, `epicurves`, `age_pyramid`, `heatmaps`, `diagrams`, `combination_analysis`, `transmission_chains`, `phylogenetic_trees`, `interactive_plots` |
 | `epirhandbook-reports` | `epirhandbook-common` | 4 chapters: `rmarkdown`, `reportfactory`, `flexdashboard`, `shiny_basics` |
 | `epirhandbook-miscellaneous` | `epirhandbook-common` | 7 chapters: `writing_functions`, `directories`, `collaboration`, `errors`, `help`, `network_drives`, `data_table` |
@@ -47,11 +47,11 @@ Every image has the tag `2.9`. On 2026-10-05 the registry also held `2.8` for al
 
 ## How packages install
 
-Every chapter has its own package list, `2.9/groups/<group>/packages_cran_<stem>.txt`, with one bare CRAN or Bioconductor name per line. There are 50 of these lists, one per chapter. `2.9/groups/miscellaneous/packages_cran_errors.txt` is empty, because that chapter runs no R.
+Every chapter has its own package list, `2.9/groups/<group>/packages_cran_<stem>.txt`, with one bare CRAN or Bioconductor name per line. There are 51 of these lists, one per chapter. `2.9/groups/miscellaneous/packages_cran_errors.txt` is empty, because that chapter runs no R.
 
 The list is in the directory of the group image that renders the chapter. That location assigns the chapter to the group, so there is no separate assignment file. The choice of group is an editorial decision: `gis` is in `analysis` because it is in the Analysis part of the book.
 
-[`generate_groups.py`](2.9/generate_groups.py) makes seven lists from those 50:
+[`generate_groups.py`](2.9/generate_groups.py) makes seven lists from those 51:
 
 - one `2.9/groups/<group>/packages_cran.txt` per group, which is the union of the full lists of its chapters
 - `2.9/monolith/packages_cran.txt`, which is the union of the six group lists
@@ -78,7 +78,7 @@ CI runs `--check` in two places: in `checks.yml` on every pull request and push,
 
 A group image is FROM `epirhandbook-common`. It installs the **full** list of its group on top, not only the packages that common does not have. pak skips what common already holds. So the image is always a superset of the package footprint of each of its chapters. Every group Dockerfile ends with a build-time check: every package in its own `packages_cran.txt` MUST load, or the build fails.
 
-The per-chapter lists came from one instrumented render that recorded `loadedNamespaces()` for each chapter. 48 lists were captured for 2.7 and copied here unchanged on 2026-09-02. `gis` was captured the same way in 2.8. The `errors` chapter needed no capture, which makes 50. This derivation is complete. Its generator was removed with the rest of the archived lines, and you can read it in git history. **Do not run it.**
+The per-chapter lists came from one instrumented render that recorded `loadedNamespaces()` for each chapter. 48 lists were captured for 2.7 and copied here unchanged on 2026-09-02. `gis` was captured the same way in 2.8. `epidemic_models` uses its 2.6 capture without `epicontacts`, which `packages_github.json` pins. The `errors` chapter needed no capture, which makes 51. This derivation is complete. Its generator was removed with the rest of the archived lines, and you can read it in git history. **Do not run it.**
 
 ## Rendering one chapter
 

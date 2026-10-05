@@ -6,9 +6,10 @@
 # See the load_catalogs docstring in plan.py.
 #
 # v2.9 puts the nine images of v2.8 on the per-language layout of the
-# handbook. The images, the groups and the package lists are the same as in
-# v2.8. Each language is now its own Quarto book project, so chapter S of
-# language L is the source file content/L/S.qmd.
+# handbook. The images and the groups are the same as in v2.8. CHANGELOG.md
+# records each later change to a package list or to the chapters of a group.
+# Each language is now its own Quarto book project, so chapter S of language
+# L is the source file content/L/S.qmd.
 #
 # A `renders` entry names the file in the MAIN language, content/en/<stem>.qmd.
 # The group image that owns a stem renders that stem in EVERY language. The
@@ -43,6 +44,7 @@ images:
       - content/en/standardization.qmd
       - content/en/moving_average.qmd
       - content/en/time_series.qmd
+      - content/en/epidemic_models.qmd
       - content/en/contact_tracing.qmd
       - content/en/survey_analysis.qmd
       - content/en/survival_analysis.qmd
@@ -139,7 +141,7 @@ images:
   # For this reason it has no `renders` key, and it is beside groups/, not in
   # it. plan.py needs a `renders` list from each image under a `groups` path
   # segment. The monolith can declare no valid list, because the six groups
-  # already claim all 50 chapters and no .qmd can be claimed twice.
+  # already claim all 51 chapters and no .qmd can be claimed twice.
   # `epirhandbook-common` has no `renders` for the same reason.
   - name: epirhandbook-monolith
     description: "R environment for every chapter of the Epi R Handbook, the union of the six group images"
