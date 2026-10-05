@@ -91,7 +91,7 @@ Each source of packages has one source of truth. **No file states a package vers
 
 ### Visibility
 
-**All nine packages are public.** We verified this on 2026-09-08. The GitHub packages API reports `visibility: public` for each package. It reports no private container package in the `appliedepi` organization. A consumer of these images does not need `docker login ghcr.io`.
+**All nine packages are public.** We verified this on 2026-10-05. The GitHub packages API reports `visibility: public` for each package. It reports no private container package in the `appliedepi` organization. A consumer of these images does not need `docker login ghcr.io`.
 
 **You cannot automate a change of GHCR package visibility to public.** There is no REST endpoint and no GraphQL mutation for package visibility. Change it in the web UI, one package at a time:
 
@@ -104,10 +104,11 @@ In the `appliedepi` organization, this step needs an **org admin**. You **cannot
 
 A **new image name** is private when CI first publishes it. It stays private until an admin does the steps above. A new chapter in an existing group creates no new image, so it needs no visibility change. A new group needs one.
 
-The names of the nine packages are the nine names in the catalogue. 2.9 uses the same names as 2.8. Up to 2026-09-08, every published tag is `2.8`, with two exceptions:
+The names of the nine packages are the nine names in the catalogue. 2.9 uses the same names as 2.8. On 2026-10-05 the registry held these tags:
 
-- `4.6.0-2026-07-01` on `rbase`.
-- `epirhandbook-common:2.7`, a separate digest in the `epirhandbook-common` package, dated 2026-07-24. Nothing builds or uses that tag.
+- `rbase`: `4.6.0-2026-07-01`.
+- The other eight packages: `2.9` and `2.8`.
+- `epirhandbook-common` also holds `2.7`, dated 2026-07-24. Nothing builds or uses that tag.
 
 ### Known limitations
 
@@ -162,52 +163,21 @@ All packages of the six groups in one image. Tag `2.9`. Base `epirhandbook-commo
 
 This part is for the maintainer of the image lines. A contributor who uses the images does not need it.
 
-### Which content, and which reference
-
-Two versions of the handbook content exist. Do not mix them.
-
-| Content | Where | Role |
-|---|---|---|
-| **Sep-18-2024** (`epiRhandbook_eng` commit `c3cbc76`) | live at `https://www.epirhandbook.com/en/` | **The frozen baseline. This is the version we reproduce.** |
-| **Jan-2025 drift** (branch `richard` @ `e121efa`, and `deploy-preview`) | not published | **Parked.** An unpublished content update of 52 chapters. We review it only at the end, to keep any useful parts. |
-
-The reproduction target is a **new crawl of the live site**. Do not use the `html_outputs/` committed in the repo: it is stale, so it is not a valid reference.
-
-- Live crawls on compute: `~/ae/live_crawl` (English) and `~/ae/live_crawl_ml/<lang>` (7 languages).
-- Sep-18 render source on compute: `~/ae/render_sep18`.
-- The regression bar is `epirhandbook/2.5/verify/manifest.tsv`. It holds a per-page text similarity and a `sha16` content hash. Regenerate it with `epirhandbook/2.5/verify/make_manifest.py`.
-
-**The manifest means "same output" only when package versions match.** It is the bar for Phase 2 and Phase 3. It is **not** the bar for Phase 5, where newer packages can render differently for valid reasons.
-
 ### Design decisions, and why
 
 - **`rbase`, not `base`.** The name leaves room for a separate `pythonbase` later. It also matches the existing `ghcr.io/niphr/cs/rbase`.
-- **We own all of `rbase:4.3.2`.** It is `FROM ubuntu:jammy` (digest-pinned) plus R 4.3.2 from **Posit r-builds**, with **no rocker**. We chose control and consistency over lower maintenance.
-- **The image installs openblas 0.3.20 on purpose.** It is the BLAS that rocker links. Because it matches, the removal of rocker changed no computed numbers. A different BLAS would change values in many chapters.
-- **The lock controls pak, and pak chooses nothing.** `renv.lock` stays the single source of truth. The installed version is always the pin. The *ref form* changes only how pak fetches each package.
-- **CRAN is `cloud.r-project.org` source, not PPM.** Phase 2 restores a lock whose pins span many dates, so no single PPM snapshot contains all of them. Only cloud has every archived version.
+- **We own all of `rbase`.** It is `FROM ubuntu` (digest-pinned) plus R from **Posit r-builds**, with **no rocker**. We chose control and consistency over lower maintenance.
+- **The image installs the openblas-pthread BLAS on purpose.** It is the BLAS that rocker links, so leaving rocker changed no computed numbers. A different BLAS would change values in many chapters.
 - **`GITHUB_PAT` is a BuildKit secret.** Do not use `--build-arg` with `ENV`. That puts the token into the image's `Config.Env`, and `docker inspect` or a push exposes it.
 
 ### Traps already found
 
 Use these findings. Do not derive them again.
 
-- **pak's SAT solver and R 4.4.** A plain `pkg@version` ref fails for 15 packages. pak checks the R constraint of the *current* release, even when an *older* version is pinned, and reports a false dependency conflict. The fix is `url::` refs that point to the CRAN Archive tarball, which bypass the solver. renv does not have this problem, because renv does not solve: it installs the pin.
-- **pak install order.** `dependencies = FALSE` resolves correctly but drops build-order edges. A source package can then build before its own build dependency (RcppRoll before Rcpp). `dependencies = NA` restores the order but turns the solver back on. The fix is a **topological layer install**:
-  1. Build the graph from the lock's own `Requirements`.
-  2. Kahn-sort it into 15 layers.
-  3. Install each layer with `dependencies = FALSE`.
-- **Bioconductor drift.** The lock pins `ggtree` 3.10.0, but the live contrib directory of Bioc 3.18 now serves 3.10.1. Only the Bioc Archive still has 3.10.0.
 - **pak leaves about 4 GB of build scratch in `/tmp`.** Delete it in the *same* `RUN` layer. If you do not, the image doubles in size (9.5 GB against 5.1 GB).
 - **Docker tag races.** When two builds tag the same image name, the last to finish wins, so a bad build can overwrite a good one. Run builds that share a tag one after the other.
-- **Two render failures are not caused by the image.** `plot_continuous` does not call `library(tidyr)`, and it is an unused `.qmd`. `gis` fetches live OpenStreetMap tiles at render time, which stops the whole book. So `gis` is commented out of `_quarto.yml` for rendering.
-- **Render into a writable copy.** `render_book()` deletes `html_outputs` first.
-- **Linux needs the filename-case shim.** Run `python3 fix_image_case.py <source>` before you render.
 
 ### How we work on this
 
 - **Build on compute.** bench has no Docker. Rsync the build context to `compute:~/ae/ehb_build`, then run `docker build` over SSH.
 - **Check the built image, not only the Dockerfile.** After every build, run `docker inspect <img> --format '{{.Config.Env}}'` to confirm that the image holds no token. A review of the source alone, codex included, does not find a secret in the image.
-- **Execution model:** opus orchestrates and writes the brief. sonnet implements. A *new* sonnet runs the objective check again and returns raw evidence. opus makes the decision.
-- **codex is the phase gate.** A phase is done only when codex signs off. codex examines soundness ("what is not really pinned"). It does not examine the render, because the render check is objective and already measured.
-- **The gate is per phase, not per build iteration.** Claude runs the short build loop, and we spend the codex quota with care.

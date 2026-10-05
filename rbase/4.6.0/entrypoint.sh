@@ -10,7 +10,7 @@
 # No key is in the image. This file installs only the key that the operator
 # supplies, at container start. Host keys are generated fresh per container
 # at start, and are never in the image. See the build-time sshd check in
-# rbase/4.3.2/Dockerfile. That check deletes the keys it generates in the
+# rbase/4.6.0/Dockerfile. That check deletes the keys it generates in the
 # same layer.
 set -euo pipefail
 

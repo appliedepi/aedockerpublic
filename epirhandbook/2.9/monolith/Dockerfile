@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # epirhandbook-monolith:2.9: the v2.9 monolith image, for all 50 chapters,
-# with 320 CRAN/Bioc package names. Its list is the plain union of the 6
+# with 321 CRAN/Bioc package names. Its list is the plain union of the 6
 # group lists (see epirhandbook/2.9/generate_groups.py). The structure is the
 # same as a group Dockerfile. Only the list is different.
 #

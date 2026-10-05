@@ -6,6 +6,14 @@ This file was split out of `PROJECT.md` on 2026-09-17, and `PROJECT.md` was then
 
 ---
 
+## 2.9 addendum (2026-10-05): plain prose, and stale comments corrected
+
+- [ ] **Comments, docstrings and Markdown are rewritten in plain prose.** No code changed. The Markdown files have no hard line wraps.
+- [ ] **Stale comments are corrected.** The group and monolith Dockerfile headers give the current package counts (254 and 321). The `rbase/4.6.0` SSH comments describe Ubuntu 26.04, not jammy. `checks.yml`, `build.yml`, `plan.py`, `build_all_chapters.sh` and `CODEOWNERS` no longer describe steps, fields or references that do not exist.
+- [ ] **README.md lost its 2.5-era maintenance notes.** They described the renv-locked build on `rbase:4.3.2`. They are kept at the end of this file. The visibility section lists the tags the registry held on 2026-10-05.
+
+---
+
 ## 2.9 addendum (2026-10-05): fixes from issue #7
 
 - [ ] **The common package count is 58 everywhere.** `README.md` and the install comment in `common/Dockerfile` said 59. `common/packages_cran.txt` holds 58 names.
@@ -65,6 +73,8 @@ This file was split out of `PROJECT.md` on 2026-09-17, and `PROJECT.md` was then
 - [ ] **Verified on the compute host.** `epirhandbook-common:2.9-p3` was built in verify mode, and the real script rendered each fixture variant with it. The log held 1 `EHB-WARNING` line per render for `warning: false` and for `warning = NA`. It held 3 for `warning: true`, 12 for the document-level `warning: false`, and 0 for messages only. The old script with the published image logged 0 for each, and exited 0 on a missing package and on a dead fragment. The new script exits 1 on both. All 16 pages of the 8 variants that render are byte-identical to a render with `R_PROFILE_USER` unset.
 - [ ] **What CI will do on push.** The image inputs that changed are all under `epirhandbook/2.9/common/`, so `epirhandbook-common` changes and every image built on it rebuilds. The two Markdown files rebuild nothing.
 
+---
+
 ## 2.9 addendum (2026-10-01): i2extras is the seventh GitHub pin, and the build checks every pin's commit
 
 - [ ] **`packages_github.json` pins `i2extras` at `reconverse/i2extras@10fea678`.** The dated PPM snapshot does not carry it, so it cannot go in a `packages_cran.txt`. pak resolves its dependencies `incidence2` and `ciTools` from the snapshot.
@@ -73,12 +83,16 @@ This file was split out of `PROJECT.md` on 2026-09-17, and `PROJECT.md` was then
 - [ ] **Verified on the compute host in verify mode.** `epirhandbook-common` printed `PIN CHECK OK: all 7 GitHub pins load at their pinned RemoteSha`. `epirhandbook-data-viz`, built FROM that image, loads `i2extras` at `10fea678` with no network. A wrong expected SHA failed the build with `PIN CHECK FAILED`. An install without `i2extras` failed it with `LOAD CHECK FAILED (1): i2extras`, and the old check passed that same install.
 - [ ] **What CI will do on push.** `packages_github.json` is a shared context input of `epirhandbook/2.9`, so all eight 2.9 images rebuild: `epirhandbook-common`, the six group images and the monolith.
 
+---
+
 ## 2.9 addendum (2026-09-24): an unquoted language code `no` stays a code
 
 - [ ] **`build_all_chapters.sh` read `languages.yml` with `yaml.safe_load`.** That reads an unquoted `no` as False, so a Norwegian `code: no` stopped the build with "every languages[] entry needs a 'code'". `read_languages` now uses `yaml.BaseLoader`, which keeps every scalar a string. On the handbook's current `languages.yml` it prints the same two lines as before.
 - [ ] **`inject_language_links.R` read the same file with plain `yaml.load_file`.** `code: no` became the text "FALSE", and the injector skipped that language without an error: "8 of 9 declared language(s)". It now passes handlers that keep yes, no, on, off, y, n, true and false as text. On a 16-page fixture from the handbook's staging site, the old and new injectors write identical pages for the current language list. With `code: no` added, the new one links `../no/basics.html` on every page.
 - [ ] **The code shape is still checked before the image runs.** The handbook's `build-deploy.yml` accepts only 2 or 3 lowercase letters for each code and for `main`, before it calls `build_all_chapters.sh`. `read_languages` itself checks presence only, as it did before.
 - [ ] **What CI will do on push.** Both files are under `epirhandbook/2.9/common/`, so `epirhandbook-common` changes and every image built on it rebuilds.
+
+---
 
 ## 2.9 addendum (2026-09-22): the workflows get a structural linter
 
@@ -92,6 +106,13 @@ This file was split out of `PROJECT.md` on 2026-09-17, and `PROJECT.md` was then
 
 ---
 
+## 2.9 addendum (2026-09-17): brio and archive/ are deleted
+
+- [ ] **`brio` left `common/packages_cran.txt`.** It was added for the config rewriter that 2.9 deleted, and no script in the image loads it. The common list went from 59 to 58 names.
+- [ ] **`archive/` was deleted (commit d6d358b).** It held 483 files for the lines 2.5 to 2.8. Git history keeps them. `README.md` says how to read a deleted file back.
+
+---
+
 ## 2.9 addendum (2026-09-17): the layout becomes the group membership
 
 - [ ] **What changed here.** All 50 per-chapter package lists moved out of `epirhandbook/2.9/chapters/<stem>/packages_cran.txt`. Each one now sits in the directory of the group image that renders its chapter, as `epirhandbook/2.9/groups/<group>/packages_cran_<stem>.txt`. `epirhandbook/2.9/chapters/` is gone. No byte of any list changed, and all seven generated lists are unchanged.
@@ -99,7 +120,7 @@ This file was split out of `PROJECT.md` on 2026-09-17, and `PROJECT.md` was then
 - [ ] **Why.** Two files stated one fact. `groups.yaml` assigned each chapter to a group, and `images.yaml` lists the chapters that each group image renders. Two statements of one fact can disagree, and then a reader cannot tell which one is true. Now the location of a package list carries the assignment, and `images.yaml` is the only thing left to check it against.
 - [ ] **The new check.** `generate_groups.py` compares the layout with the `renders` list of each group image, one group at a time and in both directions. It runs in write mode and in `--check` mode, before it builds any union. One comparison of all stems as a single set would pass a chapter filed under the wrong group, so the comparison is per group.
 - [ ] **Why that check cannot use the generated lists.** The `errors` chapter runs no R, so its package list is empty. If you delete that list, or file it under the wrong group, all six group lists and the monolith stay byte-identical. Only the membership check finds the change.
-- [ ] **Why the two patterns in the generator anchor with `\A` and `\Z`, not `^` and `$`.** In Python, `$` also matches just before a final newline. So `^content/en/(...)\.qmd$` accepts `'content/en/rmarkdown.qmd\n'`. A `renders:` entry written as a YAML block scalar gives that value, and the membership check must reject it. `generate_groups.py:118` and `:120` carry a comment that says so. This entry records it too, because no committed test covers a block-scalar entry. If someone changes the anchors back, the fault returns and every test stays green. A test fixture would be a stronger guard, but `generate_groups.py` has no test suite, so that is separate work.
+- [ ] **Why the two patterns in the generator anchor with `\A` and `\Z`, not `^` and `$`.** In Python, `$` also matches just before a final newline. So `^content/en/(...)\.qmd$` accepts `'content/en/rmarkdown.qmd\n'`. A `renders:` entry written as a YAML block scalar gives that value, and the membership check must reject it. A comment above the two patterns in `generate_groups.py` says so. This entry records it too, because no committed test covers a block-scalar entry. If someone changes the anchors back, the fault returns and every test stays green. A test fixture would be a stronger guard, but `generate_groups.py` has no test suite, so that is separate work.
 - [ ] **Six Dockerfile comments.** The header of each group Dockerfile pointed at `groups.yaml` for its chapter membership. It now points at the `packages_cran_<stem>.txt` files in the same directory. No instruction changed.
 - [ ] **Still stale after this change.** The header comment of `epirhandbook/2.9/images.yaml` and one comment in `.github/workflows/build.yml` still name `groups.yaml`. The next step of the same plan owns both.
 - [ ] **What CI will do on push.** Each of the six group directories holds a changed Dockerfile and the package lists of its chapters. `changed_images.py` reports all six images as changed. `rbase`, `epirhandbook-common` and `epirhandbook-monolith` are not changed. `generate_groups.py`, the two `README.md` files and the deleted `groups.yaml` all sit at the shared context root, and none of them is a declared build input.
@@ -108,7 +129,7 @@ This file was split out of `PROJECT.md` on 2026-09-17, and `PROJECT.md` was then
 
 ## 2.9 addendum (2026-09-10): the per-language layout
 
-- [ ] **What changed here.** The 2.8 line was copied to `archive/epirhandbook/2.8/` and renamed to `epirhandbook/2.9/`. Every tag, `dir:`, `context:` and `ARG BASE_IMAGE` says 2.9. The nine image names, the six groups and all seven generated package lists are unchanged. The two workflows and the two test files now load `epirhandbook/2.9/images.yaml`.
+- [ ] **What changed here.** The 2.8 line was copied to `archive/epirhandbook/2.8/` (deleted on 2026-09-17, see below) and renamed to `epirhandbook/2.9/`. Every tag, `dir:`, `context:` and `ARG BASE_IMAGE` says 2.9. The nine image names, the six groups and all seven generated package lists are unchanged. The two workflows and the two test files now load `epirhandbook/2.9/images.yaml`.
 - [ ] **Why.** The handbook moves each language into its own Quarto book project, `content/<lang>/`, with its own `_quarto.yaml`. The handbook has one root `languages.yml`. The old layout is gone: no `chapters/<stem>.qmd`, no `.<lang>.qmd` infix, no root `_quarto.yml` and no `babelquarto` block. The image line carries the render scripts, so it moves first.
 - [ ] **The render scripts.** `build_all_chapters.sh` reads `languages.yml` and renders `content/<lang>/<stem>.qmd`, with the working directory of the container set to that project. It puts each language under `<lang>/`, with a four-line redirect stub at the root. `inject_language_links.R` reads `languages.yml` and swaps the first path segment. `rewrite_lang_config.R` is deleted: each language project already declares its own language, so nothing is left to rewrite.
 - [ ] **`renders` entries.** Each entry names the main-language file, `content/en/<stem>.qmd`. The stem is still the last path segment, so this does not change `plan.py --chapter-images`.
@@ -189,7 +210,7 @@ The full path was verified against a real local registry on compute (`registry:2
 - **`main` only.** See §8.1.
 - **`.github/CODEOWNERS`** covers `.github/**` and `images.yaml`, with the owner `@raubreywhite`. The owner was checked with the GitHub API against the real commit history of `appliedepi/aedockerpublic`. CODEOWNERS takes effect only when "Require review from Code Owners" is on, for a rule that covers `main`. The header of the file says where to turn it on.
 - **A `publish` GitHub Environment is set on each job in `build.yml` that pushes** (`build-layer-0..3`). **To require a reviewer:** go to repository Settings -> Environments -> New environment, and name it `publish`. Then go to Environment protection rules -> Required reviewers, add yourself or a team, and save. Until then, `environment: publish` has no effect. The first time a run names an environment that does not exist, GitHub creates it with no protection rules. This project does not assume that the gate is on.
-- **Not done: pull requests are not forced, and admin bypass is not removed.** Direct pushes to `main` are an informed choice (see the note in §3 on the earlier branch-protection bypass). **Residual risk:** a change to a workflow file can change what is published in the same push that introduces it. Nothing here reviews a workflow diff before it takes effect on its own next run. The required-reviewer gate of the `publish` environment is the mitigation, once it is on. It puts a review step between the push of the code and the execution of `packages: write`, whatever the workflow file now says. The gate is off by default, and this project has not turned it on.
+- **Not done: pull requests are not forced, and admin bypass is not removed.** Direct pushes to `main` are an informed choice (see the "Repo state" note under "Phase roadmap and status" on the earlier branch-protection bypass). **Residual risk:** a change to a workflow file can change what is published in the same push that introduces it. Nothing here reviews a workflow diff before it takes effect on its own next run. The required-reviewer gate of the `publish` environment is the mitigation, once it is on. It puts a review step between the push of the code and the execution of `packages: write`, whatever the workflow file now says. The gate is off by default, and this project has not turned it on.
 
 ### 8.6 Planner hardening
 
@@ -294,8 +315,6 @@ Removed:
 
 ---
 
----
-
 ## Phase roadmap and status
 
 One variable changes per phase. Every phase after Phase 1 is regression-tested against the Phase 1 render.
@@ -345,3 +364,61 @@ The cause is a tightly pinned 2024 stack that no longer matches any current defa
 - The build uses **Quarto + babelquarto** (9 languages), not bookdown.
 
 The strategy is to first reproduce the old environment in full, so that the **unchanged** content renders. Only then does modernization start.
+
+---
+
+## The 2.5 to 2.8 maintenance notes (moved from README.md on 2026-10-05)
+
+These notes stood in `README.md` until 2026-10-05. They describe the renv-locked 2.5 build on `rbase:4.3.2`, and most no longer apply.
+
+This part is for the maintainer of the image lines. A contributor who uses the images does not need it.
+
+#### Which content, and which reference
+
+Two versions of the handbook content exist. Do not mix them.
+
+| Content | Where | Role |
+|---|---|---|
+| **Sep-18-2024** (`epiRhandbook_eng` commit `c3cbc76`) | live at `https://www.epirhandbook.com/en/` | **The frozen baseline. This is the version we reproduce.** |
+| **Jan-2025 drift** (branch `richard` @ `e121efa`, and `deploy-preview`) | not published | **Parked.** An unpublished content update of 52 chapters. We review it only at the end, to keep any useful parts. |
+
+The reproduction target is a **new crawl of the live site**. Do not use the `html_outputs/` committed in the repo: it is stale, so it is not a valid reference.
+
+- Live crawls on compute: `~/ae/live_crawl` (English) and `~/ae/live_crawl_ml/<lang>` (7 languages).
+- Sep-18 render source on compute: `~/ae/render_sep18`.
+- The regression bar is `epirhandbook/2.5/verify/manifest.tsv`. It holds a per-page text similarity and a `sha16` content hash. Regenerate it with `epirhandbook/2.5/verify/make_manifest.py`.
+
+**The manifest means "same output" only when package versions match.** It is the bar for Phase 2 and Phase 3. It is **not** the bar for Phase 5, where newer packages can render differently for valid reasons.
+
+#### Design decisions, and why
+
+- **`rbase`, not `base`.** The name leaves room for a separate `pythonbase` later. It also matches the existing `ghcr.io/niphr/cs/rbase`.
+- **We own all of `rbase:4.3.2`.** It is `FROM ubuntu:jammy` (digest-pinned) plus R 4.3.2 from **Posit r-builds**, with **no rocker**. We chose control and consistency over lower maintenance.
+- **The image installs openblas 0.3.20 on purpose.** It is the BLAS that rocker links. Because it matches, the removal of rocker changed no computed numbers. A different BLAS would change values in many chapters.
+- **The lock controls pak, and pak chooses nothing.** `renv.lock` stays the single source of truth. The installed version is always the pin. The *ref form* changes only how pak fetches each package.
+- **CRAN is `cloud.r-project.org` source, not PPM.** Phase 2 restores a lock whose pins span many dates, so no single PPM snapshot contains all of them. Only cloud has every archived version.
+- **`GITHUB_PAT` is a BuildKit secret.** Do not use `--build-arg` with `ENV`. That puts the token into the image's `Config.Env`, and `docker inspect` or a push exposes it.
+
+#### Traps already found
+
+Use these findings. Do not derive them again.
+
+- **pak's SAT solver and R 4.4.** A plain `pkg@version` ref fails for 15 packages. pak checks the R constraint of the *current* release, even when an *older* version is pinned, and reports a false dependency conflict. The fix is `url::` refs that point to the CRAN Archive tarball, which bypass the solver. renv does not have this problem, because renv does not solve: it installs the pin.
+- **pak install order.** `dependencies = FALSE` resolves correctly but drops build-order edges. A source package can then build before its own build dependency (RcppRoll before Rcpp). `dependencies = NA` restores the order but turns the solver back on. The fix is a **topological layer install**:
+  1. Build the graph from the lock's own `Requirements`.
+  2. Kahn-sort it into 15 layers.
+  3. Install each layer with `dependencies = FALSE`.
+- **Bioconductor drift.** The lock pins `ggtree` 3.10.0, but the live contrib directory of Bioc 3.18 now serves 3.10.1. Only the Bioc Archive still has 3.10.0.
+- **pak leaves about 4 GB of build scratch in `/tmp`.** Delete it in the *same* `RUN` layer. If you do not, the image doubles in size (9.5 GB against 5.1 GB).
+- **Docker tag races.** When two builds tag the same image name, the last to finish wins, so a bad build can overwrite a good one. Run builds that share a tag one after the other.
+- **Two render failures are not caused by the image.** `plot_continuous` does not call `library(tidyr)`, and it is an unused `.qmd`. `gis` fetches live OpenStreetMap tiles at render time, which stops the whole book. So `gis` is commented out of `_quarto.yml` for rendering.
+- **Render into a writable copy.** `render_book()` deletes `html_outputs` first.
+- **Linux needs the filename-case shim.** Run `python3 fix_image_case.py <source>` before you render.
+
+#### How we work on this
+
+- **Build on compute.** bench has no Docker. Rsync the build context to `compute:~/ae/ehb_build`, then run `docker build` over SSH.
+- **Check the built image, not only the Dockerfile.** After every build, run `docker inspect <img> --format '{{.Config.Env}}'` to confirm that the image holds no token. A review of the source alone, codex included, does not find a secret in the image.
+- **Execution model:** opus orchestrates and writes the brief. sonnet implements. A *new* sonnet runs the objective check again and returns raw evidence. opus makes the decision.
+- **codex is the phase gate.** A phase is done only when codex signs off. codex examines soundness ("what is not really pinned"). It does not examine the render, because the render check is objective and already measured.
+- **The gate is per phase, not per build iteration.** Claude runs the short build loop, and we spend the codex quota with care.

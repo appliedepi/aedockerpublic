@@ -40,7 +40,7 @@ import yaml
 # layer MUST NOT be cut short without an error. The catalog holds 9 images
 # today in 3 layers, so the 4-layer limit leaves one spare. A dropped layer is
 # a partial publish with no error: some images are never built. See the check
-# in build_plan() below, and the test in test_plan.py for a catalog
+# in topological_order() below, and the test in test_plan.py for a catalog
 # deeper than this.
 MAX_SUPPORTED_LAYERS = 4
 
@@ -66,8 +66,7 @@ REQUIRED_IMAGE_KEYS = {"name", "dir", "tags", "base", "description"}
 # relative to the handbook source root. 2.9 uses the list form on its six
 # group images. The field is optional: rbase, epirhandbook-common and the
 # monolith render nothing. It names the real file, not an abstract chapter
-# id. It also carries a fact that `dir` does not: `index.qmd` is at the
-# source root, not under chapters/. For the string form, the validator below
+# id. For the string form, the validator below
 # checks the stem against the `dir` basename. For the list form, it checks
 # the image name against that basename. Both checks tie the field to its
 # build context.
@@ -496,7 +495,7 @@ def topological_order(images):
         if base_name and base_name not in by_name:
             raise ValueError(
                 f"image '{name}' has base '{img.get('base')}', but no image named "
-                f"'{base_name}' exists in images.yaml (typo?). Known image names: "
+                f"'{base_name}' exists in the catalog (typo?). Known image names: "
                 f"{sorted(by_name)}."
             )
 
@@ -670,13 +669,14 @@ def main():
     # docstring of build_plan().
     ap.add_argument("--changed-image", action="append", default=[], dest="changed_images")
     # For shell consumers (build and render loops): print
-    # "chapter<TAB>image:tag" for every row that names a chapter. A script
+    # "chapter<TAB>image:tag<TAB>renders" for every row that names a
+    # chapter. A script
     # uses this to learn which image renders which chapter. A script MUST NOT
     # build "epirhandbook-<chapter>:<tag>" itself. Otherwise the naming rule
     # would live in the catalog and in every consumer, and the single-source
     # catalog exists to prevent that copy.
     ap.add_argument("--chapter-images", action="store_true",
-                    help="print 'chapter<TAB>image:tag' per chapter row and exit")
+                    help="print 'chapter<TAB>image:tag<TAB>renders' per chapter row and exit")
     args = ap.parse_args()
 
     images = load_catalogs(args.images_yaml_paths)

@@ -48,8 +48,7 @@
 # A book chapter with no manifest row is a MISSING ENTRY. The script does not
 # render it with a guessed default. See check_manifest_covers_book() below.
 #
-# TWO HARD CONSTRAINTS. Both were measured. The brief that this script was
-# written from records the measurements.
+# TWO HARD CONSTRAINTS. Both were measured.
 #   1. All renders of one language MUST share one persistent workspace and
 #      run ONE AFTER ANOTHER. Quarto adds each separate render to the
 #      project search index (search.json), through the `.quarto/` state
@@ -69,7 +68,7 @@
 #
 # FAIL LOUDLY: if a chapter does not render, this build fails at once. The
 # message names the chapter, the language and the pass. An exit status of 0
-# from a render is not sufficient. Finding 1 in the history of this script
+# from a render is not sufficient. An earlier version of this build
 # measured 24 renders that exited 0 and gave unusable output. The checks in
 # validate_language() below find that.
 set -euo pipefail
@@ -155,10 +154,10 @@ HANDBOOK_DIR="$(cd "$HANDBOOK_DIR_ARG" && pwd)"
 [ -f "$HANDBOOK_DIR/docker-images.yml" ] || fail "no docker-images.yml in $HANDBOOK_DIR"
 [ -d "$HANDBOOK_DIR/content" ] || fail "no content/ directory in $HANDBOOK_DIR"
 [ -d "$HANDBOOK_DIR/images" ] || fail "no images/ directory in $HANDBOOK_DIR -- the assembled site links to it"
-# The script uses rsync to assemble the output of each language.
-# ubuntu-latest has it, so only a different runner has this problem. The
-# problem shows late, after every chapter renders. Fail here instead.
-command -v rsync >/dev/null 2>&1 || fail "rsync is not on PATH -- this script needs it to assemble the output"
+# The script uses rsync to copy the handbook into each language workspace.
+# ubuntu-latest has it. Check here, so a different runner fails with a clear
+# message before any work starts.
+command -v rsync >/dev/null 2>&1 || fail "rsync is not on PATH. This script needs it to copy the handbook into each workspace"
 [ -n "$REGISTRY_PREFIX" ] || fail "registry prefix (arg 2) must not be empty"
 
 COMMON_IMAGE="$REGISTRY_PREFIX/epirhandbook-common:$COMMON_TAG"
@@ -368,8 +367,8 @@ prepare_workspace() {
 # --- Render every manifest chapter once, for one language: ONE pass -------
 # The renders run ONE AFTER ANOTHER. This is a plain bash `while read` loop
 # with no background jobs (`&`). Thus chapter N+1 starts only after the
-# `docker run` of chapter N exits. This meets finding 3: parallel renders in
-# one language would race on search.json.
+# `docker run` of chapter N exits. Parallel renders in one language would
+# race on search.json.
 #
 # The working directory of the container is the project of the language,
 # /book/content/<lang>. The argument is the bare <stem>.qmd in it. The
@@ -423,14 +422,14 @@ render_pass() {
 }
 
 # --- Validate before the assembly. Exit status 0 is not sufficient --------
-# Finding 1 measured 24 renders that exited 0 and gave unusable output. A
+# An earlier version measured 24 renders that exited 0 and gave unusable output. A
 # check of exit status alone misses each of these three cases. They are in
 # order of how much each would have found:
 #   (a) the render did not make the file.
 #   (b) the render made the file, but did not add it to the search index.
 #   (c) the file exists and is in the index, but it has a dead same-page
-#       link. This check would have found finding 6, the dead-link
-#       regression, so it is the most important.
+#       link. This check would have found the dead-link regression of
+#       that version, so it is the most important.
 validate_language() {
   local lang="$1" ws="$2"
   local outdir="$ws/content/$lang/html_outputs"
@@ -503,7 +502,7 @@ for lang in "${RENDER_LANGS[@]}"; do
   prepare_workspace "$lang"
   # Pass 1 adds the targets of every chapter to .quarto/xref.
   render_pass "$lang" "$ws" 1
-  # Pass 2 is necessary (finding 6, and constraint 2 in the header). It
+  # Pass 2 is necessary (constraint 2 in the header). It
   # renders every chapter again, now that the cross-reference targets of
   # every OTHER chapter are known. The links then resolve, and do not become
   # same-page fragments.

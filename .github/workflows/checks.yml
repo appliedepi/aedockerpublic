@@ -5,9 +5,7 @@ name: Checks
 # to main starts a real image build (build.yml runs on main only).
 # Keep this file in step with the plan job of build.yml: the same tests and
 # the same generator check, minus anything that touches the registry. The
-# workflow lint below is the one intended exception. It checks the workflow
-# files themselves, so it belongs at pull-request time and has no counterpart
-# in the build job.
+# workflow lint below also runs in the plan job of build.yml.
 on:
   pull_request:
   push:
@@ -46,8 +44,8 @@ jobs:
         run: python3 .github/scripts/plan.py --images-yaml images.yaml --images-yaml epirhandbook/2.9/images.yaml > /dev/null
 
       # Structural lint of the workflow files. Nothing else here looks at
-      # them. The planner tests say nothing about build.yml. The
-      # `yaml.safe_load` parse below cannot see these faults:
+      # them. The planner tests say nothing about build.yml, and no other
+      # check here can see these faults:
       #   - a malformed `uses:` reference
       #   - a `needs:` edge to a job that does not exist
       #   - a shell fault

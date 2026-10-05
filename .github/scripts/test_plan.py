@@ -486,8 +486,8 @@ class TestValidateCatalog(unittest.TestCase):
         self.assertEqual(images[0]["renders"], "new_pages/transition_to_R.qmd")
 
     def test_index_renders_root_qmd_not_new_pages(self):
-        # index.qmd is at the source root, not under new_pages/. This exception
-        # is why `source` is stated and not derived.
+        # In the 2.6 layout, index.qmd was at the source root, not under
+        # new_pages/. This exception is why `renders` is stated and not derived.
         text = (
             "images:\n"
             "  - name: epirhandbook-index\n"

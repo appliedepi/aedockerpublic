@@ -13,7 +13,7 @@ cp -a test_fixture/variants/warning_false/. /tmp/fx/content/en/
 |---|---|
 | `missing_package` | exit non-zero, because the render has no network to install `praise` |
 | `nonexistent_package` | exit non-zero, because `pacman::p_load()` stops with no network |
-| `warning_false` | log 1 `EHB-WARNING` line per render of `scenario` |
+| `warning_false` | log 1 `EHB-WARNING` line |
 | `warning_true` | log 3, and show the warnings on the page |
 | `warning_doclevel` | log 12 |
 | `warning_na` | log 1 |
@@ -22,7 +22,7 @@ cp -a test_fixture/variants/warning_false/. /tmp/fx/content/en/
 | `dead_fragment` | exit non-zero, and name `scenario.html#nope` |
 | `rprofile` | show `RPROFILE-SOURCED` on the page |
 
-The build renders every chapter twice, so the log holds each `EHB-` line once per pass. Quarto puts an ANSI colour code before the line. Remove it before you count:
+Each count is per render of `scenario`. The build renders every chapter twice, so the log holds each `EHB-` line once per pass, and the total is twice the count in the table. Quarto puts an ANSI colour code before the line. Remove it before you count:
 
 ```bash
 sed 's/\x1b\[[0-9;]*m//g' build.log | grep -c '^EHB-WARNING'

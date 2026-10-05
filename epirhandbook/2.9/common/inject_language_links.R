@@ -315,7 +315,7 @@ for (doc in all_docs) {
     langs_touched <- union(langs_touched, lang)
     ## A chapter page is any changed page that is not the index of a
     ## language. If this count included index pages, the guard below would
-    ## pass on a tree that holds only the eight landing pages.
+    ## pass on a tree that holds only the landing pages.
     if (!identical(canonical, "index.html")) {
       n_chapter_pages <- n_chapter_pages + 1L
     }

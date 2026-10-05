@@ -4,7 +4,7 @@
 # This file has an effect ONLY where GitHub is configured to require it:
 # "Require review from Code Owners" on a rule that covers `main`. Set it in
 # repo Settings -> Rules, or in the classic Settings -> Branches -> branch
-# protection. See README.md for the current state. This repo currently
+# protection. This repo currently
 # allows direct pushes to `main` by design. So today this file only records
 # ownership, and it starts to gate changes when that setting is turned on.
 # It does not block a direct push.

@@ -10,9 +10,9 @@ name: Build images
 #
 # .github/scripts/plan.py makes no registry or git calls of its own. It takes
 # the resolved list of changed image NAMES and applies the cascade: a changed
-# image rebuilds everything FROM it, transitively. A cascade respects
-# `live: false`, while a direct edit to a not-live image's own files still
-# does not (see build_plan() in plan.py). The planner then builds the result
+# image rebuilds everything FROM it, transitively. A cascade skips an image
+# with `live: false`, but a direct edit to that image's own files still
+# rebuilds it (see build_plan() in plan.py). The planner then builds the result
 # as a matrix in dependency order. A change under .github/scripts/ or
 # .github/workflows/ shows up in EVERY image's own diff (see
 # changed_images.py), so it rebuilds everything with no separate special case.
@@ -22,8 +22,10 @@ name: Build images
 # workflow_dispatch with no new commit) reads each image's published revision
 # again. The images that succeeded now carry the current commit and are
 # skipped. The images that failed still carry an older revision, or none, and
-# are rebuilt. Nothing else needs to be reconciled: a rebuild after a content
-# change and a clean resume use the SAME check.
+# are rebuilt. An image whose base was rebuilt also carries an old
+# base.digest label, so it is rebuilt too (see base_is_changed() in
+# changed_images.py). A rebuild after a content change and a clean resume
+# use the SAME checks.
 #
 # This is the ONLY workflow in this repo that can publish. The other
 # safeguards in this file keep that true:
