@@ -9,6 +9,16 @@ as current documentation.
 
 ---
 
+## 2.9 addendum (2026-10-05): fixes from issue #7
+
+- [ ] **The common package count is 58 everywhere.** `README.md` and the install comment in `common/Dockerfile` said 59. `common/packages_cran.txt` holds 58 names.
+- [ ] **`build_all_chapters.sh` removes its workspace after a successful build.** It also removes its manifest temp file. A failed build keeps the workspace for inspection. The render containers write root-owned files, so a container in the common image deletes them.
+- [ ] **`build_all_chapters.sh` checks each chapter image for `warnings_to_log.R` before the image's first render.** An image built before the profile was added does not hold it, and its own `build_one_chapter.sh` does not check. The render then logged no warnings, and the handbook's check 17 failed without naming the cause. Now the build stops and names the chapter, the image and the missing file.
+- [ ] **The `changed_images.py` docstring no longer says it is the only CI code that reads the registry.** `build_image.sh` reads it too, to resolve the digest of an image's base.
+- [ ] **Verified with a stub `docker` on `PATH`**, because bench has no docker. On `common/test_fixture`, a green run exited 0 and left no new directory under `/tmp`. A run with a chapter on an image that lacks the profile exited 1 with the new error, and kept its workspace.
+
+---
+
 ## 2.9 addendum (2026-10-01): the analysis image carries ncmeta, so time_series can read NetCDF without GDAL
 
 - [ ] **`groups/analysis/packages_cran_time_series.txt` lists `ncmeta`.** `generate_groups.py` added it to `groups/analysis/packages_cran.txt` and `monolith/packages_cran.txt`. pak installs ncmeta 0.4.0 and its import RNetCDF 2.11-1 from the snapshot. Before, no published 2.9 image held either package.

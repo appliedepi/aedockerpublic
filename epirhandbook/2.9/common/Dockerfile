@@ -40,7 +40,7 @@ COPY packages_github.json packages_github.json
 COPY pak_install_subset.R pak_install_subset.R
 COPY common/packages_cran.txt packages_cran.txt
 
-# --- Install the common set's 59 CRAN/Bioc names + all 7 GitHub pins,
+# --- Install the common set's 58 CRAN/Bioc names + all 7 GitHub pins,
 # --- then let pak resolve hard dependencies (dependencies = NA -- Depends/Imports/LinkingTo, not Suggests) against the
 # --- immutable dated snapshot -- NO pre-computed closure --------------------
 # GITHUB_PAT is a BuildKit SECRET (never ARG+ENV -- an ENV bakes the token

@@ -207,8 +207,8 @@ renders nothing.
 
 ### epirhandbook-common
 
-The shared package environment. It holds 59 CRAN and Bioconductor names, all 7 GitHub pins, and
-the render scripts on `PATH`. The 59 are the names most chapters share, plus the ones the render
+The shared package environment. It holds 58 CRAN and Bioconductor names, all 7 GitHub pins, and
+the render scripts on `PATH`. The 58 are the names most chapters share, plus the ones the render
 scripts import. Tag `2.9`. Base `rbase`. It renders no chapter, so it declares no `renders` list.
 
 ### epirhandbook-basics

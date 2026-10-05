@@ -340,7 +340,7 @@ check_manifest_covers_book() {
 check_manifest_covers_book
 
 WORK_ROOT="$(mktemp -d)"
-echo "build_all_chapters.sh: workspace root: $WORK_ROOT (not auto-cleaned -- inspect on failure)"
+echo "build_all_chapters.sh: workspace root: $WORK_ROOT (removed after a successful build, kept after a failure)"
 
 # --- one fresh workspace per language, ALWAYS from the pristine checkout ----
 # Each language renders into its own copy, so one language's `.quarto/` state
@@ -391,6 +391,21 @@ prepare_workspace() {
 # for each R warning a chunk raises, whatever the chunk's `warning` option,
 # and one EHB-ERROR line for each error an `error: true` chunk captures. The
 # page does not change. That file's header says how.
+#
+# An image built before warnings_to_log.R was added does not hold the
+# profile, and its own build_one_chapter.sh does not check for it. R then
+# ignores R_PROFILE_USER and the chapter logs no warnings. So each image is
+# checked for the profile once, before its first render.
+declare -A IMAGE_HAS_PROFILE=()
+check_image_has_profile() {
+  local image_ref="$1" stem="$2"
+  [ -z "${IMAGE_HAS_PROFILE[$image_ref]:-}" ] || return 0
+  if ! docker run --rm --network none "$image_ref" test -r "$R_PROFILE_IN_IMAGE"; then
+    fail "chapter '$stem' renders in '$image_ref', which holds no '$R_PROFILE_IN_IMAGE'. The image is older than warnings_to_log.R, so the render would log no warnings. Move the chapter to a newer image in docker-images.yml."
+  fi
+  IMAGE_HAS_PROFILE[$image_ref]=1
+}
+
 render_pass() {
   local lang="$1" ws="$2" pass="$3"
   local stem image qmd image_ref
@@ -400,6 +415,7 @@ render_pass() {
       fail "lang=$lang pass=$pass: expected source '$qmd' for chapter '$stem' does not exist"
     fi
     image_ref="$REGISTRY_PREFIX/$image"
+    check_image_has_profile "$image_ref" "$stem"
     echo "build_all_chapters.sh: lang=$lang pass=$pass: rendering $stem.qmd with $image_ref"
     if ! docker run --rm --network none -e "R_PROFILE_USER=$R_PROFILE_IN_IMAGE" \
         -v "$ws:/book" -w "/book/content/$lang" "$image_ref" build_one_chapter.sh "$stem.qmd"; then
@@ -550,5 +566,15 @@ if [ "$DO_INJECT" -eq 1 ]; then
 else
   echo "build_all_chapters.sh: --no-inject -- skipping the language-switcher pass; the caller must run it once over the assembled site"
 fi
+
+# --- remove the workspace ----------------------------------------------------
+# Only a successful build reaches this point, so a failed build keeps its
+# workspace for inspection. The render containers run as root and write
+# root-owned files into the workspace, so a container removes them.
+if ! docker run --rm -v "$WORK_ROOT:/w" "$COMMON_IMAGE" find /w -mindepth 1 -delete \
+    || ! rmdir "$WORK_ROOT"; then
+  fail "could not remove the workspace $WORK_ROOT"
+fi
+rm -f "$MANIFEST_FILE"
 
 echo "build_all_chapters.sh: done -- $OUTPUT_DIR is ready to publish"

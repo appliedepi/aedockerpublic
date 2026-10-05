@@ -46,10 +46,12 @@ Three steps per catalog image, in this order:
      second metadata-only read. A missing label, an unreadable digest or a
      difference -> CHANGED. An image with `live: false` skips this step.
 
-This module is the ONLY place in the CI that talks to git or the
-registry. plan.py itself stays pure (no subprocess, no network) and only
-ever consumes this module's OUTPUT: a list of already-decided CHANGED
-image names, fed to it via --changed-image.
+This module is the only part of the build plan that talks to git or the
+registry. build_image.sh also reads the registry, to resolve the digest of
+an image's base, but it does not decide what to build. plan.py
+stays pure (no subprocess, no network) and only consumes this module's
+OUTPUT: a list of already-decided CHANGED image names, passed to it with
+--changed-image.
 
 Determining the "shared build inputs" for a given image uses the exact
 same rule plan.py's build_plan() used to compute inline (before this
