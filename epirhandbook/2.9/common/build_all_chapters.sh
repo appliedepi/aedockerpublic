@@ -398,13 +398,14 @@ check_image_has_profile() {
   local image_ref="$1" stem="$2"
   [ -z "${IMAGE_HAS_PROFILE[$image_ref]:-}" ] || return 0
   # `test -r` exits 1 when the file is missing. Any other non-zero exit is
-  # a docker failure, such as an image that cannot be pulled.
+  # a docker failure (125 to 127), such as an image that cannot be pulled,
+  # or a failure of the image's entrypoint.
   local rc=0
   docker run --rm --network none "$image_ref" test -r "$R_PROFILE_IN_IMAGE" || rc=$?
   if [ "$rc" -eq 1 ]; then
-    fail "chapter '$stem' renders in '$image_ref', which holds no '$R_PROFILE_IN_IMAGE'. The image is older than warnings_to_log.R, so the render would log no warnings. Move the chapter to a newer image in docker-images.yml."
+    fail "chapter '$stem' renders in '$image_ref', which holds no readable '$R_PROFILE_IN_IMAGE'. The image is probably older than warnings_to_log.R, so the render would log no warnings. Move the chapter to a newer image in docker-images.yml."
   elif [ "$rc" -ne 0 ]; then
-    fail "chapter '$stem': could not run '$image_ref' to check for '$R_PROFILE_IN_IMAGE' (docker exit $rc)"
+    fail "chapter '$stem': could not run '$image_ref' to check for '$R_PROFILE_IN_IMAGE' (exit $rc)"
   fi
   IMAGE_HAS_PROFILE[$image_ref]=1
 }

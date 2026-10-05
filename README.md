@@ -50,7 +50,7 @@ A change in any of them means rebuild. An image that was never published, or tha
 
 An image with a `base` gets a second check. `build_image.sh` adds the `org.opencontainers.image.base.digest` label to it. That label is the digest of the base image it was built FROM. `changed_images.py` compares that label with the digest that the base's tag points to now. A missing label, an unreadable base digest or a different digest means rebuild. An image with `live: false` skips this check, because a moved base is the cascade it opts out of.
 
-**Each image renders a smoke document before CI pushes it.** After `docker build`, in both modes, `build_image.sh` renders `epirhandbook/2.9/common/smoke.qmd` with the image's own `build_one_chapter.sh`. The container has no network, and it has the `R_PROFILE_USER` that `build_all_chapters.sh` sets. A failed render stops the script before any push, and verify mode exits 1. An image without `/usr/local/bin/build_one_chapter.sh` gets no render, and the log names it. Today only `rbase` has no render. A pass shows that R, knitr, ggplot2 and Quarto work together in the image. It does not show that the image holds every package its chapters need.
+**Each image renders a smoke document before it is pushed.** After `docker build`, in both modes, `build_image.sh` renders `epirhandbook/2.9/common/smoke.qmd` with the image's own `build_one_chapter.sh`. The container has no network, and it has the `R_PROFILE_USER` that `build_all_chapters.sh` sets. A failed render stops the script before any push, and verify mode exits 1. An image without `/usr/local/bin/build_one_chapter.sh` gets no render, and the log names it. Today only `rbase` has no render. A pass shows that R, knitr, ggplot2 and Quarto work together in the image. It does not show that the image holds every package its chapters need.
 
 Know these points before you push:
 
@@ -61,7 +61,7 @@ Know these points before you push:
 
 ### How dependencies resolve
 
-Each source of packages has one source of truth. **No file pins an R package version.**
+Each source of packages has one source of truth. **No file states an R package version.**
 
 - **CRAN**: a dated [Posit Package Manager](https://packagemanager.posit.co) snapshot. The date is in one place only, the `rbase` image **tag**. `build_image.sh` matches a trailing `-YYYY-MM-DD` on the first tag and passes it as `--build-arg CRAN_SNAPSHOT_DATE`. The rule applies to every image. A tag without a date suffix, such as a group's `2.9`, does not match, and the script passes no build argument.
 - **Bioconductor**: the release that pairs with R, from `BiocManager::version()`. The build derives it and no file stores it.
@@ -181,3 +181,5 @@ Use these findings. Do not derive them again.
 
 - **Build on compute.** bench has no Docker. Rsync the build context to `compute:~/ae/ehb_build`, then run `docker build` over SSH.
 - **Check the built image, not only the Dockerfile.** After every build, run `docker inspect <img> --format '{{.Config.Env}}'` to confirm that the image holds no token. A review of the source alone, codex included, does not find a secret in the image.
+- **codex is the phase gate.** A phase is done only when codex signs off.
+- **The gate is per phase, not per build iteration.** Claude runs the short build loop, and we spend the codex quota with care.
