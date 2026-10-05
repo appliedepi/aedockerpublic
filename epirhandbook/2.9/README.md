@@ -4,7 +4,7 @@
 
 2.9 has the same nine images and the same package lists as 2.8. The difference is the handbook layout that the render scripts use: every language is now its own Quarto book project, at `content/<lang>/`. 2.8 is in git history, not in the working tree.
 
-This file covers how this directory works. The [root README](../../README.md) covers the catalogue, the build trigger, and the purpose of each image.
+This file covers how this directory works. The [project README](../README.md) covers the images, routine changes and the handbook repository. The [root README](../../README.md) covers what every project shares: `rbase`, the catalogue and the build trigger.
 
 ## How packages install
 

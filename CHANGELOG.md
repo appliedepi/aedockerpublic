@@ -6,6 +6,14 @@ This file was split out of `PROJECT.md` on 2026-09-17, and `PROJECT.md` was then
 
 ---
 
+## 2026-10-05: the README is split into the shared system and the handbook project
+
+- [ ] **`README.md` now describes only what every project shares.** That is `rbase`, the catalogue, change detection, dependency resolution, visibility and the maintenance notes. It gains a projects table, a layout table, a "Project hooks" section and an "Add a project" procedure.
+- [ ] **A new `epirhandbook/README.md` holds the handbook project.** That is the image list, the routine changes, the smoke render, the handbook limitations and the older lines. It links to the handbook repository's README for the content side, and does not repeat it.
+- [ ] **Why.** The repository builds images for any Applied Epi project, but the README read as if it served the handbook only.
+
+---
+
 ## 2.9 addendum (2026-10-05): rbase/4.3.2 is deleted
 
 - [ ] **`rbase/4.3.2/` is deleted.** No catalogue record used it: the `rbase` record has `dir: rbase/4.6.0`. Git history keeps the three files. `git show <sha>^:rbase/4.3.2/Dockerfile` reads one back, where `<sha>` is the commit that deleted it.
