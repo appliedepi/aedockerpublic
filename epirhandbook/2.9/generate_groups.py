@@ -15,12 +15,13 @@
 #
 # The assignment is an editorial decision, and no code derives it. A chapter
 # renders with the group image that owns its part of the book. For that
-# reason, gis, the 50th stem, joined `analysis` on 2026-09-02.
+# reason, gis joined `analysis` on 2026-09-02, which made 50 stems. There are
+# now 51 stems.
 #
 # This script generates the package list of each group. Nobody edits it by
 # hand, because it is a union over a set that changes. A change to one
 # chapter's list changes the list of the group that holds that chapter. A
-# hand-maintained union goes stale when one of its 8 to 11 inputs changes and
+# hand-maintained union goes stale when one of its 4 to 12 inputs changes and
 # nobody makes the union again. With the generator, "the group list matches
 # its members" is a checked invariant. See --check below.
 #
@@ -34,10 +35,13 @@
 # INPUTS (read-only):
 #   groups/<group>/packages_cran_<stem>.txt
 #       The FULL package list of one chapter: one bare CRAN or Bioconductor
-#       name per line, with no comments and no blank lines. There are 50 of
+#       name per line, with no comments and no blank lines. There are 51 of
 #       these files. The 48 chapters that had a 2.7 image use the list from
 #       their 2.7 footprint capture, copied here unchanged on 2026-09-02. The
-#       gis list came from the same capture method in 2.8. One file is empty:
+#       gis list came from the same capture method in 2.8. The
+#       epidemic_models list, added on 2026-10-05, is its 2.6 footprint
+#       capture without epicontacts, which packages_github.json pins. The
+#       largest group, analysis, has 12 inputs. One file is empty:
 #       see the NOTE on the "errors" chapter below.
 #   images.yaml
 #       The v2.9 image catalog, in this directory. Each group image lists the
@@ -55,7 +59,7 @@
 # The monolith is BESIDE groups/, not in it, because it is not a group. It
 # renders no chapter, and it exists for the .devcontainer.json. If its path
 # had a `groups` segment, plan.py would need a `renders` list from it, and it
-# cannot have one. The 6 groups already claim all 50 chapters, and no .qmd
+# cannot have one. The 6 groups already claim all 51 chapters, and no .qmd
 # can be claimed twice.
 #
 # METHOD: do NOT subtract the shared `common` base (common/packages_cran.txt)
@@ -310,7 +314,7 @@ def check_membership(layout, expected):
 
 def read_member_packages(path):
     """The full package list of one chapter: bare package names, one per
-    line, with no comments and no blank lines. All 50 files have this form.
+    line, with no comments and no blank lines. All 51 files have this form.
 
     An EMPTY file is valid. Today only `errors` has one, because that chapter
     runs no R and needs nothing beyond `common`.

@@ -12,7 +12,7 @@ This file was split out of `PROJECT.md` on 2026-09-17, and `PROJECT.md` was then
 - [ ] **`images.yaml` adds `content/en/epidemic_models.qmd` to the `renders` of `epirhandbook-analysis`.** The group now renders 12 chapters, and the book has 51 chapter lists.
 - [ ] **`generate_groups.py` added 39 names to `groups/analysis/packages_cran.txt` and 32 names to `monolith/packages_cran.txt`.** The counts are now 293 and 353. The new names include EpiNow2 1.9.0, EpiEstim 2.2-5, projections 0.6.1, incidence 1.7.6 and rstan 2.32.7. The two Dockerfile headers give the new counts.
 - [ ] **Why.** The handbook keeps `epidemic_models` in `_excluded/`. The chapter renders without network access, so its image MUST hold every package in its list.
-- [ ] **Verified on the compute host.** `ehb-plan-analysis:2.9` was built FROM the published `epirhandbook-common:2.9` in 252 s. It printed `LOAD CHECK OK: all 293 target packages load`. In that image, `packageVersion("EpiNow2")` gives 1.9.0. In the published `epirhandbook-analysis:2.9`, the same call stops with "there is no package called 'EpiNow2'".
+- [ ] **Verified locally.** A local build of the analysis image, FROM the published `epirhandbook-common:2.9`, took 252 s. It printed `LOAD CHECK OK: all 293 target packages load`. In that image, `packageVersion("EpiNow2")` gives 1.9.0. In the published `epirhandbook-analysis:2.9`, the same call stops with "there is no package called 'EpiNow2'".
 - [ ] **What CI will do on push.** `epirhandbook/2.9/images.yaml` is a shared build input, so all eight 2.9 images rebuild: `epirhandbook-common`, the six group images and the monolith.
 
 ---
