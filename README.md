@@ -4,9 +4,9 @@ This repository builds and publishes Applied Epi's Docker images to `ghcr.io/app
 
 ## Projects
 
-| Project | Images | Documentation |
-|---|---|---|
-| Epi R Handbook | `epirhandbook-common`, six group images, `epirhandbook-monolith` | [`epirhandbook/README.md`](epirhandbook/README.md) |
+| Project | Documentation |
+|---|---|
+| Epi R Handbook | [`epirhandbook/README.md`](epirhandbook/README.md) |
 
 Every project builds FROM the shared base image, `rbase`.
 
