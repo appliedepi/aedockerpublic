@@ -37,7 +37,7 @@ import yaml
 
 # A fixed limit that matches the jobs in build.yml (build-layer-0 ..
 # build-layer-3, so 4 layers). It is a hard limit: a catalog that needs a 5th
-# layer MUST NOT be cut short without an error. The catalog holds 9 images
+# layer MUST NOT be cut short without an error. The catalog holds 10 images
 # today in 3 layers, so the 4-layer limit leaves one spare. A dropped layer is
 # a partial publish with no error: some images are never built. See the check
 # in topological_order() below, and the test in test_plan.py for a catalog
@@ -614,7 +614,7 @@ def build_plan(images, changed_images=None):
             rec["base_freshly_built"] = bool(base_name) and base_name in selected
             # The docker build context, set here so the build step never
             # decides it. It defaults to `dir` when the catalog omits it.
-            # Only rbase omits it. The eight images in
+            # Only rbase omits it. The nine images in
             # epirhandbook/2.9/images.yaml all set it. The COPY paths in
             # their Dockerfiles resolve against the shared epirhandbook/2.9
             # root, not against the directory of the Dockerfile.

@@ -140,7 +140,7 @@ class ChangedImageAndCascadeCases(unittest.TestCase):
         # build.yml has jobs only for build-layer-0..3 (4 layers). A
         # catalog that needs a 5th layer MUST fail with an error. It MUST
         # NOT publish only its first 4 layers (finding 7). The catalog
-        # holds 9 images today in 3 layers, so the 4-layer limit leaves one
+        # holds 10 images today in 3 layers, so the 4-layer limit leaves one
         # spare. The check is in topological_order(). build_plan() always
         # calls it before it reads changed_images, so the test needs no
         # selection.
@@ -795,7 +795,8 @@ class TestAgainstRealCatalog(unittest.TestCase):
     in git history, and the CI planner never loaded them. The root
     images.yaml holds only the base image (rbase:4.6.0-2026-07-01).
     epirhandbook/2.9/images.yaml holds epirhandbook-common, the six group
-    images and the monolith, FROM this rbase across the file boundary.
+    images, the monolith and the checks image, FROM this rbase across the
+    file boundary.
 
     A missing catalog file fails every test here. These tests read the two
     files that build.yml passes. So a catalog that moved or was deleted is a
@@ -831,8 +832,8 @@ class TestAgainstRealCatalog(unittest.TestCase):
         image_names = names(r)
         self.assertIn("rbase", image_names)
         self.assertIn("epirhandbook-common", image_names)
-        # rbase + common + the six groups + the monolith
-        self.assertEqual(len(image_names), 9)
+        # rbase + common + the six groups + the monolith + the checks image
+        self.assertEqual(len(image_names), 10)
         self.assertNotIn("epirhandbook", image_names)  # the old 2.5 monolith name
         by_name = {img["name"]: img for layer in r["layers"] for img in layer}
         self.assertEqual(by_name["rbase"]["tags"], ["4.6.0-2026-07-01"])
@@ -845,28 +846,30 @@ class TestAgainstRealCatalog(unittest.TestCase):
         self.assertEqual(r["layers"][0][0]["name"], "rbase")  # base-most first
 
     def test_every_real_image_carries_a_description(self):
-        # The nine published images each stamp their own
+        # The ten published images each stamp their own
         # org.opencontainers.image.description label. A record that lost its
         # description would publish the label it inherits from its base.
         root_yaml, split_yaml = self._real_catalog_paths()
         images = plan.load_catalogs([root_yaml, split_yaml])
-        self.assertEqual(len(images), 9)
+        self.assertEqual(len(images), 10)
         for img in images:
             self.assertIsInstance(img["description"], str)
             self.assertTrue(img["description"].strip(), img["name"])
 
     def test_common_change_cascades_to_every_group_but_not_rbase(self):
         # Discriminator (a): a change to common's dir MUST plan common, the
-        # six group images and the monolith (the cascade), but not rbase.
+        # six group images, the monolith and the checks image (the cascade),
+        # but not rbase.
         # The cascade only goes from base to dependent, never back.
         root_yaml, split_yaml = self._real_catalog_paths()
         images = plan.load_catalogs([root_yaml, split_yaml])
         r = plan.build_plan(images, changed_images=["epirhandbook-common"])
         image_names = names(r)
-        # common + the six groups + the monolith
-        self.assertEqual(len(image_names), 8)
+        # common + the six groups + the monolith + the checks image
+        self.assertEqual(len(image_names), 9)
         self.assertIn("epirhandbook-common", image_names)
         self.assertIn("epirhandbook-monolith", image_names)
+        self.assertIn("epirhandbook-checks", image_names)
         self.assertNotIn("rbase", image_names)
 
     def test_single_group_change_selects_only_that_group(self):

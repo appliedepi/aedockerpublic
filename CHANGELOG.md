@@ -6,6 +6,16 @@ This file was split out of `PROJECT.md` on 2026-09-17, and `PROJECT.md` was then
 
 ---
 
+## 2026-10-30: the checks image for the handbook's translation sync check
+
+- [ ] **`epirhandbook/2.9/checks/Dockerfile` is new.** It is `epirhandbook-common:2.9` plus `git`, `python3` and `python3-yaml`. A build-time step runs `git`, `import yaml`, `quarto`, `quarto pandoc` and loads knitr and rmarkdown.
+- [ ] **`epirhandbook/2.9/images.yaml` adds `epirhandbook-checks`.** It renders nothing, so it has no `renders` key and sits beside `groups/`, like the monolith. The catalog now holds 10 images.
+- [ ] **Why.** The handbook's translation sync check installed pandoc, R, PyYAML and Quarto on a bare runner on every run. On 2026-10-23 that install hung for 5 hours 20 minutes. In this image the check installs nothing.
+- [ ] **`test_plan.py`, `plan.py`, `changed_images.py` and `epirhandbook/README.md` give the new counts.** Without the catalog entry, three tests in `test_plan.py` fail on the counts; with it, all 81 pass.
+- [ ] **What CI will do on push.** `.github/scripts` is a machinery directory, so all ten images build: the nine existing images rebuild, and `epirhandbook-checks` publishes for the first time. A new image name publishes as private, so an org admin MUST make `epirhandbook-checks` public before the handbook can pull it.
+
+---
+
 ## 2.9 addendum (2026-10-05): the analysis image renders epidemic_models
 
 - [ ] **`groups/analysis/packages_cran_epidemic_models.txt` is new.** It holds 109 names: the 110 names of the 2.6 footprint capture, without `epicontacts`, which `packages_github.json` pins. All 109 names are on the 2026-07-01 snapshot. The list keeps recommended packages such as `MASS` and `Matrix`, as `packages_cran_time_series.txt` does.

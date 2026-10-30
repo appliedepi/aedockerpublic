@@ -55,7 +55,7 @@ list of image names already decided as changed, passed with --changed-image.
 The rule for the "shared build inputs" of an image is the rule that plan.py's
 build_plan() used inline before this split. A file inside an image's build
 `context` but outside the `dir` of every image is a shared input. One example
-is epirhandbook/2.9/pak_install_subset.R. All eight Dockerfiles under
+is epirhandbook/2.9/pak_install_subset.R. Eight of the nine Dockerfiles under
 epirhandbook/2.9/ COPY it, but it is not inside the dir of any image. The
 rule lives only in files_touch_image (below), so the two modules cannot
 disagree on it.
@@ -113,8 +113,8 @@ def is_machinery_file(f):
 #
 # 2.9 keeps that shape. epirhandbook/2.9 is the shared context for
 # epirhandbook-common, the six group images and the monolith. Any file
-# added beside these inputs, such as a README, would rebuild eight of the
-# merged catalog's nine images under the same broad rule.
+# added beside these inputs, such as a README, would rebuild nine of the
+# merged catalog's ten images under the same broad rule.
 #
 # Paths are relative to the context directory.
 SHARED_CONTEXT_INPUTS = (
@@ -142,7 +142,7 @@ def files_touch_image(img, changed_files, all_dirs):
          image.
       2. It is a shared context input. Three conditions MUST all hold:
          - `img`'s build `context` differs from its `dir`. That is true for
-           all eight images in epirhandbook/2.9/images.yaml, and for no
+           all nine images in epirhandbook/2.9/images.yaml, and for no
            other.
          - The file is one of the declared inputs at that context's root
            (see SHARED_CONTEXT_INPUTS).

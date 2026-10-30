@@ -24,6 +24,7 @@ The catalogue is [`2.9/images.yaml`](2.9/images.yaml). A stem below is a `render
 | `epirhandbook-reports` | `epirhandbook-common` | 4 chapters: `rmarkdown`, `reportfactory`, `flexdashboard`, `shiny_basics` |
 | `epirhandbook-miscellaneous` | `epirhandbook-common` | 7 chapters: `writing_functions`, `directories`, `collaboration`, `errors`, `help`, `network_drives`, `data_table` |
 | `epirhandbook-monolith` | `epirhandbook-common` | Nothing in CI. All packages of the six groups in one image. It is the dev-container image for contributors, named in the handbook's `.devcontainer.json`, and it can render any chapter. |
+| `epirhandbook-checks` | `epirhandbook-common` | Nothing. `epirhandbook-common` plus git, python3 and PyYAML. The handbook's translation sync check runs in it, so the check installs nothing at run time. |
 
 Every image has the tag `2.9`. On 2026-10-05 the registry also held `2.8` for all eight, and `2.7` for `epirhandbook-common`. Nothing builds or uses `2.7`.
 
@@ -36,12 +37,12 @@ Every image has the tag `2.9`. On 2026-10-05 the registry also held `2.8` for al
 **Add a chapter.** These are the steps in this repository. The handbook README lists the steps in the handbook repository.
 
 1. Capture its package list. Render the chapter once with a knitr `document` hook that writes `sort(loadedNamespaces())`. Remove the base R packages: `base`, `compiler`, `datasets`, `grDevices`, `graphics`, `grid`, `methods`, `stats`, `tools`, `utils`. Write one name per line, with no comments and no blank lines. Save the list as `2.9/groups/<group>/packages_cran_<stem>.txt`. That location assigns the chapter to the group.
-2. Add `content/en/<stem>.qmd` to that group's `renders` list in `2.9/images.yaml`. That file is a shared build input, so a change to it rebuilds all eight 2.9 images.
-3. Run `python3 epirhandbook/2.9/generate_groups.py` and commit all changes. Push. Then watch all eight images publish: `epirhandbook-common`, the six group images and the monolith.
+2. Add `content/en/<stem>.qmd` to that group's `renders` list in `2.9/images.yaml`. That file is a shared build input, so a change to it rebuilds all nine 2.9 images.
+3. Run `python3 epirhandbook/2.9/generate_groups.py` and commit all changes. Push. Then watch all nine images publish: `epirhandbook-common`, the six group images, the monolith and the checks image.
 
 `gis`, restored on 2026-09-02, is the worked example.
 
-**Pin a GitHub package to a new commit.** Change its `RemoteSha` in `2.9/packages_github.json`. This rebuilds all eight 2.9 images.
+**Pin a GitHub package to a new commit.** Change its `RemoteSha` in `2.9/packages_github.json`. This rebuilds all nine 2.9 images.
 
 **Add a group.** A new group is a new image name, so it is private when CI first publishes it. An org admin must make it public. See "Visibility" in the root README.
 

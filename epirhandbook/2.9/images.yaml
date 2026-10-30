@@ -24,8 +24,8 @@
 # directions. `index` needs no special case. It is content/en/index.qmd, in
 # the same directory as every other chapter of that language.
 #
-# epirhandbook-monolith is the last record below. The comment above it says
-# why it has no `renders`.
+# epirhandbook-monolith and epirhandbook-checks are the last two records
+# below. The comments above them say why they have no `renders`.
 images:
   - name: epirhandbook-common
     description: "Shared R environment for the Epi R Handbook: the packages every chapter needs"
@@ -146,6 +146,17 @@ images:
   - name: epirhandbook-monolith
     description: "R environment for every chapter of the Epi R Handbook, the union of the six group images"
     dir: epirhandbook/2.9/monolith
+    context: epirhandbook/2.9
+    tags: ["2.9"]
+    base: "epirhandbook-common:2.9"
+    live: true
+  # The checks image: epirhandbook-common plus git, python3 and PyYAML. It
+  # renders NOTHING. The handbook's translation sync check runs in it, so that
+  # check installs nothing at run time. Like the monolith, it has no `renders`
+  # key and it is beside groups/, not in it.
+  - name: epirhandbook-checks
+    description: "Tools for the Epi R Handbook's translation sync check: git, python3 with PyYAML, Quarto, and R with knitr and rmarkdown"
+    dir: epirhandbook/2.9/checks
     context: epirhandbook/2.9
     tags: ["2.9"]
     base: "epirhandbook-common:2.9"
