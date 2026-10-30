@@ -59,7 +59,7 @@ images:
     renders:
       - content/en/index.qmd
       - content/en/editorial_style.qmd
-      - content/en/data_used.qmd
+      - content/en/download.qmd
       - content/en/basics.qmd
       - content/en/transition_to_r.qmd
       - content/en/packages_suggested.qmd

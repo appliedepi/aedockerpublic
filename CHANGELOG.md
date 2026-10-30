@@ -6,6 +6,11 @@ This file was split out of `PROJECT.md` on 2026-09-17, and `PROJECT.md` was then
 
 ---
 
+## 2026-10-30: the handbook chapter data_used is now download
+
+- [ ] **`groups/basics/packages_cran_data_used.txt` is now `packages_cran_download.txt`, and the basics `renders` list names `content/en/download.qmd`.** The handbook renamed the chapter. The package list is unchanged.
+- [ ] **What CI will do on push.** `epirhandbook/2.9/images.yaml` is a shared build input, so the nine 2.9 images rebuild.
+
 ## 2026-10-30: the checks image for the handbook's translation sync check
 
 - [ ] **`epirhandbook/2.9/checks/Dockerfile` is new.** It is `epirhandbook-common:2.9` plus `git`, `python3` and `python3-yaml`. A build-time step runs `git`, `import yaml`, `quarto`, `quarto pandoc` and loads knitr and rmarkdown.
