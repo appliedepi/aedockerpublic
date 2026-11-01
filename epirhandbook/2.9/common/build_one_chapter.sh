@@ -60,4 +60,15 @@ if [ -n "${R_PROFILE_USER:-}" ] && [ ! -r "$R_PROFILE_USER" ]; then
   exit 2
 fi
 
-exec quarto render "$qmd"
+quarto render "$qmd"
+
+# With `website: llms-txt: true`, Quarto writes html_outputs/llms.txt only when the file is
+# absent, and then lists only the page just rendered (measured on Quarto 1.9.38). Moving it
+# to html_outputs/llms-parts/<stem>.txt after every render makes the next render write a
+# fresh one. The handbook's checks/site-index.py joins the parts into one llms.txt and
+# deletes the folder. html_outputs/ is the output-dir of every handbook project. A render
+# with no project, such as the smoke render, writes no llms.txt, and nothing moves.
+if [ -f html_outputs/llms.txt ]; then
+  mkdir -p html_outputs/llms-parts
+  mv html_outputs/llms.txt "html_outputs/llms-parts/$(basename "$qmd" .qmd).txt"
+fi

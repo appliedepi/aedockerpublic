@@ -6,6 +6,12 @@ This file was split out of `PROJECT.md` on 2026-09-17, and `PROJECT.md` was then
 
 ---
 
+## 2026-11-01: build_one_chapter.sh saves Quarto's llms.txt after each render
+
+- [ ] **After each render, `common/build_one_chapter.sh` moves `html_outputs/llms.txt` to `html_outputs/llms-parts/<stem>.txt`.** It no longer `exec`s Quarto, so it can run that step. A render with no project, such as the smoke render, writes no `llms.txt`, and nothing moves.
+- [ ] **Why.** The handbook sets `website: llms-txt: true`. On a single-chapter render, Quarto writes `llms.txt` only when the file is absent, and it lists only that chapter. Measured on Quarto 1.9.38: with the file moved away after each render, every render wrote a fresh one with its own chapter. The handbook's `checks/site-index.py` joins the parts into one `llms.txt` and deletes the folder.
+- [ ] **What CI will do on push.** `build_one_chapter.sh` is in `epirhandbook-common:2.9`, so common and every image built FROM it rebuild.
+
 ## 2026-10-30: the handbook chapter data_used is now download
 
 - [ ] **`groups/basics/packages_cran_data_used.txt` is now `packages_cran_download.txt`, and the basics `renders` list names `content/en/download.qmd`.** The handbook renamed the chapter. The package list is unchanged.
