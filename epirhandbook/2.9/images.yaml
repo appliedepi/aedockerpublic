@@ -133,10 +133,12 @@ images:
     tags: ["2.9"]
     base: "epirhandbook-common:2.9"
     live: true
-  # The monolith: every package from all six groups in one image. It renders
-  # NOTHING. It exists for contributors: .devcontainer.json in the handbook
-  # repo points at it. A contributor who opens the book in a dev container
-  # then has an environment that can render any chapter.
+  # The monolith: every package from all six groups in one image. It exists
+  # for contributors: .devcontainer.json in the handbook repo points at it. A
+  # contributor who opens the book in a dev container then has an environment
+  # that can render any chapter. The handbook's docker-images.yml also renders
+  # one chapter in it, editorial_style, whose session info lists every package
+  # the image holds.
   #
   # For this reason it has no `renders` key, and it is beside groups/, not in
   # it. plan.py needs a `renders` list from each image under a `groups` path

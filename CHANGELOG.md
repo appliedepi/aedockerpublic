@@ -6,6 +6,12 @@ This file was split out of `PROJECT.md` on 2026-09-17, and `PROJECT.md` was then
 
 ---
 
+## 2026-11-02: the handbook renders editorial_style in the monolith
+
+- [ ] **The comment on the monolith in `epirhandbook/2.9/images.yaml` no longer says it renders nothing.** The handbook's `docker-images.yml` now renders `editorial_style` in it, so that chapter's session info lists every installed package.
+- [ ] **Measured on 2026-11-02.** Every package in common and the six group images is in the monolith at the same version. The monolith holds 459 packages.
+- [ ] **What CI will do on push.** `epirhandbook/2.9/images.yaml` is a shared build input, so the nine 2.9 images rebuild. Only a comment changed.
+
 ## 2026-11-01: build_one_chapter.sh saves Quarto's llms.txt after each render
 
 - [ ] **After each render, `common/build_one_chapter.sh` moves `html_outputs/llms.txt` to `html_outputs/llms-parts/<stem>.txt`.** It no longer `exec`s Quarto, so it can run that step. A render with no project, such as the smoke render, writes no `llms.txt`, and nothing moves.
